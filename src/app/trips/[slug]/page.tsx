@@ -107,7 +107,7 @@ function DayBlock({ day }: { day: Day }) {
         borderTop: '1px solid var(--border)',
         borderBottom: '1px solid var(--border)',
         position: 'sticky',
-        top: 43,
+        top: 0,
         zIndex: 40,
       }}>
         {day.label}
