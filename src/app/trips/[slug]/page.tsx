@@ -183,9 +183,10 @@ function LogisticsGrid({ logistics }: { logistics: Logistics[] }) {
 export default async function TripPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  const data = await getTripBySlug(params.slug);
+  const { slug } = await params;
+  const data = await getTripBySlug(slug);
   if (!data) notFound();
 
   const { trip, logistics, days } = data;

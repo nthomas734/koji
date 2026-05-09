@@ -9,26 +9,28 @@ function authed() {
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   if (!authed()) return new NextResponse('Unauthorized', { status: 401 });
+  const { id } = await params;
   const body = await req.json();
   const sb = supabaseAdmin();
   const { error } = await sb
     .from('koji_trips')
     .update(body)
-    .eq('id', params.id);
+    .eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   if (!authed()) return new NextResponse('Unauthorized', { status: 401 });
+  const { id } = await params;
   const sb = supabaseAdmin();
-  const { error } = await sb.from('koji_trips').delete().eq('id', params.id);
+  const { error } = await sb.from('koji_trips').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

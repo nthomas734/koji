@@ -5,13 +5,14 @@ import { supabaseAdmin } from '@/lib/supabase';
 import type { Trip, Day, Stop, Logistics } from '@/lib/supabase';
 import TripEditor from './TripEditor';
 
-export default async function AdminTripPage({ params }: { params: { id: string } }) {
+export default async function AdminTripPage({ params }: { params: Promise<{ id: string }> }) {
   const store = cookies();
   const authed = store.get('koji_admin')?.value === process.env.ADMIN_PASSWORD;
   if (!authed) redirect('/admin/login');
 
+  const { id: idStr } = await params;
   const sb = supabaseAdmin();
-  const id = parseInt(params.id);
+  const id = parseInt(idStr);
 
   const { data: trip, error } = await sb
     .from('koji_trips')
