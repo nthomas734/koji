@@ -85,7 +85,7 @@ function StopRow({ stop }: { stop: Stop }) {
               color: 'var(--ink-3)',
               lineHeight: 1.6,
             }}
-            dangerouslySetInnerHTML={{ __html: bodyHtml }}
+            className="body-content" dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
         )}
       </div>
@@ -157,7 +157,7 @@ function LogisticsGrid({ logistics }: { logistics: Logistics[] }) {
           </div>
           <div
             style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.4 }}
-            dangerouslySetInnerHTML={{ __html: renderMd(row.value_md) }}
+            className="body-content" dangerouslySetInnerHTML={{ __html: renderMd(row.value_md) }}
           />
         </div>
       ))}
