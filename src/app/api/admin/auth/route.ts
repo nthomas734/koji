@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
-  const store = cookies();
+  const store = await cookies();
   store.set('koji_admin', password, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

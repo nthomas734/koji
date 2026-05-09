@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import type { Trip } from '@/lib/supabase';
 
 export default async function AdminPage() {
-  const store = cookies();
+  const store = await cookies();
   const authed = store.get('koji_admin')?.value === process.env.ADMIN_PASSWORD;
   if (!authed) redirect('/admin/login');
 

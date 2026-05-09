@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabase';
 
-function authed() {
-  const store = cookies();
-  return store.get('koji_admin')?.value === process.env.ADMIN_PASSWORD;
+async function authed() {
+  const store = await cookies();
+  return (await store).get('koji_admin')?.value === process.env.ADMIN_PASSWORD;
 }
 
 export async function POST(req: Request) {
-  if (!authed()) return new NextResponse('Unauthorized', { status: 401 });
+  if (!await authed()) return new NextResponse('Unauthorized', { status: 401 });
   const body = await req.json();
   const sb = supabaseAdmin();
   const { data, error } = await sb
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  if (!authed()) return new NextResponse('Unauthorized', { status: 401 });
+  if (!await authed()) return new NextResponse('Unauthorized', { status: 401 });
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
   const body = await req.json();
@@ -35,7 +35,7 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  if (!authed()) return new NextResponse('Unauthorized', { status: 401 });
+  if (!await authed()) return new NextResponse('Unauthorized', { status: 401 });
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
   const sb = supabaseAdmin();

@@ -6,7 +6,7 @@ import type { Trip, Day, Stop, Logistics } from '@/lib/supabase';
 import TripEditor from './TripEditor';
 
 export default async function AdminTripPage({ params }: { params: Promise<{ id: string }> }) {
-  const store = cookies();
+  const store = await cookies();
   const authed = store.get('koji_admin')?.value === process.env.ADMIN_PASSWORD;
   if (!authed) redirect('/admin/login');
 
