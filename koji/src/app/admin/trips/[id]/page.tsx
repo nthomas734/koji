@@ -34,7 +34,7 @@ export default async function AdminTripPage({ params }: { params: Promise<{ id: 
     .select('*, stops:koji_stops(*)')
     .eq('trip_id', id)
     .order('sort_order')
-    .order('sort_order', { referencedTable: 'koji_stops' });
+    .order('sort_order', { foreignTable: 'koji_stops' });
 
   return (
     <TripEditor

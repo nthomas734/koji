@@ -110,7 +110,7 @@ export async function getTripBySlug(slug: string): Promise<{
     .select('*, stops:koji_stops(*)')
     .eq('trip_id', trip.id)
     .order('sort_order')
-    .order('sort_order', { referencedTable: 'koji_stops' });
+    .order('sort_order', { foreignTable: 'koji_stops' });
 
   return {
     trip,
