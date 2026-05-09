@@ -76,3 +76,13 @@ input, textarea, select {
   font-family: inherit;
   color: inherit;
 }
+
+.body-content a {
+  color: var(--green);
+  text-decoration: underline;
+  text-decoration-color: var(--green-bg);
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  transition: text-decoration-color 0.15s;
+}
+.body-content a:hover { text-decoration-color: var(--green); }
