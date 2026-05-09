@@ -1,15 +1,13 @@
-import { marked, type Tokens } from 'marked';
-
-// marked v12 uses a different renderer API
-const renderer = {
-  link(token: Tokens.Link): string {
-    return `<a href="${token.href}" target="_blank" rel="noopener noreferrer">${token.text}</a>`;
-  },
-};
-
-marked.use({ renderer });
+import { marked } from 'marked';
 
 export function renderMd(md: string): string {
   if (!md) return '';
-  return marked.parseInline(md) as string;
+
+  // Parse markdown inline (no block elements)
+  let html = marked.parseInline(md) as string;
+
+  // Add target="_blank" to all links via simple string replacement
+  html = html.replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href=');
+
+  return html;
 }

@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 async function authed() {
   const store = await cookies();
-  return (await store).get('koji_admin')?.value === process.env.ADMIN_PASSWORD;
+  return store.get('koji_admin')?.value === process.env.ADMIN_PASSWORD;
 }
 
 export async function POST(req: Request) {
