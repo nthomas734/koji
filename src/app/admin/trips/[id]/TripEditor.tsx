@@ -398,7 +398,6 @@ function LogisticsRowEditor({
           resize: 'none',
           lineHeight: 1.4,
           fontFamily: 'var(--font-sans)',
-          // @ts-expect-error: modern CSS, not in React types yet
           fieldSizing: 'content',
         }}
       />
