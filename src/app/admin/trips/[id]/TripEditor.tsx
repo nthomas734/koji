@@ -303,141 +303,6 @@ function DayEditor({
   );
 }
 
-// ── LOGISTICS EDITOR ───────────────────────────────────────────────────────
-
-function LogisticsRowEditor({
-  row,
-  onSave,
-  onDelete,
-}: {
-  row: Logistics;
-  onSave: (updated: Partial<Logistics>) => Promise<void>;
-  onDelete: () => Promise<void>;
-}) {
-  const [label, setLabel]     = useState(row.label);
-  const [value, setValue]     = useState(row.value_md);
-  const [saving, setSaving]   = useState(false);
-
-  // Save when either field loses focus, only if changed
-  async function maybeSave() {
-    if (label === row.label && value === row.value_md) return;
-    setSaving(true);
-    await onSave({ label, value_md: value });
-    setSaving(false);
-  }
-
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr 2fr auto',
-      gap: 6,
-      marginBottom: 6,
-      alignItems: 'start',
-    }}>
-      <input
-        value={label}
-        onChange={e => setLabel(e.target.value)}
-        onBlur={maybeSave}
-        placeholder="Label"
-        style={inputStyle({ fontSize: 12 })}
-      />
-      <textarea
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        onBlur={maybeSave}
-        placeholder="Value (Markdown ok)"
-        rows={1}
-        style={inputStyle({ fontSize: 12, resize: 'vertical', minHeight: 34 })}
-      />
-      <button
-        onClick={onDelete}
-        title="Delete row"
-        style={{
-          padding: '6px 10px',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          color: '#DC2626',
-          background: 'transparent',
-          border: '1px solid var(--border)',
-          borderRadius: 6,
-          cursor: 'pointer',
-          opacity: saving ? 0.4 : 1,
-        }}
-      >
-        ✕
-      </button>
-    </div>
-  );
-}
-
-function LogisticsColumn({
-  title,
-  columnKey,
-  rows,
-  onAdd,
-  onSave,
-  onDelete,
-}: {
-  title: string;
-  columnKey: 'logistics' | 'book';
-  rows: Logistics[];
-  onAdd: (col: 'logistics' | 'book') => Promise<void>;
-  onSave: (id: number, data: Partial<Logistics>) => Promise<void>;
-  onDelete: (id: number) => Promise<void>;
-}) {
-  const [adding, setAdding] = useState(false);
-
-  async function add() {
-    setAdding(true);
-    await onAdd(columnKey);
-    setAdding(false);
-  }
-
-  return (
-    <div>
-      <div style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 9,
-        letterSpacing: '0.15em',
-        textTransform: 'uppercase',
-        color: 'var(--ink-3)',
-        marginBottom: 8,
-      }}>
-        {title}
-      </div>
-
-      {rows.map(row => (
-        <LogisticsRowEditor
-          key={row.id}
-          row={row}
-          onSave={async data => onSave(row.id, data)}
-          onDelete={async () => onDelete(row.id)}
-        />
-      ))}
-
-      <button
-        onClick={add}
-        disabled={adding}
-        style={{
-          width: '100%',
-          padding: '7px',
-          border: '1px dashed var(--border-mid)',
-          borderRadius: 6,
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          letterSpacing: '0.1em',
-          color: 'var(--ink-3)',
-          cursor: 'pointer',
-          background: 'transparent',
-          marginTop: 4,
-        }}
-      >
-        {adding ? 'adding…' : '+ add row'}
-      </button>
-    </div>
-  );
-}
-
 // ── MAIN EDITOR ────────────────────────────────────────────────────────────
 
 export default function TripEditor({
@@ -450,7 +315,6 @@ export default function TripEditor({
   days: Day[];
 }) {
   const [trip, setTrip]         = useState(initialTrip);
-  const [logistics, setLogistics] = useState(initialLogistics);
   const [days, setDays]         = useState(initialDays);
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
@@ -478,42 +342,6 @@ export default function TripEditor({
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
-  }
-
-  // ── Logistics handlers ──
-  async function addLogisticsRow(col: 'logistics' | 'book') {
-    const colRows = logistics.filter(r => r.column_key === col);
-    const nextSort = colRows.length
-      ? Math.max(...colRows.map(r => r.sort_order)) + 1
-      : 0;
-    const res = await fetch('/api/admin/logistics', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        trip_id: trip.id,
-        column_key: col,
-        label: 'Label',
-        value_md: '',
-        sort_order: nextSort,
-      }),
-    });
-    const { row } = await res.json();
-    setLogistics(prev => [...prev, row]);
-  }
-
-  async function saveLogisticsRow(id: number, data: Partial<Logistics>) {
-    setLogistics(prev => prev.map(r => r.id === id ? { ...r, ...data } : r));
-    await fetch(`/api/admin/logistics?id=${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-  }
-
-  async function deleteLogisticsRow(id: number) {
-    if (!confirm('Delete this row?')) return;
-    setLogistics(prev => prev.filter(r => r.id !== id));
-    await fetch(`/api/admin/logistics?id=${id}`, { method: 'DELETE' });
   }
 
   async function addDay() {
@@ -694,49 +522,6 @@ export default function TripEditor({
             >
               Published (visible on home page)
             </label>
-          </div>
-        </div>
-
-        {/* Logistics */}
-        <div style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 10,
-          padding: '16px',
-          marginBottom: 20,
-        }}>
-          <div style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9,
-            letterSpacing: '0.2em',
-            textTransform: 'uppercase',
-            color: 'var(--brass)',
-            marginBottom: 14,
-          }}>
-            Logistics
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 20,
-          }}>
-            <LogisticsColumn
-              title="Logistics"
-              columnKey="logistics"
-              rows={logistics.filter(r => r.column_key === 'logistics').sort((a, b) => a.sort_order - b.sort_order)}
-              onAdd={addLogisticsRow}
-              onSave={saveLogisticsRow}
-              onDelete={deleteLogisticsRow}
-            />
-            <LogisticsColumn
-              title="To book"
-              columnKey="book"
-              rows={logistics.filter(r => r.column_key === 'book').sort((a, b) => a.sort_order - b.sort_order)}
-              onAdd={addLogisticsRow}
-              onSave={saveLogisticsRow}
-              onDelete={deleteLogisticsRow}
-            />
           </div>
         </div>
 
