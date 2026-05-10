@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getTripBySlug } from '@/lib/supabase';
 import type { Day, Logistics, Stop } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
+import { KojiMark } from '@/components/KojiMark';
 
 export const revalidate = 60;
 
@@ -33,36 +34,18 @@ function StopRow({ stop }: { stop: Stop }) {
   const bodyHtml = renderMd(stop.body_md);
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '56px 1fr',
+    <div className="stop-row" style={{
       borderBottom: '1px solid var(--border)',
       background: 'var(--surface)',
     }}>
-      <div style={{
-        padding: '16px 0 16px 16px',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 10,
-        letterSpacing: '0.04em',
-        color: 'var(--ink-2)',
-        paddingTop: 18,
-      }}>
+      <div className="stop-time">
         {stop.time_label || ''}
       </div>
       <div style={{
         padding: '14px 16px 14px 12px',
         borderLeft: '1px solid var(--bg-subtle)',
       }}>
-        <span style={{
-          display: 'inline-block',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9,
-          fontWeight: 700,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          padding: '2px 7px',
-          borderRadius: 3,
-          marginBottom: 5,
+        <span className="stop-tag" style={{
           background: tagColor.bg,
           color: tagColor.text,
         }}>
@@ -165,13 +148,7 @@ function LogisticsGrid({ logistics }: { logistics: Logistics[] }) {
   );
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: 1,
-      background: 'var(--border)',
-      borderBottom: '1px solid var(--border)',
-    }}>
+    <div className="logistics-grid">
       {renderCol(left, 'Logistics')}
       {renderCol(right, 'Book Ahead')}
     </div>
@@ -200,13 +177,17 @@ export default async function TripPage({
         borderBottom: '1px solid var(--border)',
       }}>
         <a href="/" style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
           fontFamily: 'var(--font-mono)',
           fontSize: 9,
           letterSpacing: '0.22em',
           textTransform: 'uppercase',
           color: 'var(--brass)',
         }}>
-          ← koji
+          <KojiMark size={22} />
+          <span>← koji</span>
         </a>
       </header>
 

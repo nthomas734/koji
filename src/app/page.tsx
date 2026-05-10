@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getTrips } from '@/lib/supabase';
 import type { Trip } from '@/lib/supabase';
+import { KojiMark } from '@/components/KojiMark';
 
 export const revalidate = 60;
 
@@ -84,14 +85,21 @@ export default async function HomePage() {
         borderBottom: '1px solid var(--border)',
       }}>
         <div style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9,
-          letterSpacing: '0.22em',
-          textTransform: 'uppercase',
-          color: 'var(--brass)',
-          marginBottom: 10,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          marginBottom: 14,
         }}>
-          koji · 行程
+          <KojiMark size={36} />
+          <div style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+            color: 'var(--brass)',
+          }}>
+            koji · 行程
+          </div>
         </div>
         <h1 style={{
           fontFamily: 'var(--font-serif)',
