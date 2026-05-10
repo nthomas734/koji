@@ -1,6 +1,5 @@
-// Brass-line logo. Used everywhere koji's wordmark appears.
-// For the home-screen tile icon, see /public/icon.svg (rendered on dark).
-// Defaults to the parchment in-app variant (brass on light).
+// Brass-line logo. Matches the home-screen icon at /public/icon.svg.
+// For dark surfaces pass color="#C8A97E"; default is var(--brass) for parchment.
 
 export function KojiMark({
   size = 32,
@@ -19,20 +18,17 @@ export function KojiMark({
       aria-label="koji"
     >
       <g stroke={color} fill="none" strokeLinecap="round" strokeLinejoin="round">
-        {/* Horizon road, gently curving */}
-        <path d="M 8 76 Q 30 73, 50 74 T 92 76" strokeWidth="1.4" opacity="0.65" />
-        {/* Cross-grid line, dashed */}
-        <path d="M 50 86 L 50 96" strokeWidth="1" strokeDasharray="2 2" opacity="0.45" />
-        {/* Bloom halos under pin */}
-        <ellipse cx="50" cy="74" rx="14" ry="2.3" strokeWidth="1.1" opacity="0.55" />
-        <ellipse cx="50" cy="74" rx="8" ry="1.4" strokeWidth="1.1" opacity="0.85" />
+        {/* Horizon road */}
+        <path d="M 22 70 Q 36 68, 50 69 T 78 70" strokeWidth="2.2" opacity="0.7" />
+        {/* Bloom halo */}
+        <ellipse cx="50" cy="68" rx="12" ry="2" strokeWidth="2.2" opacity="0.7" />
         {/* Grain-pin */}
         <path
-          d="M 50 22 C 56 32, 56 56, 50 70 C 44 56, 44 32, 50 22 Z"
-          strokeWidth="1.8"
+          d="M 50 28 C 58 38, 58 60, 50 66 C 42 60, 42 38, 50 28 Z"
+          strokeWidth="2.6"
         />
-        <path d="M 50 30 L 50 60" strokeWidth="1" opacity="0.45" />
-        <circle cx="50" cy="74" r="1.5" fill={color} stroke="none" />
+        {/* Pin dot */}
+        <circle cx="50" cy="68" r="1.8" fill={color} stroke="none" />
       </g>
     </svg>
   );
