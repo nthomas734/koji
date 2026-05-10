@@ -43,6 +43,12 @@
   --trip-earth-fg:#EBD8C8;
   --trip-sand:    #3A361C;
   --trip-sand-fg: #EBEAC8;
+  --trip-ocean:   #1C3838;
+  --trip-ocean-fg:#C8EBEB;
+  --trip-rust:    #381C1C;
+  --trip-rust-fg: #EBC8C8;
+  --trip-slate:   #1C1C1C;
+  --trip-slate-fg:#D8D8D8;
 
   --font-sans:    'Manrope', system-ui, sans-serif;
   --font-serif:   'Fraunces', Georgia, serif;

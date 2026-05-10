@@ -11,6 +11,9 @@ const THEME_COLORS: Record<string, { bg: string; fg: string }> = {
   plum:   { bg: '#2A1C38', fg: '#DCC8EB' },
   earth:  { bg: '#3A2A1C', fg: '#EBD8C8' },
   sand:   { bg: '#3A361C', fg: '#EBEAC8' },
+  ocean:  { bg: '#1C3838', fg: '#C8EBEB' },
+  rust:   { bg: '#381C1C', fg: '#EBC8C8' },
+  slate:  { bg: '#1C1C1C', fg: '#D8D8D8' },
 };
 
 function TripCard({ trip }: { trip: Trip }) {

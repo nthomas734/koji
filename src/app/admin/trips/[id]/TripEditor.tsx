@@ -8,7 +8,46 @@ const TAG_COLOR_OPTIONS = [
   'green','navy','amber','pink','sky','emerald','gray','brass',
 ];
 
-const THEME_OPTIONS = ['forest','navy','plum','earth','sand'];
+const THEME_OPTIONS = ['forest','navy','plum','earth','sand','ocean','rust','slate'];
+
+const THEME_COLORS: Record<string, { bg: string; fg: string }> = {
+  forest: { bg: '#1C3828', fg: '#C8EBD4' },
+  navy:   { bg: '#1C2A3A', fg: '#C8D8EB' },
+  plum:   { bg: '#2A1C38', fg: '#DCC8EB' },
+  earth:  { bg: '#3A2A1C', fg: '#EBD8C8' },
+  sand:   { bg: '#3A361C', fg: '#EBEAC8' },
+  ocean:  { bg: '#1C3838', fg: '#C8EBEB' },
+  rust:   { bg: '#381C1C', fg: '#EBC8C8' },
+  slate:  { bg: '#1C1C1C', fg: '#D8D8D8' },
+};
+
+type CompanionMode = 'solo' | 'companion' | 'group';
+
+// Parse stored "with X" or "with X & Y" subtitle into mode + names
+function parseCompanion(subtitle: string | null | undefined): { mode: CompanionMode; names: string[] } {
+  const s = (subtitle ?? '').trim();
+  if (!s || s.toLowerCase() === 'solo') return { mode: 'solo', names: [] };
+  const withMatch = s.match(/^with\s+(.+)$/i);
+  if (!withMatch) return { mode: 'companion', names: [s] };
+  const names = withMatch[1].split(/\s*&\s*|\s*,\s*/).map(n => n.trim()).filter(Boolean);
+  return {
+    mode: names.length >= 2 ? 'group' : 'companion',
+    names,
+  };
+}
+
+// Build the subtitle from mode + names
+function formatCompanion(mode: CompanionMode, names: string[]): string {
+  if (mode === 'solo') return 'Solo';
+  const clean = names.map(n => n.trim()).filter(Boolean);
+  if (clean.length === 0) return '';
+  if (mode === 'companion') return `with ${clean[0]}`;
+  if (clean.length === 1) return `with ${clean[0]}`;
+  if (clean.length === 2) return `with ${clean[0]} & ${clean[1]}`;
+  const lead = clean.slice(0, -1).join(', ');
+  const last = clean[clean.length - 1];
+  return `with ${lead} & ${last}`;
+}
 
 // ── SMALL HELPERS ──────────────────────────────────────────────────────────
 
@@ -307,55 +346,82 @@ function LogisticsRowEditor({
   onSave: (updated: Partial<Logistics>) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
-  const [label, setLabel]     = useState(row.label);
-  const [value, setValue]     = useState(row.value_md);
-  const [saving, setSaving]   = useState(false);
+  const [label, setLabel] = useState(row.label);
+  const [value, setValue] = useState(row.value_md);
 
-  // Save when either field loses focus, only if changed
   async function maybeSave() {
     if (label === row.label && value === row.value_md) return;
-    setSaving(true);
     await onSave({ label, value_md: value });
-    setSaving(false);
   }
 
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr 2fr auto',
-      gap: 6,
-      marginBottom: 6,
-      alignItems: 'start',
+      background: 'var(--bg)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      padding: '10px 36px 10px 12px',
+      marginBottom: 8,
+      position: 'relative',
     }}>
       <input
         value={label}
         onChange={e => setLabel(e.target.value)}
         onBlur={maybeSave}
-        placeholder="Label"
-        style={inputStyle({ fontSize: 12 })}
+        placeholder="Topic"
+        style={{
+          width: '100%',
+          border: 'none',
+          background: 'transparent',
+          fontSize: 11,
+          fontFamily: 'var(--font-mono)',
+          letterSpacing: '0.05em',
+          color: 'var(--ink-3)',
+          textTransform: 'uppercase',
+          padding: '0 0 6px',
+          outline: 'none',
+        }}
       />
       <textarea
         value={value}
         onChange={e => setValue(e.target.value)}
         onBlur={maybeSave}
-        placeholder="Value (Markdown ok)"
-        rows={1}
-        style={inputStyle({ fontSize: 12, resize: 'vertical', minHeight: 34 })}
+        placeholder="Detail (Markdown ok)"
+        rows={Math.max(1, value.split('\n').length)}
+        style={{
+          width: '100%',
+          border: 'none',
+          background: 'transparent',
+          fontSize: 14,
+          color: 'var(--ink)',
+          padding: 0,
+          outline: 'none',
+          resize: 'none',
+          lineHeight: 1.4,
+          fontFamily: 'var(--font-sans)',
+          // @ts-expect-error: modern CSS, not in React types yet
+          fieldSizing: 'content',
+        }}
       />
       <button
         onClick={onDelete}
         title="Delete row"
         style={{
-          padding: '6px 10px',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          color: '#DC2626',
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          width: 24,
+          height: 24,
+          border: 'none',
           background: 'transparent',
-          border: '1px solid var(--border)',
-          borderRadius: 6,
+          color: 'var(--ink-4)',
           cursor: 'pointer',
-          opacity: saving ? 0.4 : 1,
+          fontSize: 13,
+          padding: 0,
+          borderRadius: 4,
+          lineHeight: 1,
         }}
+        onMouseEnter={e => (e.currentTarget.style.color = '#DC2626')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-4)')}
       >
         ✕
       </button>
@@ -427,6 +493,257 @@ function LogisticsColumn({
       >
         {adding ? 'adding…' : '+ add row'}
       </button>
+    </div>
+  );
+}
+
+// ── COMPANION PICKER ───────────────────────────────────────────────────────
+
+function CompanionPicker({
+  subtitle,
+  onChange,
+}: {
+  subtitle: string;
+  onChange: (newSubtitle: string) => void;
+}) {
+  const parsed = parseCompanion(subtitle);
+  const [mode, setMode] = useState<CompanionMode>(parsed.mode);
+  const [names, setNames] = useState<string[]>(
+    parsed.names.length ? parsed.names : ['']
+  );
+
+  function commit(nextMode: CompanionMode, nextNames: string[]) {
+    setMode(nextMode);
+    setNames(nextNames);
+    onChange(formatCompanion(nextMode, nextNames));
+  }
+
+  function changeMode(next: CompanionMode) {
+    if (next === 'solo') {
+      commit('solo', []);
+    } else if (next === 'companion') {
+      const seed = names[0] ? [names[0]] : [''];
+      commit('companion', seed);
+    } else {
+      const seed = names.length >= 2 ? names : [...names, ''];
+      commit('group', seed.length ? seed : ['', '']);
+    }
+  }
+
+  function updateName(i: number, v: string) {
+    const next = [...names];
+    next[i] = v;
+    commit(mode, next);
+  }
+
+  function addName() {
+    commit('group', [...names, '']);
+  }
+
+  function removeName(i: number) {
+    if (names.length <= 1) return;
+    const next = names.filter((_, idx) => idx !== i);
+    commit(mode === 'group' && next.length < 2 ? 'companion' : mode, next);
+  }
+
+  const modeOptions: { key: CompanionMode; label: string }[] = [
+    { key: 'solo',      label: 'Solo' },
+    { key: 'companion', label: 'Companion' },
+    { key: 'group',     label: 'Group' },
+  ];
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={labelStyle()}>Trip type</label>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: mode === 'solo' ? 0 : 10 }}>
+        {modeOptions.map(opt => {
+          const active = mode === opt.key;
+          return (
+            <button
+              key={opt.key}
+              onClick={() => changeMode(opt.key)}
+              style={{
+                flex: 1,
+                padding: '8px 10px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                background: active ? 'var(--ink)' : 'transparent',
+                color: active ? 'var(--bg)' : 'var(--ink-3)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {mode !== 'solo' && (
+        <div>
+          {names.map((n, i) => (
+            <div key={i} style={{
+              display: 'flex',
+              gap: 6,
+              marginBottom: 6,
+              alignItems: 'center',
+            }}>
+              <input
+                value={n}
+                onChange={e => updateName(i, e.target.value)}
+                placeholder={i === 0 ? 'Companion name' : `Name ${i + 1}`}
+                style={inputStyle()}
+              />
+              {mode === 'group' && names.length > 1 && (
+                <button
+                  onClick={() => removeName(i)}
+                  title="Remove name"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    border: '1px solid var(--border)',
+                    background: 'transparent',
+                    color: 'var(--ink-4)',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          {mode === 'group' && (
+            <button
+              onClick={addName}
+              style={{
+                marginTop: 2,
+                padding: '6px 12px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                background: 'transparent',
+                border: '1px dashed var(--border-mid)',
+                color: 'var(--ink-3)',
+                borderRadius: 6,
+                cursor: 'pointer',
+              }}
+            >
+              + add name
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── THEME PICKER ───────────────────────────────────────────────────────────
+
+function ThemePicker({
+  value,
+  title,
+  subtitle,
+  onChange,
+}: {
+  value: string;
+  title: string;
+  subtitle: string;
+  onChange: (theme: string) => void;
+}) {
+  const previewColors = THEME_COLORS[value] ?? THEME_COLORS.forest;
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={labelStyle()}>Theme</label>
+
+      <div style={{
+        background: previewColors.bg,
+        color: previewColors.fg,
+        padding: '14px 16px',
+        borderRadius: 8,
+        marginBottom: 10,
+        transition: 'background 0.2s, color 0.2s',
+      }}>
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 9,
+          letterSpacing: '0.2em',
+          textTransform: 'uppercase',
+          opacity: 0.7,
+          marginBottom: 2,
+        }}>
+          {value}
+        </div>
+        <div style={{
+          fontFamily: 'var(--font-serif)',
+          fontWeight: 300,
+          fontSize: 18,
+          lineHeight: 1.2,
+        }}>
+          {title || 'Trip title'}
+        </div>
+        {subtitle && (
+          <div style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: 12,
+            opacity: 0.85,
+            marginTop: 2,
+          }}>
+            {subtitle}
+          </div>
+        )}
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(8, 1fr)',
+        gap: 6,
+      }}>
+        {THEME_OPTIONS.map(name => {
+          const c = THEME_COLORS[name];
+          const active = name === value;
+          return (
+            <button
+              key={name}
+              onClick={() => onChange(name)}
+              title={name}
+              style={{
+                aspectRatio: '1',
+                background: c.bg,
+                border: active ? '2px solid var(--brass)' : '1px solid var(--border)',
+                borderRadius: 6,
+                cursor: 'pointer',
+                padding: 0,
+                position: 'relative',
+                transition: 'transform 0.1s',
+              }}
+            >
+              {active && (
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: c.fg,
+                  fontSize: 11,
+                  lineHeight: 1,
+                }}>
+                  ✓
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -670,11 +987,20 @@ export default function TripEditor({
           </div>
           <Field label="Eyebrow" value={trip.eyebrow} onChange={v => setField('eyebrow', v)} />
           <Field label="Meta (tagline)" value={trip.meta} onChange={v => setField('meta', v)} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Select label="Theme" value={trip.header_theme} onChange={v => setField('header_theme', v)} options={THEME_OPTIONS} />
-            <Field label="Companion" value={trip.companion ?? ''} onChange={v => setField('companion', v)} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+
+          <CompanionPicker
+            subtitle={trip.subtitle}
+            onChange={newSubtitle => setField('subtitle', newSubtitle)}
+          />
+
+          <ThemePicker
+            value={trip.header_theme}
+            title={trip.title}
+            subtitle={trip.subtitle}
+            onChange={v => setField('header_theme', v)}
+          />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
             <input
               type="checkbox"
               id="published"
@@ -710,9 +1036,9 @@ export default function TripEditor({
           </div>
 
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 24,
           }}>
             <LogisticsColumn
               title="Logistics"

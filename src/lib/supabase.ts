@@ -15,7 +15,7 @@ export function supabaseAdmin() {
 
 // ── TYPES ──────────────────────────────────────────────────────────────────
 
-export type HeaderTheme = 'forest' | 'navy' | 'plum' | 'earth' | 'sand';
+export type HeaderTheme = 'forest' | 'navy' | 'plum' | 'earth' | 'sand' | 'ocean' | 'rust' | 'slate';
 
 export type TagColor =
   | 'green' | 'navy' | 'amber' | 'pink' | 'sky'
