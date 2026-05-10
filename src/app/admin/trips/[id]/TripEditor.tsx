@@ -4,13 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { Trip, Day, Stop, Logistics } from '@/lib/supabase';
 
-const TAG_OPTIONS = [
-  'neighborhood','dinner','lunch','breakfast','coffee',
-  'hike','camp','beach','waterfront','sunset',
-  'apartment','hotel','flight','drive',
-  'test','tip','optional','note',
-];
-
 const TAG_COLOR_OPTIONS = [
   'green','navy','amber','pink','sky','emerald','gray','brass',
 ];
@@ -172,7 +165,7 @@ function StopEditor({
             <Field label="Time" value={data.time_label} onChange={v => set('time_label', v)} />
             <Select label="Tag color" value={data.tag_color} onChange={v => set('tag_color', v)} options={TAG_COLOR_OPTIONS} />
           </div>
-          <Select label="Tag" value={data.tag} onChange={v => set('tag', v)} options={TAG_OPTIONS} />
+          <Field label="Tag" value={data.tag} onChange={v => set('tag', v)} />
           <Field label="Title" value={data.title} onChange={v => set('title', v)} />
           <Field label="Body (Markdown)" value={data.body_md} onChange={v => set('body_md', v)} rows={4} />
 

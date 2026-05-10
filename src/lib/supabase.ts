@@ -21,11 +21,9 @@ export type TagColor =
   | 'green' | 'navy' | 'amber' | 'pink' | 'sky'
   | 'emerald' | 'gray' | 'brass';
 
-export type Tag =
-  | 'neighborhood' | 'dinner' | 'lunch' | 'breakfast' | 'coffee'
-  | 'hike' | 'camp' | 'beach' | 'waterfront' | 'sunset'
-  | 'apartment' | 'hotel' | 'flight' | 'drive'
-  | 'test' | 'tip' | 'optional' | 'note';
+// Free-form. Whatever string you put here will render as the pill label.
+// Tag visual styling comes from `tag_color` (which is still a strict enum).
+export type Tag = string;
 
 export interface Trip {
   id:           number;
