@@ -992,20 +992,22 @@ export default function TripEditor({
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Field
-              label="Start date (YYYY-MM-DD)"
+              label="Start date"
+              type="date"
               value={trip.date_start ?? ''}
               onChange={v => setField('date_start', v || null)}
             />
             <Field
-              label="End date (YYYY-MM-DD)"
+              label="End date"
+              type="date"
               value={trip.date_end ?? ''}
               onChange={v => setField('date_end', v || null)}
             />
           </div>
 
           <Field
-            label="Location (for weather — e.g. San Diego, CA)"
-            value={trip.location ?? ''}
+            label="Location (for weather)"
+            value={trip.location ?? trip.title ?? ''}
             onChange={v => setField('location', v || null)}
           />
 
