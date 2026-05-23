@@ -89,9 +89,14 @@ async function fetchWeather(
   dateEnd: string,
 ): Promise<DayWeather[]> {
   try {
+    const today = new Date();
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 16);
-    const isPast = new Date(dateStart) < cutoff;
+    const tripDate = new Date(dateStart);
+    const isPast = tripDate < cutoff;
+    // If trip is in the future (beyond forecast range), skip to seasonal
+    const isFuture = tripDate > today;
+    if (isFuture) return [];
 
     const base = isPast
       ? 'https://archive-api.open-meteo.com/v1/archive'
