@@ -272,14 +272,62 @@ function WeatherBadge({ w }: { w: DayWeather }) {
 }
 
 // ── QUICK STRIP — itinerary tab top summary ──────────────────────────────────
-function QuickStrip({ logistics }: { logistics: Logistics[] }) {
-  // Show logistics rows except any labeled "weather" (it's in the hero now)
-  const rows = logistics.filter(l =>
-    l.column_key === 'logistics' &&
-    l.label.trim().toLowerCase() !== 'weather'
-  );
+// ── QUICK STRIP HELPERS ──────────────────────────────────────────────────────
+function condenseRow(row: Logistics): string {
+  const v = row.value_md;
+  if (row.category === 'flight') {
+    const flightMatch = v.match(/\b([A-Z]{2})\s*(\d{1,4})\b/);
+    const flight = flightMatch ? `${flightMatch[1]}${flightMatch[2]}` : '';
+    const routeMatch = v.match(/([A-Z]{3})\s*(?:to|\u2192|-+>)\s*([A-Z]{3})/i);
+    const route = routeMatch ? `${routeMatch[1].toUpperCase()} \u2192 ${routeMatch[2].toUpperCase()}` : '';
+    const dateMatch = v.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[,.]?\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i)
+      || v.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i);
+    const date = dateMatch ? dateMatch[1] : '';
+    return [flight, route, date].filter(Boolean).join(' \u00b7 ');
+  }
+  if (row.category === 'train') {
+    const routeMatch = v.match(/([A-Za-z\s]+(?:Termini|SMN|Santa Maria Novella|Central|Station)?)\s*(?:\u2192|-+>|to)\s*([A-Za-z\s]+(?:Termini|SMN|Santa Maria Novella|Central|Station)?)/i);
+    const route = routeMatch ? `${routeMatch[1].trim()} \u2192 ${routeMatch[2].trim()}` : row.label;
+    const dateMatch = v.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[,.]?\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i)
+      || v.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i);
+    const date = dateMatch ? dateMatch[1] : '';
+    return [route, date].filter(Boolean).join(' \u00b7 ');
+  }
+  if (row.category === 'hotel') return row.label;
+  return row.label;
+}
 
-  if (rows.length === 0) return null;
+function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg: string; fg: string } }) {
+  const flights = logistics.filter(l => l.category === 'flight');
+  const trains  = logistics.filter(l => l.category === 'train');
+  const hotels  = logistics.filter(l => l.category === 'hotel');
+
+  const stripRows: { label: string; value: string }[] = [];
+
+  const outbound  = flights.filter(f => f.label.toLowerCase().includes('out') || f.sort_order === Math.min(...flights.map(x => x.sort_order)));
+  const returning = flights.filter(f => !outbound.includes(f));
+
+  if (outbound.length > 0) {
+    stripRows.push({ label: 'Fly out', value: outbound.map(r => condenseRow(r)).join(' \u00b7 ') });
+  }
+  if (returning.length > 0) {
+    const codes = returning.map(r => {
+      const m = r.value_md.match(/\b([A-Z]{2})\s*(\d{1,4})\b/);
+      return m ? `${m[1]}${m[2]}` : '';
+    }).filter(Boolean).join(' \u2192 ');
+    const dateMatch = returning[0]?.value_md.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i);
+    const date = dateMatch ? dateMatch[1] : '';
+    stripRows.push({ label: 'Fly home', value: [codes, date].filter(Boolean).join(' \u00b7 ') });
+  }
+
+  if (trains.length > 0) {
+    stripRows.push({ label: 'Trains', value: trains.map(r => condenseRow(r)).join('  \u00b7  ') });
+  }
+  if (hotels.length > 0) {
+    stripRows.push({ label: 'Hotels', value: hotels.map(r => r.label).join(' \u00b7 ') });
+  }
+
+  if (stripRows.length === 0) return null;
 
   return (
     <div style={{ padding: '12px 12px 0' }}>
@@ -289,15 +337,15 @@ function QuickStrip({ logistics }: { logistics: Logistics[] }) {
         borderRadius: 14,
         overflow: 'hidden',
       }}>
-        {rows.map((row, i) => (
+        {stripRows.map((row, i) => (
           <div
-            key={row.id}
+            key={row.label}
             style={{
               display: 'flex',
               alignItems: 'baseline',
               gap: 10,
-              padding: '12px 16px',
-              borderBottom: i < rows.length - 1 ? '0.5px solid var(--bg-subtle)' : 'none',
+              padding: '10px 16px',
+              borderBottom: i < stripRows.length - 1 ? '0.5px solid var(--bg-subtle)' : 'none',
             }}
           >
             <span style={{
@@ -305,23 +353,22 @@ function QuickStrip({ logistics }: { logistics: Logistics[] }) {
               fontSize: 8.5,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
-              color: 'var(--ink-4)',
+              color: theme.bg,
               flexShrink: 0,
-              width: 80,
+              width: 64,
             }}>
               {row.label}
             </span>
-            <span
-              style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.4 }}
-              className="body-content"
-              dangerouslySetInnerHTML={{ __html: renderMd(row.value_md) }}
-            />
+            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5 }}>
+              {row.value}
+            </span>
           </div>
         ))}
       </div>
     </div>
   );
 }
+
 
 // ── WEATHER HERO CARD ────────────────────────────────────────────────────────
 function WeatherHeroCard({
@@ -403,20 +450,27 @@ function WeatherHeroCard({
 }
 
 // ── FULL LOGISTICS SECTION ───────────────────────────────────────────────────
-function LogisticsSection({ logistics }: { logistics: Logistics[] }) {
-  const byKey: Record<string, Logistics[]> = {};
+const CATEGORY_LABELS: Record<string, string> = {
+  flight:  'Flights',
+  train:   'Trains',
+  hotel:   'Hotels',
+  book:    'Book Ahead',
+  other:   'Other',
+};
+
+const CATEGORY_ORDER = ['flight', 'train', 'hotel', 'book', 'other'];
+
+function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme: { bg: string; fg: string } }) {
+  const byCategory: Record<string, Logistics[]> = {};
   for (const row of logistics) {
-    if (!byKey[row.column_key]) byKey[row.column_key] = [];
-    byKey[row.column_key].push(row);
+    const cat = row.category || 'other';
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(row);
   }
 
-  const SECTION_LABELS: Record<string, string> = {
-    logistics: 'Logistics',
-    book: 'Book Ahead',
-  };
+  const categories = CATEGORY_ORDER.filter(c => byCategory[c]?.length > 0);
 
-  const keys = Object.keys(byKey);
-  if (keys.length === 0) {
+  if (categories.length === 0) {
     return (
       <div style={{
         padding: '40px 20px',
@@ -434,47 +488,53 @@ function LogisticsSection({ logistics }: { logistics: Logistics[] }) {
 
   return (
     <div style={{ padding: '12px 12px 40px' }}>
-      {keys.map(key => (
-        <div key={key} style={{ marginBottom: 14 }}>
+      {categories.map(cat => (
+        <div key={cat} style={{ marginBottom: 20 }}>
           <div style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 8.5,
             letterSpacing: '0.22em',
             textTransform: 'uppercase',
-            color: 'var(--brass)',
-            padding: '4px 8px 10px',
+            color: theme.bg,
+            padding: '4px 4px 10px',
           }}>
-            {SECTION_LABELS[key] ?? key}
+            {CATEGORY_LABELS[cat] ?? cat}
           </div>
-          <div style={{
-            background: 'var(--surface)',
-            border: '0.5px solid var(--border)',
-            borderRadius: 14,
-            overflow: 'hidden',
-          }}>
-            {byKey[key].map((row, i) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {byCategory[cat].map(row => (
               <div
                 key={row.id}
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '100px 1fr',
-                  borderBottom: i < byKey[key].length - 1 ? '0.5px solid var(--bg-subtle)' : 'none',
+                  position: 'relative',
+                  background: 'var(--surface)',
+                  border: '0.5px solid var(--border)',
+                  borderRadius: 14,
+                  padding: '12px 14px 12px 18px',
+                  overflow: 'hidden',
                 }}
               >
                 <div style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 8,
+                  bottom: 8,
+                  width: 3,
+                  background: theme.bg,
+                  borderRadius: 4,
+                  opacity: 0.5,
+                }} />
+                <div style={{
                   fontFamily: 'var(--font-mono)',
                   fontSize: 8.5,
-                  letterSpacing: '0.1em',
+                  letterSpacing: '0.12em',
                   textTransform: 'uppercase',
-                  color: 'var(--ink-4)',
-                  padding: '14px 12px 14px 16px',
-                  borderRight: '0.5px solid var(--bg-subtle)',
-                  lineHeight: 1.4,
+                  color: theme.bg,
+                  marginBottom: 5,
                 }}>
                   {row.label}
                 </div>
                 <div
-                  style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5, padding: '12px 16px 12px 14px' }}
+                  style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5 }}
                   className="body-content"
                   dangerouslySetInnerHTML={{ __html: renderMd(row.value_md) }}
                 />
@@ -846,7 +906,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
       {/* ITINERARY TAB */}
       {activeTab === 'itinerary' && (
         <>
-          <QuickStrip logistics={logistics} />
+          <QuickStrip logistics={logistics} theme={theme} />
           <main>
             {days.map((day, i) => (
               <DayBlock
@@ -863,7 +923,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
       )}
 
       {/* LOGISTICS TAB */}
-      {activeTab === 'logistics' && <LogisticsSection logistics={logistics} />}
+      {activeTab === 'logistics' && <LogisticsSection logistics={logistics} theme={theme} />}
 
       {/* Footer */}
       <footer style={{

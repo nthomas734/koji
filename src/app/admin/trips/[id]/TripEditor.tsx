@@ -533,12 +533,13 @@ function LogisticsRowEditor({
   onSave: (updated: Partial<Logistics>) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
-  const [label, setLabel] = useState(row.label);
-  const [value, setValue] = useState(row.value_md);
+  const [label, setLabel]       = useState(row.label);
+  const [value, setValue]       = useState(row.value_md);
+  const [category, setCategory] = useState(row.category || 'other');
 
   async function maybeSave() {
-    if (label === row.label && value === row.value_md) return;
-    await onSave({ label, value_md: value });
+    if (label === row.label && value === row.value_md && category === (row.category || 'other')) return;
+    await onSave({ label, value_md: value, category });
   }
 
   return (
@@ -550,24 +551,50 @@ function LogisticsRowEditor({
       marginBottom: 8,
       position: 'relative',
     }}>
-      <input
-        value={label}
-        onChange={e => setLabel(e.target.value)}
-        onBlur={maybeSave}
-        placeholder="Topic"
-        style={{
-          width: '100%',
-          border: 'none',
-          background: 'transparent',
-          fontSize: 11,
-          fontFamily: 'var(--font-mono)',
-          letterSpacing: '0.05em',
-          color: 'var(--ink-3)',
-          textTransform: 'uppercase',
-          padding: '0 0 6px',
-          outline: 'none',
-        }}
-      />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 2 }}>
+        <input
+          value={label}
+          onChange={e => setLabel(e.target.value)}
+          onBlur={maybeSave}
+          placeholder="Topic"
+          style={{
+            flex: 1,
+            border: 'none',
+            background: 'transparent',
+            fontSize: 11,
+            fontFamily: 'var(--font-mono)',
+            letterSpacing: '0.05em',
+            color: 'var(--ink-3)',
+            textTransform: 'uppercase',
+            padding: '0 0 6px',
+            outline: 'none',
+          }}
+        />
+        <select
+          value={category}
+          onChange={e => { setCategory(e.target.value); }}
+          onBlur={maybeSave}
+          style={{
+            border: '0.5px solid var(--border)',
+            background: 'var(--bg-subtle)',
+            borderRadius: 4,
+            fontSize: 9,
+            fontFamily: 'var(--font-mono)',
+            letterSpacing: '0.08em',
+            color: 'var(--ink-3)',
+            padding: '2px 4px',
+            outline: 'none',
+            cursor: 'pointer',
+            marginBottom: 6,
+          }}
+        >
+          <option value="flight">Flight</option>
+          <option value="train">Train</option>
+          <option value="hotel">Hotel</option>
+          <option value="book">Book</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
       <textarea
         value={value}
         onChange={e => setValue(e.target.value)}

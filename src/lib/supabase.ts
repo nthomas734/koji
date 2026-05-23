@@ -54,6 +54,7 @@ export interface Logistics {
   id:         number;
   trip_id:    number;
   column_key: 'logistics' | 'book';
+  category:   string;
   label:      string;
   value_md:   string;
   sort_order: number;
