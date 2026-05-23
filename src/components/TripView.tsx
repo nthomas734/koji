@@ -525,13 +525,26 @@ const CATEGORY_LABELS: Record<string, string> = {
   other:  'Other',
 };
 
-const CATEGORY_ICONS: Record<string, string> = {
-  flight: 'ti-plane',
-  train:  'ti-train',
-  hotel:  'ti-building',
-  book:   'ti-calendar-check',
-  other:  'ti-file',
-};
+// Inline SVG icons per category (24x24 viewBox, stroke-only)
+function CategoryIcon({ cat, color }: { cat: string; color: string }) {
+  const s = { width: 15, height: 15, display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 } as React.CSSProperties;
+  const p = { fill: 'none', stroke: color, strokeWidth: 1.75, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  if (cat === 'flight') return (
+    <svg viewBox="0 0 24 24" style={s}><path {...p} d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2h0A1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+  );
+  if (cat === 'train') return (
+    <svg viewBox="0 0 24 24" style={s}><rect {...p} x="4" y="3" width="16" height="13" rx="2"/><path {...p} d="M4 11h16M12 3v8M8 19l-2 2M16 19l2 2M9 19h6"/></svg>
+  );
+  if (cat === 'hotel') return (
+    <svg viewBox="0 0 24 24" style={s}><path {...p} d="M3 21V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14M3 21h18M9 21v-6h6v6M9 7h1m4 0h1M9 11h1m4 0h1"/></svg>
+  );
+  if (cat === 'book') return (
+    <svg viewBox="0 0 24 24" style={s}><rect {...p} x="3" y="4" width="18" height="18" rx="2"/><path {...p} d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"/></svg>
+  );
+  return (
+    <svg viewBox="0 0 24 24" style={s}><path {...p} d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM14 2v6h6M9 13h6M9 17h6"/></svg>
+  );
+}
 
 const CATEGORY_ORDER = ['flight', 'train', 'hotel', 'book', 'other'];
 
@@ -640,8 +653,8 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
           {/* Section banner — matches day banner style */}
           <div style={{
             position: 'relative',
-            background: 'var(--bg-subtle)',
-            border: '0.5px solid var(--border)',
+            background: `color-mix(in srgb, ${theme.bg} 18%, var(--bg-subtle))`,
+            border: `0.5px solid color-mix(in srgb, ${theme.bg} 30%, var(--border))`,
             borderRadius: 14,
             padding: '11px 14px 11px 20px',
             marginBottom: 8,
@@ -657,11 +670,7 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
               background: theme.bg,
               borderRadius: 4,
             }} />
-            <i
-              className={`ti ${CATEGORY_ICONS[cat] ?? 'ti-file'}`}
-              style={{ fontSize: 15, color: theme.bg }}
-              aria-hidden="true"
-            />
+            <CategoryIcon cat={cat} color={theme.bg} />
             <span style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 10,
