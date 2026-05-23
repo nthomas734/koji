@@ -65,6 +65,8 @@ export interface Day {
   trip_id:    number;
   label:      string;
   sort_order: number;
+  lat:        number | null;
+  lng:        number | null;
   stops?:     Stop[];
 }
 

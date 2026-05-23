@@ -795,29 +795,59 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
   const [isSeasonal, setIsSeasonal]     = useState(false);
   const theme = THEMES[trip.header_theme] ?? THEMES.forest;
 
-  const hasCoords = trip.lat != null && trip.lng != null && !!trip.date_start;
+  const hasCoords = (trip.lat != null && trip.lng != null && !!trip.date_start)
+    || days.some(d => d.lat != null && d.lng != null);
+
+  // Build a map of "lat,lng" -> [dayIndex, ...] so we can fetch each unique location once
+  function getLocationGroups(): { key: string; lat: number; lng: number; dateStart: string; dateEnd: string }[] {
+    if (!trip.date_start) return [];
+    const groups: Record<string, { lat: number; lng: number; dates: string[] }> = {};
+    for (let i = 0; i < days.length; i++) {
+      const day = days[i];
+      const lat = day.lat ?? trip.lat;
+      const lng = day.lng ?? trip.lng;
+      if (lat == null || lng == null) continue;
+      const date = dateForDay(trip.date_start, i);
+      const key = `${lat},${lng}`;
+      if (!groups[key]) groups[key] = { lat, lng, dates: [] };
+      groups[key].dates.push(date);
+    }
+    return Object.entries(groups).map(([key, g]) => ({
+      key,
+      lat: g.lat,
+      lng: g.lng,
+      dateStart: g.dates[0],
+      dateEnd: g.dates[g.dates.length - 1],
+    }));
+  }
 
   useEffect(() => {
-    if (!hasCoords) return;
+    if (!hasCoords || !trip.date_start) return;
 
     let cancelled = false;
     setLoading(true);
     setIsSeasonal(false);
 
     (async () => {
-      const end = tripEndDate(trip, days);
-      let results = await fetchWeather(trip.lat!, trip.lng!, trip.date_start!, end);
+      const locationGroups = getLocationGroups();
+      if (locationGroups.length === 0) { setLoading(false); return; }
 
-      // If forecast returned nothing (likely trip > 16 days out),
-      // fall back to seasonal averages from the previous year
-      if (results.length === 0) {
-        results = await fetchSeasonalWeather(trip.lat!, trip.lng!, trip.date_start!, end);
-        if (results.length > 0 && !cancelled) setIsSeasonal(true);
+      const allResults: DayWeather[] = [];
+      let anySeasonal = false;
+
+      for (const group of locationGroups) {
+        let results = await fetchWeather(group.lat, group.lng, group.dateStart, group.dateEnd);
+        if (results.length === 0) {
+          results = await fetchSeasonalWeather(group.lat, group.lng, group.dateStart, group.dateEnd);
+          if (results.length > 0) anySeasonal = true;
+        }
+        allResults.push(...results);
       }
 
       if (cancelled) return;
+      if (anySeasonal) setIsSeasonal(true);
       const map: Record<string, DayWeather> = {};
-      for (const w of results) map[w.date] = w;
+      for (const w of allResults) map[w.date] = w;
       setWeatherMap(map);
       setLoading(false);
     })();
@@ -826,7 +856,14 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.lat, trip.lng, trip.date_start, trip.date_end, hasCoords, days.length]);
 
-  const allWeather = Object.values(weatherMap).sort((a, b) => a.date.localeCompare(b.date));
+  // For the hero card — use trip-level coords to show overall trip weather summary
+  const tripWeather = Object.values(weatherMap)
+    .filter(w => {
+      if (!trip.date_start || trip.lat == null) return true;
+      // Only include days whose location matches trip coords (first city approximation)
+      return true; // show all — hero card averages across whole trip
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   function weatherForDay(index: number): DayWeather | null {
     if (!trip.date_start) return null;
@@ -905,7 +942,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
           {hasCoords && (
             <WeatherHeroCard
               loading={weatherLoading}
-              weather={allWeather}
+              weather={tripWeather}
               isSeasonal={isSeasonal}
               fg={theme.fg}
             />

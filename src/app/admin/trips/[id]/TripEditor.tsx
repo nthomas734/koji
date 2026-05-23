@@ -441,19 +441,30 @@ function DayEditor({
   onSaveStop,
   onDeleteStop,
   onDeleteDay,
+  onSaveDay,
 }: {
   day: Day;
   onAddStop: (dayId: number) => Promise<void>;
   onSaveStop: (stopId: number, data: Partial<Stop>) => Promise<void>;
   onDeleteStop: (stopId: number, dayId: number) => Promise<void>;
   onDeleteDay: (dayId: number) => Promise<void>;
+  onSaveDay: (dayId: number, data: Partial<Day>) => Promise<void>;
 }) {
   const [adding, setAdding] = useState(false);
+  const [lat, setLat] = useState(day.lat != null ? String(day.lat) : '');
+  const [lng, setLng] = useState(day.lng != null ? String(day.lng) : '');
 
   async function addStop() {
     setAdding(true);
     await onAddStop(day.id);
     setAdding(false);
+  }
+
+  async function saveCoords() {
+    const newLat = lat.trim() ? parseFloat(lat) : null;
+    const newLng = lng.trim() ? parseFloat(lng) : null;
+    if (newLat === day.lat && newLng === day.lng) return;
+    await onSaveDay(day.id, { lat: newLat, lng: newLng });
   }
 
   return (
@@ -489,6 +500,43 @@ function DayEditor({
       </div>
 
       <div style={{ padding: '10px 12px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          <input
+            value={lat}
+            onChange={e => setLat(e.target.value)}
+            onBlur={saveCoords}
+            placeholder="Lat (e.g. 41.8919)"
+            style={{
+              flex: 1,
+              border: '0.5px solid var(--border)',
+              borderRadius: 6,
+              padding: '5px 8px',
+              fontSize: 11,
+              fontFamily: 'var(--font-mono)',
+              background: 'var(--bg)',
+              color: 'var(--ink-2)',
+              outline: 'none',
+            }}
+          />
+          <input
+            value={lng}
+            onChange={e => setLng(e.target.value)}
+            onBlur={saveCoords}
+            placeholder="Lng (e.g. 12.5113)"
+            style={{
+              flex: 1,
+              border: '0.5px solid var(--border)',
+              borderRadius: 6,
+              padding: '5px 8px',
+              fontSize: 11,
+              fontFamily: 'var(--font-mono)',
+              background: 'var(--bg)',
+              color: 'var(--ink-2)',
+              outline: 'none',
+            }}
+          />
+        </div>
+
         {(day.stops ?? []).map(stop => (
           <StopEditor
             key={stop.id}
@@ -1009,6 +1057,15 @@ export default function TripEditor({
   }
 
   // ── Logistics handlers ──
+  async function saveDay(dayId: number, data: Partial<Day>) {
+    setDays(prev => prev.map(d => d.id === dayId ? { ...d, ...data } : d));
+    await fetch(`/api/admin/days?id=${dayId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
   async function addLogisticsRow(col: 'logistics' | 'book') {
     const colRows = logistics.filter(r => r.column_key === col);
     const nextSort = colRows.length
@@ -1323,6 +1380,7 @@ export default function TripEditor({
             onSaveStop={saveStop}
             onDeleteStop={deleteStop}
             onDeleteDay={deleteDay}
+            onSaveDay={saveDay}
           />
         ))}
 
