@@ -518,14 +518,93 @@ function WeatherHeroCard({
 
 // ── FULL LOGISTICS SECTION ───────────────────────────────────────────────────
 const CATEGORY_LABELS: Record<string, string> = {
-  flight:  'Flights',
-  train:   'Trains',
-  hotel:   'Hotels',
-  book:    'Book Ahead',
-  other:   'Other',
+  flight: 'Flights',
+  train:  'Trains',
+  hotel:  'Hotels',
+  book:   'Book Ahead',
+  other:  'Other',
+};
+
+const CATEGORY_ICONS: Record<string, string> = {
+  flight: 'ti-plane',
+  train:  'ti-train',
+  hotel:  'ti-building',
+  book:   'ti-calendar-check',
+  other:  'ti-file',
 };
 
 const CATEGORY_ORDER = ['flight', 'train', 'hotel', 'book', 'other'];
+
+// Parse a value_md string into { headline, secondary, detail } based on category
+function parseLogisticsValue(value: string, category: string): { headline: string; secondary: string; detail: string } {
+  const parts = value.split(' - ').map(p => p.trim()).filter(Boolean);
+
+  if (category === 'flight') {
+    // "UA970 - Sun, May 24 - ORD to FCO - Departs 3:45 PM - Arrives 7:55 AM - Seats 42J / 42K"
+    // Extract route (contains "to" or "→"), flight number, date, times
+    const routePart = parts.find(p => /to|→/.test(p)) ?? '';
+    const route = routePart.replace(/to/i, '→').replace(/\s+/g, ' ');
+    const flightNum = parts.find(p => /^[A-Z]{2}\d+/.test(p.trim())) ?? '';
+    const datePart = parts.find(p => /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(p) && !/depart|arriv/i.test(p)) ?? '';
+    const departs = parts.find(p => /depart/i.test(p))?.replace(/departs?\s*/i, '') ?? '';
+    const arrives = parts.find(p => /arriv/i.test(p))?.replace(/arriv[a-z]*\s*/i, '') ?? '';
+    const timeStr = [departs && `Departs ${departs}`, arrives && `Arrives ${arrives}`].filter(Boolean).join(' · ');
+    return {
+      headline: route,
+      secondary: [flightNum, datePart].filter(Boolean).join(' · '),
+      detail: timeStr,
+    };
+  }
+
+  if (category === 'train') {
+    // "Wed, May 27 - Suggested 10:00 AM Frecciarossa - Roma Termini to Firenze SMN - Arrives approx 11:35 AM"
+    const routePart = parts.find(p => /to|→/.test(p)) ?? '';
+    const route = routePart.replace(/to/i, '→');
+    const datePart = parts.find(p => /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)/i.test(p)) ?? '';
+    const trainType = parts.find(p => /frecciarossa|italo|intercity|tgv|eurostar/i.test(p))
+      ?.replace(/suggested\s*/i, '').replace(/\d{1,2}:\d{2}\s*(AM|PM)/i, '').trim() ?? '';
+    const timePart = parts.find(p => /suggested|depart|arriv|\d{1,2}:\d{2}/i.test(p) && p !== routePart && p !== datePart);
+    const timeStr = timePart?.replace(/suggested\s*/i, '').trim() ?? '';
+    return {
+      headline: route || parts[0] || '',
+      secondary: [datePart, timeStr].filter(Boolean).join(' · '),
+      detail: trainType,
+    };
+  }
+
+  if (category === 'hotel') {
+    // "May 25-27 - 2 nights - Check-in 2:00 PM - Check-out 10:00 AM - Conf #21773523"
+    const datePart = parts.find(p => /may|jun|jul|aug|sep|oct|nov|dec|jan|feb|mar|apr/i.test(p) && /\d/.test(p)) ?? '';
+    const nights = parts.find(p => /night/i.test(p)) ?? '';
+    const checkin = parts.find(p => /check.?in/i.test(p)) ?? '';
+    const conf = parts.find(p => /conf|#/i.test(p)) ?? '';
+    const extra = parts.find(p => p !== datePart && p !== nights && p !== checkin && p !== conf && !/check.?out/i.test(p) && p.length > 2) ?? '';
+    return {
+      headline: [datePart, nights].filter(Boolean).join(' · '),
+      secondary: checkin,
+      detail: [extra, conf].filter(Boolean).join(' · '),
+    };
+  }
+
+  if (category === 'book') {
+    // "Tue, May 26 - 3:00 PM - confirm tickets in hand"
+    const datePart = parts[0] ?? '';
+    const timePart = parts[1] ?? '';
+    const note = parts.slice(2).join(' · ');
+    return {
+      headline: [datePart, timePart].filter(Boolean).join(' · '),
+      secondary: '',
+      detail: note,
+    };
+  }
+
+  // fallback: first part = headline, rest = detail
+  return {
+    headline: parts[0] ?? value,
+    secondary: '',
+    detail: parts.slice(1).join(' · '),
+  };
+}
 
 function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme: { bg: string; fg: string } }) {
   const byCategory: Record<string, Logistics[]> = {};
@@ -556,60 +635,106 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
   return (
     <div style={{ padding: '12px 12px 40px' }}>
       {categories.map(cat => (
-        <div key={cat} style={{ marginBottom: 20 }}>
+        <div key={cat} style={{ marginBottom: 16 }}>
+
+          {/* Section banner — matches day banner style */}
           <div style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 8.5,
-            letterSpacing: '0.22em',
-            textTransform: 'uppercase',
-            color: theme.bg,
-            padding: '4px 4px 10px',
+            position: 'relative',
+            background: 'var(--bg-subtle)',
+            border: '0.5px solid var(--border)',
+            borderRadius: 14,
+            padding: '11px 14px 11px 20px',
+            marginBottom: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            overflow: 'hidden',
           }}>
-            {CATEGORY_LABELS[cat] ?? cat}
+            <div style={{
+              position: 'absolute',
+              left: 0, top: 8, bottom: 8,
+              width: 4,
+              background: theme.bg,
+              borderRadius: 4,
+            }} />
+            <i
+              className={`ti ${CATEGORY_ICONS[cat] ?? 'ti-file'}`}
+              style={{ fontSize: 15, color: theme.bg }}
+              aria-hidden="true"
+            />
+            <span style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: theme.bg,
+              fontWeight: 500,
+            }}>
+              {CATEGORY_LABELS[cat] ?? cat}
+            </span>
           </div>
+
+          {/* Cards */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {byCategory[cat].map(row => (
-              <div
-                key={row.id}
-                style={{
-                  position: 'relative',
-                  background: 'var(--surface)',
-                  border: '0.5px solid var(--border)',
-                  borderRadius: 14,
-                  padding: '12px 14px 12px 18px',
-                  overflow: 'hidden',
-                }}
-              >
-                <div style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 8,
-                  bottom: 8,
-                  width: 3,
-                  background: theme.bg,
-                  borderRadius: 4,
-                  opacity: 0.5,
-                }} />
-                <div style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 8.5,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: theme.bg,
-                  marginBottom: 5,
-                }}>
-                  {row.label}
+            {byCategory[cat].map(row => {
+              const { headline, secondary, detail } = parseLogisticsValue(row.value_md, cat);
+              return (
+                <div
+                  key={row.id}
+                  style={{
+                    position: 'relative',
+                    background: 'var(--surface)',
+                    border: '0.5px solid var(--border)',
+                    borderRadius: 14,
+                    padding: '12px 14px 12px 18px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute',
+                    left: 0, top: 8, bottom: 8,
+                    width: 3,
+                    background: theme.bg,
+                    borderRadius: 4,
+                    opacity: 0.4,
+                  }} />
+                  <div style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 8.5,
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    color: theme.bg,
+                    marginBottom: 4,
+                  }}>
+                    {row.label}
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: 8,
+                    marginBottom: secondary || detail ? 2 : 0,
+                  }}>
+                    <span
+                      style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink)' }}
+                      className="body-content"
+                      dangerouslySetInnerHTML={{ __html: renderMd(headline) }}
+                    />
+                    {secondary && (
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>
+                        {secondary}
+                      </span>
+                    )}
+                  </div>
+                  {detail && (
+                    <div
+                      style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5 }}
+                      className="body-content"
+                      dangerouslySetInnerHTML={{ __html: renderMd(detail) }}
+                    />
+                  )}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.6 }}>
-                  {row.value_md.split(' - ').map((part, pi) => (
-                    <span key={pi} className="body-content">
-                      {pi > 0 && <br />}
-                      <span dangerouslySetInnerHTML={{ __html: renderMd(part) }} />
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}
