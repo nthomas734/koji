@@ -430,6 +430,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
   const hasLocation = !!trip.location && !!trip.date_start;
 
   useEffect(() => {
+    console.log('[koji weather] effect fired', { hasLocation, location: trip.location, date_start: trip.date_start });
     if (!hasLocation) return;
 
     let cancelled = false;
@@ -437,10 +438,13 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
 
     (async () => {
       const coords = await geocode(trip.location!);
+      console.log('[koji weather] geocode result', coords);
       if (cancelled || !coords) { setLoading(false); return; }
 
       const end = tripEndDate(trip, days);
+      console.log('[koji weather] fetching', trip.date_start, end);
       const results = await fetchWeather(coords.lat, coords.lng, trip.date_start!, end);
+      console.log('[koji weather] results', results);
       if (cancelled) return;
 
       const map: Record<string, DayWeather> = {};
