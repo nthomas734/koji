@@ -59,6 +59,11 @@ interface DayWeather {
   tempMax: number;
   tempMin: number;
   wmoCode: number;
+  windMax:     number | null;
+  precipSum:   number | null;
+  precipProb:  number | null;
+  uvIndex:     number | null;
+  humidity:    number | null;
 }
 
 // ── WMO CODE → DISPLAY ───────────────────────────────────────────────────────
@@ -95,8 +100,18 @@ async function fetchWeather(
     const url = new URL(base);
     url.searchParams.set('latitude',         String(lat));
     url.searchParams.set('longitude',        String(lng));
-    url.searchParams.set('daily',            'temperature_2m_max,temperature_2m_min,weathercode');
+    url.searchParams.set('daily',            [
+      'temperature_2m_max',
+      'temperature_2m_min',
+      'weathercode',
+      'windspeed_10m_max',
+      'precipitation_sum',
+      'precipitation_probability_max',
+      'uv_index_max',
+    ].join(','));
+    url.searchParams.set('hourly',           'relative_humidity_2m');
     url.searchParams.set('temperature_unit', 'fahrenheit');
+    url.searchParams.set('wind_speed_unit',  'mph');
     url.searchParams.set('timezone',         'auto');
     url.searchParams.set('start_date',       dateStart);
     url.searchParams.set('end_date',         dateEnd);
@@ -104,14 +119,30 @@ async function fetchWeather(
     const res = await fetch(url.toString());
     if (!res.ok) return [];
     const json = await res.json();
-    const { time, temperature_2m_max, temperature_2m_min, weathercode } = json.daily ?? {};
+    const {
+      time, temperature_2m_max, temperature_2m_min, weathercode,
+      windspeed_10m_max, precipitation_sum, precipitation_probability_max, uv_index_max,
+    } = json.daily ?? {};
     if (!time) return [];
+
+    // Derive daily mean humidity from hourly data (24 readings per day)
+    const hourlyHumidity: number[] = json.hourly?.relative_humidity_2m ?? [];
+    const dailyHumidity = (time as string[]).map((_: string, i: number) => {
+      const slice = hourlyHumidity.slice(i * 24, i * 24 + 24).filter((v: number) => v != null);
+      if (slice.length === 0) return null;
+      return Math.round(slice.reduce((a: number, b: number) => a + b, 0) / slice.length);
+    });
 
     return (time as string[]).map((date: string, i: number) => ({
       date,
-      tempMax: Math.round(temperature_2m_max[i]),
-      tempMin: Math.round(temperature_2m_min[i]),
-      wmoCode: weathercode[i],
+      tempMax:    Math.round(temperature_2m_max[i]),
+      tempMin:    Math.round(temperature_2m_min[i]),
+      wmoCode:    weathercode[i],
+      windMax:    windspeed_10m_max?.[i]    != null ? Math.round(windspeed_10m_max[i])    : null,
+      precipSum:  precipitation_sum?.[i]    != null ? Math.round(precipitation_sum[i] * 10) / 10 : null,
+      precipProb: precipitation_probability_max?.[i] != null ? Math.round(precipitation_probability_max[i]) : null,
+      uvIndex:    uv_index_max?.[i]         != null ? Math.round(uv_index_max[i])         : null,
+      humidity:   dailyHumidity[i],
     }));
   } catch {
     return [];
@@ -135,8 +166,17 @@ async function fetchSeasonalWeather(
     const url = new URL('https://archive-api.open-meteo.com/v1/archive');
     url.searchParams.set('latitude',         String(lat));
     url.searchParams.set('longitude',        String(lng));
-    url.searchParams.set('daily',            'temperature_2m_max,temperature_2m_min,weathercode');
+    url.searchParams.set('daily',            [
+      'temperature_2m_max',
+      'temperature_2m_min',
+      'weathercode',
+      'windspeed_10m_max',
+      'precipitation_sum',
+      'uv_index_max',
+    ].join(','));
+    url.searchParams.set('hourly',           'relative_humidity_2m');
     url.searchParams.set('temperature_unit', 'fahrenheit');
+    url.searchParams.set('wind_speed_unit',  'mph');
     url.searchParams.set('timezone',         'auto');
     url.searchParams.set('start_date',       lastYearStart);
     url.searchParams.set('end_date',         lastYearEnd);
@@ -144,14 +184,29 @@ async function fetchSeasonalWeather(
     const res = await fetch(url.toString());
     if (!res.ok) return [];
     const json = await res.json();
-    const { time, temperature_2m_max, temperature_2m_min, weathercode } = json.daily ?? {};
+    const {
+      time, temperature_2m_max, temperature_2m_min, weathercode,
+      windspeed_10m_max, precipitation_sum, uv_index_max,
+    } = json.daily ?? {};
     if (!time) return [];
 
+    const hourlyHumidity: number[] = json.hourly?.relative_humidity_2m ?? [];
+    const dailyHumidity = (time as string[]).map((_: string, i: number) => {
+      const slice = hourlyHumidity.slice(i * 24, i * 24 + 24).filter((v: number) => v != null);
+      if (slice.length === 0) return null;
+      return Math.round(slice.reduce((a: number, b: number) => a + b, 0) / slice.length);
+    });
+
     return (time as string[]).map((date: string, i: number) => ({
-      date: shiftYear(date, 1), // shift back to the future date for matching
-      tempMax: Math.round(temperature_2m_max[i]),
-      tempMin: Math.round(temperature_2m_min[i]),
-      wmoCode: weathercode[i],
+      date:       shiftYear(date, 1),
+      tempMax:    Math.round(temperature_2m_max[i]),
+      tempMin:    Math.round(temperature_2m_min[i]),
+      wmoCode:    weathercode[i],
+      windMax:    windspeed_10m_max?.[i]  != null ? Math.round(windspeed_10m_max[i])  : null,
+      precipSum:  precipitation_sum?.[i]  != null ? Math.round(precipitation_sum[i] * 10) / 10 : null,
+      precipProb: null,
+      uvIndex:    uv_index_max?.[i]       != null ? Math.round(uv_index_max[i])       : null,
+      humidity:   dailyHumidity[i],
     }));
   } catch {
     return [];
@@ -736,8 +791,243 @@ function DayBlock({
   );
 }
 
+
+// ── WEATHER TAB ──────────────────────────────────────────────────────────────
+function WeatherTab({
+  days,
+  weatherMap,
+  trip,
+  isSeasonal,
+  theme,
+}: {
+  days: Day[];
+  weatherMap: Record<string, DayWeather>;
+  trip: Trip;
+  isSeasonal: boolean;
+  theme: { bg: string; fg: string };
+}) {
+  if (!trip.date_start) return null;
+
+  // Derive a color for each city based on unique lat/lng groups
+  // First city = theme color, subsequent cities = tag-style accent
+  const cityColors: Record<string, string> = {};
+  const cityOrder: string[] = [];
+  const CITY_ACCENTS = ['#1D9E75', '#378ADD', '#D85A30', '#D4537E', '#BA7517'];
+
+  for (const day of days) {
+    const lat = day.lat ?? trip.lat;
+    const lng = day.lng ?? trip.lng;
+    if (lat == null || lng == null) continue;
+    const key = `${lat},${lng}`;
+    if (!cityColors[key]) {
+      cityColors[key] = cityOrder.length === 0
+        ? theme.bg
+        : CITY_ACCENTS[(cityOrder.length - 1) % CITY_ACCENTS.length];
+      cityOrder.push(key);
+    }
+  }
+
+  // Derive city label from first day using those coords (use day label prefix)
+  const cityLabel: Record<string, string> = {};
+  for (const day of days) {
+    const lat = day.lat ?? trip.lat;
+    const lng = day.lng ?? trip.lng;
+    if (lat == null || lng == null) continue;
+    const key = `${lat},${lng}`;
+    if (!cityLabel[key]) {
+      const { subtitle } = parseDayLabel(day.label);
+      // subtitle might be "Arrive Rome" or "Florence - Sales Club..." — grab first segment
+      const firstSegment = subtitle.split(/[·\-]/)[0].trim();
+      // Extract city-like word (first capitalized word)
+      const cityMatch = firstSegment.match(/([A-Z][a-z]+)/);
+      cityLabel[key] = cityMatch ? cityMatch[1] : firstSegment || 'Day';
+    }
+  }
+
+  return (
+    <div style={{ padding: '12px 12px 40px' }}>
+      {isSeasonal && (
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 8.5,
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          color: 'var(--ink-4)',
+          textAlign: 'center',
+          padding: '0 0 12px',
+        }}>
+          Seasonal averages from prior year
+        </div>
+      )}
+      {days.map((day, i) => {
+        if (!trip.date_start) return null;
+        const date = dateForDay(trip.date_start, i);
+        const w = weatherMap[date];
+        if (!w) return (
+          <div key={day.id} style={{
+            background: 'var(--surface)',
+            border: '0.5px solid var(--border)',
+            borderRadius: 14,
+            padding: '14px 16px',
+            marginBottom: 8,
+            opacity: 0.4,
+          }}>
+            <div style={{ fontFamily: 'var(--font-serif)', fontSize: 16, color: 'var(--ink)' }}>
+              {parseDayLabel(day.label).headline}
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-4)', marginTop: 4 }}>
+              No weather data
+            </div>
+          </div>
+        );
+
+        const lat = day.lat ?? trip.lat;
+        const lng = day.lng ?? trip.lng;
+        const cityKey = lat != null && lng != null ? `${lat},${lng}` : '';
+        const accentColor = cityColors[cityKey] ?? theme.bg;
+        const city = cityLabel[cityKey] ?? '';
+        const { icon, label } = wmoDisplay(w.wmoCode);
+        const { headline } = parseDayLabel(day.label);
+
+        return (
+          <div
+            key={day.id}
+            style={{
+              position: 'relative',
+              background: 'var(--surface)',
+              border: '0.5px solid var(--border)',
+              borderRadius: 14,
+              padding: '14px 16px 14px 20px',
+              marginBottom: 8,
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{
+              position: 'absolute',
+              left: 0, top: 10, bottom: 10,
+              width: 3,
+              background: accentColor,
+              borderRadius: 4,
+            }} />
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div>
+                <div style={{ fontFamily: 'var(--font-serif)', fontSize: 17, color: 'var(--ink)', lineHeight: 1.2 }}>
+                  {headline}
+                </div>
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: accentColor,
+                  marginTop: 3,
+                }}>
+                  {city} · Day {i + 1}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: 28, fontWeight: 300, color: 'var(--ink)', lineHeight: 1 }}>
+                  {w.tempMax}°
+                </div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-4)', marginTop: 2 }}>
+                  {w.tempMin}° low
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <span style={{ fontSize: 20, lineHeight: 1 }}>{icon}</span>
+              <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)' }}>{label}</span>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              {w.humidity != null && (
+                <span style={{
+                  background: 'var(--bg-subtle)',
+                  borderRadius: 999,
+                  padding: '3px 10px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9,
+                  color: 'var(--ink-3)',
+                  letterSpacing: '0.08em',
+                }}>
+                  Humidity {w.humidity}%
+                </span>
+              )}
+              {w.windMax != null && (
+                <span style={{
+                  background: 'var(--bg-subtle)',
+                  borderRadius: 999,
+                  padding: '3px 10px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9,
+                  color: 'var(--ink-3)',
+                  letterSpacing: '0.08em',
+                }}>
+                  Wind {w.windMax} mph
+                </span>
+              )}
+              {w.uvIndex != null && (
+                <span style={{
+                  background: 'var(--bg-subtle)',
+                  borderRadius: 999,
+                  padding: '3px 10px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9,
+                  color: 'var(--ink-3)',
+                  letterSpacing: '0.08em',
+                }}>
+                  UV {w.uvIndex}
+                </span>
+              )}
+              {w.precipProb != null && w.precipProb > 0 && (
+                <span style={{
+                  background: 'var(--bg-subtle)',
+                  borderRadius: 999,
+                  padding: '3px 10px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9,
+                  color: 'var(--ink-3)',
+                  letterSpacing: '0.08em',
+                }}>
+                  Rain {w.precipProb}%
+                </span>
+              )}
+              {w.precipSum != null && w.precipSum > 0 && (
+                <span style={{
+                  background: 'var(--bg-subtle)',
+                  borderRadius: 999,
+                  padding: '3px 10px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9,
+                  color: 'var(--ink-3)',
+                  letterSpacing: '0.08em',
+                }}>
+                  {w.precipSum} in precip
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 8,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        color: 'var(--ink-4)',
+        textAlign: 'center',
+        paddingTop: 8,
+      }}>
+        Open-Meteo
+      </div>
+    </div>
+  );
+}
+
 // ── PILL TAB BAR ─────────────────────────────────────────────────────────────
-type Tab = 'itinerary' | 'logistics';
+type Tab = 'itinerary' | 'logistics' | 'weather';
 
 function PillTabBar({ active, onChange, theme }: {
   active: Tab;
@@ -747,6 +1037,7 @@ function PillTabBar({ active, onChange, theme }: {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'itinerary', label: 'Itinerary' },
     { key: 'logistics', label: 'Logistics' },
+    { key: 'weather',   label: 'Weather' },
   ];
   return (
     <div style={{ background: theme.bg, padding: '0 var(--px) 14px', display: 'flex', gap: 8 }}>
@@ -973,6 +1264,17 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
 
       {/* LOGISTICS TAB */}
       {activeTab === 'logistics' && <LogisticsSection logistics={logistics} theme={theme} />}
+
+      {/* WEATHER TAB */}
+      {activeTab === 'weather' && (
+        <WeatherTab
+          days={days}
+          weatherMap={weatherMap}
+          trip={trip}
+          isSeasonal={isSeasonal}
+          theme={theme}
+        />
+      )}
 
       {/* Footer */}
       <footer style={{
