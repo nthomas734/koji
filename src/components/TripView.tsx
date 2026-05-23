@@ -436,11 +436,9 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
     setLoading(true);
 
     (async () => {
-      // Step 1: geocode the location string
       const coords = await geocode(trip.location!);
       if (cancelled || !coords) { setLoading(false); return; }
 
-      // Step 2: fetch weather for the trip date range
       const end = tripEndDate(trip, days);
       const results = await fetchWeather(coords.lat, coords.lng, trip.date_start!, end);
       if (cancelled) return;
@@ -452,7 +450,8 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
     })();
 
     return () => { cancelled = true; };
-  }, [trip.location, trip.date_start, trip.date_end, hasLocation, days]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.location, trip.date_start, trip.date_end, hasLocation, days.length]);
 
   const allWeather = Object.values(weatherMap).sort((a, b) => a.date.localeCompare(b.date));
 
