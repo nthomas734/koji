@@ -600,11 +600,14 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
                 }}>
                   {row.label}
                 </div>
-                <div
-                  style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5 }}
-                  className="body-content"
-                  dangerouslySetInnerHTML={{ __html: renderMd(row.value_md) }}
-                />
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.6 }}>
+                  {row.value_md.split(' - ').map((part, pi) => (
+                    <span key={pi} className="body-content">
+                      {pi > 0 && <br />}
+                      <span dangerouslySetInnerHTML={{ __html: renderMd(part) }} />
+                    </span>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
