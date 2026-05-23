@@ -775,13 +775,16 @@ export default function TripEditor({
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: trip.title,
-        subtitle: trip.subtitle,
-        eyebrow: trip.eyebrow,
-        meta: trip.meta,
+        title:        trip.title,
+        subtitle:     trip.subtitle,
+        eyebrow:      trip.eyebrow,
+        meta:         trip.meta,
         header_theme: trip.header_theme,
-        companion: trip.companion,
-        published: trip.published,
+        companion:    trip.companion,
+        published:    trip.published,
+        location:     trip.location ?? null,
+        date_start:   trip.date_start ?? null,
+        date_end:     trip.date_end ?? null,
       }),
     });
     setSaving(false);
@@ -986,6 +989,19 @@ export default function TripEditor({
           </div>
           <Field label="Eyebrow" value={trip.eyebrow} onChange={v => setField('eyebrow', v)} />
           <Field label="Meta (tagline)" value={trip.meta} onChange={v => setField('meta', v)} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field
+              label="Start date (YYYY-MM-DD)"
+              value={trip.date_start ?? ''}
+              onChange={v => setField('date_start', v || null)}
+            />
+            <Field
+              label="End date (YYYY-MM-DD)"
+              value={trip.date_end ?? ''}
+              onChange={v => setField('date_end', v || null)}
+            />
+          </div>
 
           <Field
             label="Location (for weather — e.g. San Diego, CA)"
