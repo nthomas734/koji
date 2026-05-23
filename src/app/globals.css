@@ -16,39 +16,53 @@
   --brass:        #B8944E;
   --brass-light:  #F0E4C8;
 
-  --green:        #2D6B4A;
-  --green-bg:     #E4F0EB;
-  --navy:         #1A3A5C;
-  --navy-bg:      #E4ECF5;
-  --amber:        #8A5A00;
-  --amber-bg:     #F5EDD8;
-  --pink:         #7A1A4A;
-  --pink-bg:      #F5E4EF;
-  --sky:          #0A4A7A;
-  --sky-bg:       #E0EEF8;
-  --emerald:      #1A5C3A;
-  --emerald-bg:   #E0F0E8;
-  --gray-tag:     #5A5852;
-  --gray-tag-bg:  #EDEAE4;
-  --brass-tag:    #7A5A1A;
-  --brass-tag-bg: #F5EDD8;
+  /* Tag pill colors — punched up to 200/300 stops for fills, 800/900 for text */
+  --green:        #173404;
+  --green-bg:     #97C459;
+  --green-mid:    #639922;
+  --navy:         #042C53;
+  --navy-bg:      #85B7EB;
+  --navy-mid:     #378ADD;
+  --amber:        #633806;
+  --amber-bg:     #FAC775;
+  --amber-mid:    #EF9F27;
+  --pink:         #4B1528;
+  --pink-bg:      #ED93B1;
+  --pink-mid:     #D4537E;
+  --sky:          #042C53;
+  --sky-bg:       #85B7EB;
+  --sky-mid:      #378ADD;
+  --emerald:      #04342C;
+  --emerald-bg:   #5DCAA5;
+  --emerald-mid:  #1D9E75;
+  --gray-tag:     #2C2C2A;
+  --gray-tag-bg:  #B4B2A9;
+  --gray-tag-mid: #888780;
+  --brass-tag:    #4A1B0C;
+  --brass-tag-bg: #F0997B;
+  --brass-tag-mid:#D85A30;
 
-  --trip-forest:  #1C3828;
-  --trip-forest-fg: #C8EBD4;
-  --trip-navy:    #1C2A3A;
-  --trip-navy-fg: #C8D8EB;
-  --trip-plum:    #2A1C38;
-  --trip-plum-fg: #DCC8EB;
-  --trip-earth:   #3A2A1C;
-  --trip-earth-fg:#EBD8C8;
-  --trip-sand:    #3A361C;
-  --trip-sand-fg: #EBEAC8;
-  --trip-ocean:   #1C3838;
-  --trip-ocean-fg:#C8EBEB;
-  --trip-rust:    #381C1C;
-  --trip-rust-fg: #EBC8C8;
-  --trip-slate:   #1C1C1C;
-  --trip-slate-fg:#D8D8D8;
+  /* Trip themes — original 8 */
+  --trip-forest:    #1C3828;  --trip-forest-fg:   #C8EBD4;
+  --trip-navy:      #1C2A3A;  --trip-navy-fg:     #C8D8EB;
+  --trip-plum:      #2A1C38;  --trip-plum-fg:     #DCC8EB;
+  --trip-earth:     #3A2A1C;  --trip-earth-fg:    #EBD8C8;
+  --trip-sand:      #3A361C;  --trip-sand-fg:     #EBEAC8;
+  --trip-ocean:     #1C3838;  --trip-ocean-fg:    #C8EBEB;
+  --trip-rust:      #381C1C;  --trip-rust-fg:     #EBC8C8;
+  --trip-slate:     #1C1C1C;  --trip-slate-fg:    #D8D8D8;
+
+  /* Trip themes — 10 new location-based */
+  --trip-oxblood:   #3A1A14;  --trip-oxblood-fg:  #F0CDC0;
+  --trip-fog:       #2B2D2E;  --trip-fog-fg:      #D6DCDE;
+  --trip-pewter:    #8A8278;  --trip-pewter-fg:   #2A2418;
+  --trip-pacific:   #1A3038;  --trip-pacific-fg:  #BCDEE8;
+  --trip-shrine:    #BC2C2C;  --trip-shrine-fg:   #FCE1CE;
+  --trip-marigold:  #E89B2A;  --trip-marigold-fg: #4A2C03;
+  --trip-lagoon:    #2F8A8A;  --trip-lagoon-fg:   #DFF4F1;
+  --trip-cobalt:    #4A6FA5;  --trip-cobalt-fg:   #E8EEF8;
+  --trip-linen:     #F5EDDC;  --trip-linen-fg:    #3A2A0A;
+  --trip-stone:     #E8E3D8;  --trip-stone-fg:    #2A2418;
 
   --font-sans:    'Manrope', system-ui, sans-serif;
   --font-serif:   'Fraunces', Georgia, serif;
@@ -84,14 +98,14 @@ input, textarea, select {
 }
 
 .body-content a {
-  color: var(--green);
+  color: #2D6B4A;
   text-decoration: underline;
-  text-decoration-color: var(--green-bg);
+  text-decoration-color: rgba(45, 107, 74, 0.25);
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;
   transition: text-decoration-color 0.15s;
 }
-.body-content a:hover { text-decoration-color: var(--green); }
+.body-content a:hover { text-decoration-color: #2D6B4A; }
 
 /* ── Trip page layout — class-based so we can override on mobile ───────────── */
 

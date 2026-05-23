@@ -15,7 +15,12 @@ export function supabaseAdmin() {
 
 // ── TYPES ──────────────────────────────────────────────────────────────────
 
-export type HeaderTheme = 'forest' | 'navy' | 'plum' | 'earth' | 'sand' | 'ocean' | 'rust' | 'slate';
+export type HeaderTheme =
+  | 'forest' | 'navy' | 'plum' | 'earth' | 'sand'
+  | 'ocean' | 'rust' | 'slate'
+  | 'oxblood' | 'fog' | 'pewter' | 'pacific'
+  | 'shrine' | 'marigold' | 'lagoon' | 'cobalt'
+  | 'linen' | 'stone';
 
 export type TagColor =
   | 'green' | 'navy' | 'amber' | 'pink' | 'sky'

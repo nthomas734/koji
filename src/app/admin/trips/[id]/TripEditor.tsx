@@ -8,17 +8,38 @@ const TAG_COLOR_OPTIONS = [
   'green','navy','amber','pink','sky','emerald','gray','brass',
 ];
 
-const THEME_OPTIONS = ['forest','navy','plum','earth','sand','ocean','rust','slate'];
+const THEME_OPTIONS = [
+  // Original dark family
+  'forest','navy','plum','earth','sand',
+  // Dark expanded
+  'ocean','rust','slate',
+  // Dark — locations
+  'oxblood','fog','pewter','pacific',
+  // Saturated & bright
+  'shrine','marigold','lagoon','cobalt',
+  // Light parchment
+  'linen','stone',
+];
 
 const THEME_COLORS: Record<string, { bg: string; fg: string }> = {
-  forest: { bg: '#1C3828', fg: '#C8EBD4' },
-  navy:   { bg: '#1C2A3A', fg: '#C8D8EB' },
-  plum:   { bg: '#2A1C38', fg: '#DCC8EB' },
-  earth:  { bg: '#3A2A1C', fg: '#EBD8C8' },
-  sand:   { bg: '#3A361C', fg: '#EBEAC8' },
-  ocean:  { bg: '#1C3838', fg: '#C8EBEB' },
-  rust:   { bg: '#381C1C', fg: '#EBC8C8' },
-  slate:  { bg: '#1C1C1C', fg: '#D8D8D8' },
+  forest:   { bg: '#1C3828', fg: '#C8EBD4' },
+  navy:     { bg: '#1C2A3A', fg: '#C8D8EB' },
+  plum:     { bg: '#2A1C38', fg: '#DCC8EB' },
+  earth:    { bg: '#3A2A1C', fg: '#EBD8C8' },
+  sand:     { bg: '#3A361C', fg: '#EBEAC8' },
+  ocean:    { bg: '#1C3838', fg: '#C8EBEB' },
+  rust:     { bg: '#381C1C', fg: '#EBC8C8' },
+  slate:    { bg: '#1C1C1C', fg: '#D8D8D8' },
+  oxblood:  { bg: '#3A1A14', fg: '#F0CDC0' },
+  fog:      { bg: '#2B2D2E', fg: '#D6DCDE' },
+  pewter:   { bg: '#8A8278', fg: '#2A2418' },
+  pacific:  { bg: '#1A3038', fg: '#BCDEE8' },
+  shrine:   { bg: '#BC2C2C', fg: '#FCE1CE' },
+  marigold: { bg: '#E89B2A', fg: '#4A2C03' },
+  lagoon:   { bg: '#2F8A8A', fg: '#DFF4F1' },
+  cobalt:   { bg: '#4A6FA5', fg: '#E8EEF8' },
+  linen:    { bg: '#F5EDDC', fg: '#3A2A0A' },
+  stone:    { bg: '#E8E3D8', fg: '#2A2418' },
 };
 
 type CompanionMode = 'solo' | 'companion' | 'group';

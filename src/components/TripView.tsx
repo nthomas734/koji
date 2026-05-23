@@ -7,27 +7,51 @@ import { KojiMark } from '@/components/KojiMark';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
 const THEMES: Record<string, { bg: string; fg: string }> = {
-  forest: { bg: '#1C3828', fg: '#C8EBD4' },
-  navy:   { bg: '#1C2A3A', fg: '#C8D8EB' },
-  plum:   { bg: '#2A1C38', fg: '#DCC8EB' },
-  earth:  { bg: '#3A2A1C', fg: '#EBD8C8' },
-  sand:   { bg: '#3A361C', fg: '#EBEAC8' },
-  ocean:  { bg: '#1C3838', fg: '#C8EBEB' },
-  rust:   { bg: '#381C1C', fg: '#EBC8C8' },
-  slate:  { bg: '#1C1C1C', fg: '#D8D8D8' },
+  forest:   { bg: '#1C3828', fg: '#C8EBD4' },
+  navy:     { bg: '#1C2A3A', fg: '#C8D8EB' },
+  plum:     { bg: '#2A1C38', fg: '#DCC8EB' },
+  earth:    { bg: '#3A2A1C', fg: '#EBD8C8' },
+  sand:     { bg: '#3A361C', fg: '#EBEAC8' },
+  ocean:    { bg: '#1C3838', fg: '#C8EBEB' },
+  rust:     { bg: '#381C1C', fg: '#EBC8C8' },
+  slate:    { bg: '#1C1C1C', fg: '#D8D8D8' },
+  oxblood:  { bg: '#3A1A14', fg: '#F0CDC0' },
+  fog:      { bg: '#2B2D2E', fg: '#D6DCDE' },
+  pewter:   { bg: '#8A8278', fg: '#2A2418' },
+  pacific:  { bg: '#1A3038', fg: '#BCDEE8' },
+  shrine:   { bg: '#BC2C2C', fg: '#FCE1CE' },
+  marigold: { bg: '#E89B2A', fg: '#4A2C03' },
+  lagoon:   { bg: '#2F8A8A', fg: '#DFF4F1' },
+  cobalt:   { bg: '#4A6FA5', fg: '#E8EEF8' },
+  linen:    { bg: '#F5EDDC', fg: '#3A2A0A' },
+  stone:    { bg: '#E8E3D8', fg: '#2A2418' },
 };
 
 // ── TAG COLORS ──────────────────────────────────────────────────────────────
-const TAG_COLORS: Record<string, { bg: string; text: string }> = {
-  green:   { bg: '#E4F0EB', text: '#2D6B4A' },
-  navy:    { bg: '#E4ECF5', text: '#1A3A5C' },
-  amber:   { bg: '#F5EDD8', text: '#8A5A00' },
-  pink:    { bg: '#F5E4EF', text: '#7A1A4A' },
-  sky:     { bg: '#E0EEF8', text: '#0A4A7A' },
-  emerald: { bg: '#E0F0E8', text: '#1A5C3A' },
-  gray:    { bg: '#EDEAE4', text: '#5A5852' },
-  brass:   { bg: '#F5EDD8', text: '#7A5A1A' },
+// bg = pill fill (saturated mid-tone). text = pill label and tinted time label. bar = accent bar.
+const TAG_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
+  green:   { bg: '#97C459', text: '#173404', bar: '#639922' },
+  navy:    { bg: '#85B7EB', text: '#042C53', bar: '#378ADD' },
+  amber:   { bg: '#FAC775', text: '#633806', bar: '#EF9F27' },
+  pink:    { bg: '#ED93B1', text: '#4B1528', bar: '#D4537E' },
+  sky:     { bg: '#85B7EB', text: '#042C53', bar: '#378ADD' },
+  emerald: { bg: '#5DCAA5', text: '#04342C', bar: '#1D9E75' },
+  gray:    { bg: '#B4B2A9', text: '#2C2C2A', bar: '#888780' },
+  brass:   { bg: '#F0997B', text: '#4A1B0C', bar: '#D85A30' },
 };
+
+// ── DAY LABEL PARSING ───────────────────────────────────────────────────────
+// Splits "Friday, May 29 - Florence - Sales Club Day 2 - Closing Dinner"
+// into { headline: "Friday, May 29", subtitle: "Florence - Sales Club Day 2 - Closing Dinner" }
+// Falls back gracefully if there's no separator.
+function parseDayLabel(label: string): { headline: string; subtitle: string } {
+  const parts = label.split(/\s+[-–—]\s+/);
+  if (parts.length <= 1) return { headline: label, subtitle: '' };
+  return {
+    headline: parts[0],
+    subtitle: parts.slice(1).join(' · '),
+  };
+}
 
 // ── WEATHER TYPES ────────────────────────────────────────────────────────────
 interface DayWeather {
@@ -464,25 +488,40 @@ function LogisticsSection({ logistics }: { logistics: Logistics[] }) {
 }
 
 // ── STOP ROW ────────────────────────────────────────────────────────────────
+// 3px accent bar on left matches the tag pill's color family.
+// Time label tinted in the pill's dark text color to tie everything together.
 function StopRow({ stop }: { stop: Stop }) {
   const tagColor = TAG_COLORS[stop.tag_color] ?? TAG_COLORS.gray;
   const bodyHtml = renderMd(stop.body_md);
   return (
     <div style={{
+      position: 'relative',
       display: 'grid',
       gridTemplateColumns: '52px 1fr',
       gap: 6,
       background: 'var(--surface)',
       border: '0.5px solid var(--border)',
       borderRadius: 14,
-      padding: '12px 14px',
+      padding: '12px 14px 12px 18px',
       marginTop: 8,
+      overflow: 'hidden',
     }}>
+      <div style={{
+        position: 'absolute',
+        left: 0,
+        top: 8,
+        bottom: 8,
+        width: 3,
+        background: tagColor.bar,
+        borderRadius: 4,
+        opacity: stop.is_optional ? 0.4 : 1,
+      }} />
       <div style={{
         fontFamily: 'var(--font-mono)',
         fontSize: 10,
+        fontWeight: 500,
         letterSpacing: '0.04em',
-        color: 'var(--ink-3)',
+        color: tagColor.text,
         paddingTop: 4,
       }}>
         {stop.time_label || ''}
@@ -492,6 +531,7 @@ function StopRow({ stop }: { stop: Stop }) {
           display: 'inline-block',
           fontFamily: 'var(--font-mono)',
           fontSize: 8.5,
+          fontWeight: 500,
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
           padding: '3px 9px',
@@ -518,50 +558,104 @@ function StopRow({ stop }: { stop: Stop }) {
 }
 
 // ── DAY BLOCK ────────────────────────────────────────────────────────────────
-function DayBlock({ day, weather }: { day: Day; weather: DayWeather | null }) {
+// Redesigned banner:
+//   - 4px theme-color accent bar on left (rounded, inset)
+//   - "DAY N OF M" eyebrow in theme color
+//   - Serif day-of-week as primary headline
+//   - Mono-caps subtitle for the rest of the label
+//   - Weather badge tucked to the right
+function DayBlock({
+  day,
+  weather,
+  dayIndex,
+  dayTotal,
+  themeColor,
+}: {
+  day: Day;
+  weather: DayWeather | null;
+  dayIndex: number;
+  dayTotal: number;
+  themeColor: { bg: string; fg: string };
+}) {
+  const { headline, subtitle } = parseDayLabel(day.label);
+
   return (
     <div>
       <div style={{
-        margin: '16px 12px 0',
-        padding: '10px 16px',
+        position: 'relative',
+        margin: '20px 12px 0',
+        padding: '14px 16px 12px 22px',
         background: 'var(--bg-subtle)',
         border: '0.5px solid var(--border)',
         borderRadius: 14,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
         lineHeight: 1.5,
+        overflow: 'hidden',
       }}>
-        <span style={{
-          flex: 1,
-          minWidth: 0,
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9,
-          letterSpacing: '0.18em',
-          textTransform: 'uppercase',
-          color: 'var(--ink-2)',
-        }}>
-          {day.label}
-        </span>
-        {weather && (
-          <span style={{
-            flexShrink: 0,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9,
-            color: 'var(--ink-3)',
-            background: 'var(--surface)',
-            border: '0.5px solid var(--border)',
-            borderRadius: 999,
-            padding: '3px 9px',
-            whiteSpace: 'nowrap',
-          }}>
-            <span style={{ fontSize: 11, lineHeight: 1 }}>{wmoDisplay(weather.wmoCode).icon}</span>
-            {weather.tempMax}° / {weather.tempMin}°
-          </span>
-        )}
+        <div style={{
+          position: 'absolute',
+          left: 0,
+          top: 10,
+          bottom: 10,
+          width: 4,
+          background: themeColor.bg,
+          borderRadius: 4,
+        }} />
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: themeColor.bg,
+              marginBottom: 4,
+            }}>
+              Day {dayIndex + 1} of {dayTotal}
+            </div>
+            <div style={{
+              fontFamily: 'var(--font-serif)',
+              fontWeight: 400,
+              fontSize: 18,
+              letterSpacing: '-0.005em',
+              color: 'var(--ink)',
+              lineHeight: 1.15,
+              marginBottom: subtitle ? 4 : 0,
+            }}>
+              {headline}
+            </div>
+            {subtitle && (
+              <div style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                color: 'var(--ink-2)',
+                lineHeight: 1.4,
+              }}>
+                {subtitle}
+              </div>
+            )}
+          </div>
+          {weather && (
+            <span style={{
+              flexShrink: 0,
+              marginTop: 2,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9,
+              color: 'var(--ink-3)',
+              background: 'var(--surface)',
+              border: '0.5px solid var(--border)',
+              borderRadius: 999,
+              padding: '3px 9px',
+              whiteSpace: 'nowrap',
+            }}>
+              <span style={{ fontSize: 11, lineHeight: 1 }}>{wmoDisplay(weather.wmoCode).icon}</span>
+              {weather.tempMax}° / {weather.tempMin}°
+            </span>
+          )}
+        </div>
       </div>
       <div style={{ padding: '0 12px' }}>
         {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} />)}
@@ -755,7 +849,14 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
           <QuickStrip logistics={logistics} />
           <main>
             {days.map((day, i) => (
-              <DayBlock key={day.id} day={day} weather={hasCoords ? weatherForDay(i) : null} />
+              <DayBlock
+                key={day.id}
+                day={day}
+                weather={hasCoords ? weatherForDay(i) : null}
+                dayIndex={i}
+                dayTotal={days.length}
+                themeColor={theme}
+              />
             ))}
           </main>
         </>
