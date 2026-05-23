@@ -27,9 +27,9 @@ function TripCard({ trip }: { trip: Trip }) {
       <div style={{
         background: theme.bg,
         color: theme.fg,
-        borderRadius: 12,
-        padding: '20px 20px 18px',
-        marginBottom: 10,
+        borderRadius: 18,
+        padding: '22px 22px 20px',
+        marginBottom: 12,
         transition: 'opacity 0.15s',
       }}>
         <div style={{

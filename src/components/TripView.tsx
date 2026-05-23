@@ -232,15 +232,16 @@ function WeatherBadge({ w }: { w: DayWeather }) {
       display: 'inline-flex',
       alignItems: 'center',
       gap: 4,
-      marginLeft: 'auto',
       fontFamily: 'var(--font-mono)',
       fontSize: 9,
-      letterSpacing: '0.04em',
       color: 'var(--ink-3)',
+      background: 'var(--surface)',
+      border: '0.5px solid var(--border)',
+      borderRadius: 999,
+      padding: '3px 9px',
       whiteSpace: 'nowrap',
-      paddingRight: 2,
     }}>
-      <span style={{ fontSize: 12, lineHeight: 1 }}>{icon}</span>
+      <span style={{ fontSize: 11, lineHeight: 1 }}>{icon}</span>
       {w.tempMax}° / {w.tempMin}°
     </span>
   );
@@ -257,36 +258,43 @@ function QuickStrip({ logistics }: { logistics: Logistics[] }) {
   if (rows.length === 0) return null;
 
   return (
-    <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-      {rows.map((row, i) => (
-        <div
-          key={row.id}
-          style={{
-            display: 'flex',
-            alignItems: 'baseline',
-            gap: 10,
-            padding: '13px 20px',
-            borderBottom: i < rows.length - 1 ? '1px solid var(--bg-subtle)' : 'none',
-          }}
-        >
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 8,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: 'var(--ink-4)',
-            flexShrink: 0,
-            width: 80,
-          }}>
-            {row.label}
-          </span>
-          <span
-            style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.4 }}
-            className="body-content"
-            dangerouslySetInnerHTML={{ __html: renderMd(row.value_md) }}
-          />
-        </div>
-      ))}
+    <div style={{ padding: '12px 12px 0' }}>
+      <div style={{
+        background: 'var(--surface)',
+        border: '0.5px solid var(--border)',
+        borderRadius: 14,
+        overflow: 'hidden',
+      }}>
+        {rows.map((row, i) => (
+          <div
+            key={row.id}
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 10,
+              padding: '12px 16px',
+              borderBottom: i < rows.length - 1 ? '0.5px solid var(--bg-subtle)' : 'none',
+            }}
+          >
+            <span style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 8.5,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--ink-4)',
+              flexShrink: 0,
+              width: 80,
+            }}>
+              {row.label}
+            </span>
+            <span
+              style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.4 }}
+              className="body-content"
+              dangerouslySetInnerHTML={{ __html: renderMd(row.value_md) }}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -309,7 +317,10 @@ function WeatherHeroCard({
         display: 'flex',
         alignItems: 'center',
         padding: '10px 18px',
-        background: `${fg}10`,
+        background: `${fg}1f`,
+        border: `0.5px solid ${fg}2c`,
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         borderRadius: 999,
       }}>
         <span style={{ fontSize: 11, color: `${fg}80`, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -330,7 +341,10 @@ function WeatherHeroCard({
       alignItems: 'center',
       gap: 12,
       padding: '10px 18px',
-      background: `${fg}10`,
+      background: `${fg}1f`,
+      border: `0.5px solid ${fg}2c`,
+      backdropFilter: 'blur(8px)',
+      WebkitBackdropFilter: 'blur(8px)',
       borderRadius: 999,
     }}>
       <span style={{ fontSize: 17, lineHeight: 1 }}>{icon}</span>
@@ -395,54 +409,54 @@ function LogisticsSection({ logistics }: { logistics: Logistics[] }) {
   }
 
   return (
-    <div style={{ paddingBottom: 40 }}>
+    <div style={{ padding: '12px 12px 40px' }}>
       {keys.map(key => (
-        <div key={key}>
+        <div key={key} style={{ marginBottom: 14 }}>
           <div style={{
             fontFamily: 'var(--font-mono)',
-            fontSize: 8,
+            fontSize: 8.5,
             letterSpacing: '0.22em',
             textTransform: 'uppercase',
             color: 'var(--brass)',
-            padding: '18px 20px 10px',
-            background: 'var(--bg-subtle)',
-            borderTop: '1px solid var(--border)',
-            borderBottom: '1px solid var(--border)',
-            position: 'sticky',
-            top: 0,
-            zIndex: 30,
+            padding: '4px 8px 10px',
           }}>
             {SECTION_LABELS[key] ?? key}
           </div>
-          {byKey[key].map(row => (
-            <div
-              key={row.id}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '100px 1fr',
-                borderBottom: '1px solid var(--border)',
-                background: 'var(--surface)',
-              }}
-            >
-              <div style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 8.5,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                color: 'var(--ink-4)',
-                padding: '14px 12px 14px 20px',
-                borderRight: '1px solid var(--bg-subtle)',
-                lineHeight: 1.4,
-              }}>
-                {row.label}
-              </div>
+          <div style={{
+            background: 'var(--surface)',
+            border: '0.5px solid var(--border)',
+            borderRadius: 14,
+            overflow: 'hidden',
+          }}>
+            {byKey[key].map((row, i) => (
               <div
-                style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5, padding: '12px 20px 12px 14px' }}
-                className="body-content"
-                dangerouslySetInnerHTML={{ __html: renderMd(row.value_md) }}
-              />
-            </div>
-          ))}
+                key={row.id}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '100px 1fr',
+                  borderBottom: i < byKey[key].length - 1 ? '0.5px solid var(--bg-subtle)' : 'none',
+                }}
+              >
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 8.5,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-4)',
+                  padding: '14px 12px 14px 16px',
+                  borderRight: '0.5px solid var(--bg-subtle)',
+                  lineHeight: 1.4,
+                }}>
+                  {row.label}
+                </div>
+                <div
+                  style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5, padding: '12px 16px 12px 14px' }}
+                  className="body-content"
+                  dangerouslySetInnerHTML={{ __html: renderMd(row.value_md) }}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -454,10 +468,40 @@ function StopRow({ stop }: { stop: Stop }) {
   const tagColor = TAG_COLORS[stop.tag_color] ?? TAG_COLORS.gray;
   const bodyHtml = renderMd(stop.body_md);
   return (
-    <div className="stop-row" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-      <div className="stop-time">{stop.time_label || ''}</div>
-      <div style={{ padding: '14px 16px 14px 12px', borderLeft: '1px solid var(--bg-subtle)' }}>
-        <span className="stop-tag" style={{ background: tagColor.bg, color: tagColor.text }}>{stop.tag}</span>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '52px 1fr',
+      gap: 6,
+      background: 'var(--surface)',
+      border: '0.5px solid var(--border)',
+      borderRadius: 14,
+      padding: '12px 14px',
+      marginTop: 8,
+    }}>
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 10,
+        letterSpacing: '0.04em',
+        color: 'var(--ink-3)',
+        paddingTop: 4,
+      }}>
+        {stop.time_label || ''}
+      </div>
+      <div>
+        <span style={{
+          display: 'inline-block',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 8.5,
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          padding: '3px 9px',
+          borderRadius: 999,
+          marginBottom: 6,
+          background: tagColor.bg,
+          color: tagColor.text,
+        }}>
+          {stop.tag}
+        </span>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.35, marginBottom: 4 }}>
           {stop.title}
         </div>
@@ -478,31 +522,50 @@ function DayBlock({ day, weather }: { day: Day; weather: DayWeather | null }) {
   return (
     <div>
       <div style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 9,
-        letterSpacing: '0.2em',
-        textTransform: 'uppercase',
-        color: 'var(--ink-2)',
-        padding: '18px var(--px) 14px',
+        margin: '16px 12px 0',
+        padding: '10px 16px',
         background: 'var(--bg-subtle)',
-        borderTop: '1px solid var(--border)',
-        borderBottom: '1px solid var(--border)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 40,
+        border: '0.5px solid var(--border)',
+        borderRadius: 14,
         display: 'flex',
-        alignItems: 'flex-start',
-        gap: 16,
+        alignItems: 'center',
+        gap: 12,
         lineHeight: 1.5,
       }}>
-        <span style={{ flex: 1, minWidth: 0 }}>{day.label}</span>
+        <span style={{
+          flex: 1,
+          minWidth: 0,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 9,
+          letterSpacing: '0.18em',
+          textTransform: 'uppercase',
+          color: 'var(--ink-2)',
+        }}>
+          {day.label}
+        </span>
         {weather && (
-          <span style={{ flexShrink: 0, paddingTop: 1 }}>
-            <WeatherBadge w={weather} />
+          <span style={{
+            flexShrink: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            color: 'var(--ink-3)',
+            background: 'var(--surface)',
+            border: '0.5px solid var(--border)',
+            borderRadius: 999,
+            padding: '3px 9px',
+            whiteSpace: 'nowrap',
+          }}>
+            <span style={{ fontSize: 11, lineHeight: 1 }}>{wmoDisplay(weather.wmoCode).icon}</span>
+            {weather.tempMax}° / {weather.tempMin}°
           </span>
         )}
       </div>
-      {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} />)}
+      <div style={{ padding: '0 12px' }}>
+        {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} />)}
+      </div>
     </div>
   );
 }
@@ -529,15 +592,17 @@ function PillTabBar({ active, onChange, theme }: {
             onClick={() => onChange(tab.key)}
             style={{
               flex: 1,
-              padding: '7px 0',
+              padding: '8px 0',
               fontFamily: 'var(--font-mono)',
               fontSize: 9,
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              color: isActive ? theme.fg : `${theme.fg}55`,
-              background: isActive ? `${theme.fg}18` : 'transparent',
-              border: isActive ? `1px solid ${theme.fg}44` : '1px solid transparent',
-              borderRadius: 20,
+              color: isActive ? theme.fg : `${theme.fg}66`,
+              background: isActive ? `${theme.fg}1f` : 'transparent',
+              border: isActive ? `0.5px solid ${theme.fg}40` : '0.5px solid transparent',
+              backdropFilter: isActive ? 'blur(8px)' : 'none',
+              WebkitBackdropFilter: isActive ? 'blur(8px)' : 'none',
+              borderRadius: 999,
               transition: 'all 0.15s ease',
               cursor: 'pointer',
             }}
