@@ -211,10 +211,17 @@ function dateForDay(dateStart: string, index: number): string {
 }
 
 function tripEndDate(trip: Trip, days: Day[]): string {
-  if (trip.date_end) return trip.date_end;
-  const d = new Date(trip.date_start!);
-  d.setDate(d.getDate() + Math.max(days.length - 1, 0));
-  return d.toISOString().split('T')[0];
+  // Returns end_date + 1 day to ensure the final trip day is included
+  // (Open-Meteo's daily endpoint sometimes excludes the boundary date)
+  const base = trip.date_end
+    ? new Date(trip.date_end + 'T00:00')
+    : (() => {
+        const d = new Date(trip.date_start! + 'T00:00');
+        d.setDate(d.getDate() + Math.max(days.length - 1, 0));
+        return d;
+      })();
+  base.setDate(base.getDate() + 1);
+  return base.toISOString().split('T')[0];
 }
 
 // ── WEATHER BADGE — inline in day header ─────────────────────────────────────
@@ -258,7 +265,7 @@ function QuickStrip({ logistics }: { logistics: Logistics[] }) {
             display: 'flex',
             alignItems: 'baseline',
             gap: 10,
-            padding: '9px 20px',
+            padding: '13px 20px',
             borderBottom: i < rows.length - 1 ? '1px solid var(--bg-subtle)' : 'none',
           }}
         >
@@ -301,9 +308,9 @@ function WeatherHeroCard({
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        padding: '9px 12px',
+        padding: '10px 18px',
         background: `${fg}10`,
-        borderRadius: 8,
+        borderRadius: 999,
       }}>
         <span style={{ fontSize: 11, color: `${fg}80`, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
           Loading weather…
@@ -321,10 +328,10 @@ function WeatherHeroCard({
     <div style={{
       display: 'flex',
       alignItems: 'center',
-      gap: 10,
-      padding: '9px 12px',
+      gap: 12,
+      padding: '10px 18px',
       background: `${fg}10`,
-      borderRadius: 8,
+      borderRadius: 999,
     }}>
       <span style={{ fontSize: 17, lineHeight: 1 }}>{icon}</span>
       <span style={{ fontSize: 13, fontWeight: 500, color: '#FFFFFF' }}>
@@ -476,7 +483,7 @@ function DayBlock({ day, weather }: { day: Day; weather: DayWeather | null }) {
         letterSpacing: '0.2em',
         textTransform: 'uppercase',
         color: 'var(--ink-2)',
-        padding: '20px var(--px) 10px',
+        padding: '18px var(--px) 14px',
         background: 'var(--bg-subtle)',
         borderTop: '1px solid var(--border)',
         borderBottom: '1px solid var(--border)',
@@ -484,10 +491,16 @@ function DayBlock({ day, weather }: { day: Day; weather: DayWeather | null }) {
         top: 0,
         zIndex: 40,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
+        gap: 16,
+        lineHeight: 1.5,
       }}>
-        <span style={{ flex: 1 }}>{day.label}</span>
-        {weather && <WeatherBadge w={weather} />}
+        <span style={{ flex: 1, minWidth: 0 }}>{day.label}</span>
+        {weather && (
+          <span style={{ flexShrink: 0, paddingTop: 1 }}>
+            <WeatherBadge w={weather} />
+          </span>
+        )}
       </div>
       {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} />)}
     </div>
