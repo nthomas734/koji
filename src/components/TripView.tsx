@@ -92,11 +92,13 @@ async function fetchWeather(
     const today = new Date();
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 16);
+    const forecastLimit = new Date();
+    forecastLimit.setDate(forecastLimit.getDate() + 16);
     const tripDate = new Date(dateStart);
     const isPast = tripDate < cutoff;
-    // If trip is in the future (beyond forecast range), skip to seasonal
-    const isFuture = tripDate > today;
-    if (isFuture) return [];
+    // If trip starts beyond the 16-day forecast window, skip straight to seasonal
+    const beyondForecast = tripDate > forecastLimit;
+    if (beyondForecast) return [];
 
     const base = isPast
       ? 'https://archive-api.open-meteo.com/v1/archive'
