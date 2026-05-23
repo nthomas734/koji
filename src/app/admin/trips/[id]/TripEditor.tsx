@@ -987,6 +987,12 @@ export default function TripEditor({
           <Field label="Eyebrow" value={trip.eyebrow} onChange={v => setField('eyebrow', v)} />
           <Field label="Meta (tagline)" value={trip.meta} onChange={v => setField('meta', v)} />
 
+          <Field
+            label="Location (for weather — e.g. San Diego, CA)"
+            value={trip.location ?? ''}
+            onChange={v => setField('location', v || null)}
+          />
+
           <CompanionPicker
             subtitle={trip.subtitle}
             onChange={newSubtitle => setField('subtitle', newSubtitle)}

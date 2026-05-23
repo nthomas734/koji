@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Day, Logistics, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { KojiMark } from '@/components/KojiMark';
@@ -29,18 +29,178 @@ const TAG_COLORS: Record<string, { bg: string; text: string }> = {
   brass:   { bg: '#F5EDD8', text: '#7A5A1A' },
 };
 
-// ── ITINERARY-TAB QUICK STRIP ───────────────────────────────────────────────
-// Shows only logistics rows with column_key === 'logistics' that look like
-// hotel/flight essentials. We show ALL 'logistics' column rows but NOT 'book'.
-function QuickStrip({ logistics }: { logistics: Logistics[] }) {
+// ── WEATHER TYPES ────────────────────────────────────────────────────────────
+interface DayWeather {
+  date: string;
+  tempMax: number;
+  tempMin: number;
+  wmoCode: number;
+}
+
+// ── WMO CODE → DISPLAY ───────────────────────────────────────────────────────
+function wmoDisplay(code: number): { icon: string; label: string } {
+  if (code === 0)  return { icon: '☀️',  label: 'Clear' };
+  if (code <= 2)   return { icon: '⛅',  label: 'Partly cloudy' };
+  if (code === 3)  return { icon: '☁️',  label: 'Overcast' };
+  if (code <= 49)  return { icon: '🌫️', label: 'Fog' };
+  if (code <= 57)  return { icon: '🌦️', label: 'Drizzle' };
+  if (code <= 67)  return { icon: '🌧️', label: 'Rain' };
+  if (code <= 77)  return { icon: '❄️',  label: 'Snow' };
+  if (code <= 82)  return { icon: '🌦️', label: 'Showers' };
+  if (code <= 99)  return { icon: '⛈️',  label: 'Thunderstorm' };
+  return { icon: '🌡️', label: '' };
+}
+
+// ── GEOCODING via Open-Meteo ─────────────────────────────────────────────────
+async function geocode(location: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
+    url.searchParams.set('name', location);
+    url.searchParams.set('count', '1');
+    url.searchParams.set('language', 'en');
+    url.searchParams.set('format', 'json');
+    const res = await fetch(url.toString());
+    if (!res.ok) return null;
+    const json = await res.json();
+    const r = json.results?.[0];
+    if (!r) return null;
+    return { lat: r.latitude, lng: r.longitude };
+  } catch {
+    return null;
+  }
+}
+
+// ── WEATHER FETCH via Open-Meteo ─────────────────────────────────────────────
+// Automatically uses archive API for past trips (> 16 days ago)
+async function fetchWeather(
+  lat: number,
+  lng: number,
+  dateStart: string,
+  dateEnd: string,
+): Promise<DayWeather[]> {
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 16);
+    const isPast = new Date(dateStart) < cutoff;
+
+    const base = isPast
+      ? 'https://archive-api.open-meteo.com/v1/archive'
+      : 'https://api.open-meteo.com/v1/forecast';
+
+    const url = new URL(base);
+    url.searchParams.set('latitude',         String(lat));
+    url.searchParams.set('longitude',        String(lng));
+    url.searchParams.set('daily',            'temperature_2m_max,temperature_2m_min,weathercode');
+    url.searchParams.set('temperature_unit', 'fahrenheit');
+    url.searchParams.set('timezone',         'auto');
+    url.searchParams.set('start_date',       dateStart);
+    url.searchParams.set('end_date',         dateEnd);
+
+    const res = await fetch(url.toString());
+    if (!res.ok) return [];
+    const json = await res.json();
+    const { time, temperature_2m_max, temperature_2m_min, weathercode } = json.daily ?? {};
+    if (!time) return [];
+
+    return (time as string[]).map((date: string, i: number) => ({
+      date,
+      tempMax: Math.round(temperature_2m_max[i]),
+      tempMin: Math.round(temperature_2m_min[i]),
+      wmoCode: weathercode[i],
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// ── DATE HELPERS ─────────────────────────────────────────────────────────────
+// Derive a YYYY-MM-DD for a given day by offsetting from trip start
+function dateForDay(dateStart: string, index: number): string {
+  const d = new Date(dateStart);
+  d.setDate(d.getDate() + index);
+  return d.toISOString().split('T')[0];
+}
+
+function tripEndDate(trip: Trip, days: Day[]): string {
+  if (trip.date_end) return trip.date_end;
+  const d = new Date(trip.date_start!);
+  d.setDate(d.getDate() + Math.max(days.length - 1, 0));
+  return d.toISOString().split('T')[0];
+}
+
+// ── WEATHER BADGE — inline in day header ─────────────────────────────────────
+function WeatherBadge({ w }: { w: DayWeather }) {
+  const { icon } = wmoDisplay(w.wmoCode);
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      marginLeft: 'auto',
+      fontFamily: 'var(--font-mono)',
+      fontSize: 9,
+      letterSpacing: '0.04em',
+      color: 'var(--ink-3)',
+      whiteSpace: 'nowrap',
+      paddingRight: 2,
+    }}>
+      <span style={{ fontSize: 12, lineHeight: 1 }}>{icon}</span>
+      {w.tempMax}° / {w.tempMin}°
+    </span>
+  );
+}
+
+// ── QUICK STRIP — itinerary tab top summary ──────────────────────────────────
+function QuickStrip({
+  logistics,
+  weather,
+  loading,
+}: {
+  logistics: Logistics[];
+  weather: DayWeather[];
+  loading: boolean;
+}) {
   const rows = logistics.filter(l => l.column_key === 'logistics');
-  if (rows.length === 0) return null;
+
+  // Show the most relevant weather: today if within trip, else first day
+  const todayStr = new Date().toISOString().split('T')[0];
+  const spotDay = weather.find(w => w.date >= todayStr) ?? weather[0];
 
   return (
-    <div style={{
-      background: 'var(--surface)',
-      borderBottom: '1px solid var(--border)',
-    }}>
+    <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+
+      {/* Live weather row */}
+      {(loading || spotDay) && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '7px 20px',
+          borderBottom: rows.length > 0 ? '1px solid var(--bg-subtle)' : 'none',
+        }}>
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 8,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--ink-4)',
+            width: 80,
+            flexShrink: 0,
+          }}>
+            Weather
+          </span>
+          {loading && !spotDay ? (
+            <span style={{ fontSize: 12, color: 'var(--ink-4)' }}>Loading…</span>
+          ) : spotDay ? (
+            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 15, lineHeight: 1 }}>{wmoDisplay(spotDay.wmoCode).icon}</span>
+              {wmoDisplay(spotDay.wmoCode).label} · {spotDay.tempMax}° / {spotDay.tempMin}°F
+            </span>
+          ) : null}
+        </div>
+      )}
+
+      {/* Other logistics rows */}
       {rows.map((row, i) => (
         <div
           key={row.id}
@@ -48,7 +208,7 @@ function QuickStrip({ logistics }: { logistics: Logistics[] }) {
             display: 'flex',
             alignItems: 'baseline',
             gap: 10,
-            padding: '8px 20px',
+            padding: '7px 20px',
             borderBottom: i < rows.length - 1 ? '1px solid var(--bg-subtle)' : 'none',
           }}
         >
@@ -74,9 +234,8 @@ function QuickStrip({ logistics }: { logistics: Logistics[] }) {
   );
 }
 
-// ── FULL LOGISTICS GRID ─────────────────────────────────────────────────────
+// ── FULL LOGISTICS SECTION ───────────────────────────────────────────────────
 function LogisticsSection({ logistics }: { logistics: Logistics[] }) {
-  // Group by column_key, preserving sort_order within each group
   const byKey: Record<string, Logistics[]> = {};
   for (const row of logistics) {
     if (!byKey[row.column_key]) byKey[row.column_key] = [];
@@ -89,7 +248,6 @@ function LogisticsSection({ logistics }: { logistics: Logistics[] }) {
   };
 
   const keys = Object.keys(byKey);
-
   if (keys.length === 0) {
     return (
       <div style={{
@@ -109,8 +267,7 @@ function LogisticsSection({ logistics }: { logistics: Logistics[] }) {
   return (
     <div style={{ paddingBottom: 40 }}>
       {keys.map(key => (
-        <div key={key} style={{ marginBottom: 2 }}>
-          {/* Section header */}
+        <div key={key}>
           <div style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 8,
@@ -122,13 +279,11 @@ function LogisticsSection({ logistics }: { logistics: Logistics[] }) {
             borderTop: '1px solid var(--border)',
             borderBottom: '1px solid var(--border)',
             position: 'sticky',
-            top: 44, // below the tab bar
+            top: 0,
             zIndex: 30,
           }}>
             {SECTION_LABELS[key] ?? key}
           </div>
-
-          {/* Rows */}
           {byKey[key].map(row => (
             <div
               key={row.id}
@@ -139,7 +294,6 @@ function LogisticsSection({ logistics }: { logistics: Logistics[] }) {
                 background: 'var(--surface)',
               }}
             >
-              {/* Label */}
               <div style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 8.5,
@@ -152,16 +306,8 @@ function LogisticsSection({ logistics }: { logistics: Logistics[] }) {
               }}>
                 {row.label}
               </div>
-
-              {/* Value */}
               <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--ink-2)',
-                  lineHeight: 1.5,
-                  padding: '12px 20px 12px 14px',
-                }}
+                style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5, padding: '12px 20px 12px 14px' }}
                 className="body-content"
                 dangerouslySetInnerHTML={{ __html: renderMd(row.value_md) }}
               />
@@ -177,42 +323,17 @@ function LogisticsSection({ logistics }: { logistics: Logistics[] }) {
 function StopRow({ stop }: { stop: Stop }) {
   const tagColor = TAG_COLORS[stop.tag_color] ?? TAG_COLORS.gray;
   const bodyHtml = renderMd(stop.body_md);
-
   return (
-    <div className="stop-row" style={{
-      borderBottom: '1px solid var(--border)',
-      background: 'var(--surface)',
-    }}>
-      <div className="stop-time">
-        {stop.time_label || ''}
-      </div>
-      <div style={{
-        padding: '14px 16px 14px 12px',
-        borderLeft: '1px solid var(--bg-subtle)',
-      }}>
-        <span className="stop-tag" style={{
-          background: tagColor.bg,
-          color: tagColor.text,
-        }}>
-          {stop.tag}
-        </span>
-        <div style={{
-          fontSize: 14,
-          fontWeight: 600,
-          color: 'var(--ink)',
-          lineHeight: 1.35,
-          marginBottom: 4,
-        }}>
+    <div className="stop-row" style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+      <div className="stop-time">{stop.time_label || ''}</div>
+      <div style={{ padding: '14px 16px 14px 12px', borderLeft: '1px solid var(--bg-subtle)' }}>
+        <span className="stop-tag" style={{ background: tagColor.bg, color: tagColor.text }}>{stop.tag}</span>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.35, marginBottom: 4 }}>
           {stop.title}
         </div>
         {bodyHtml && (
           <div
-            style={{
-              fontSize: 13,
-              fontWeight: 300,
-              color: 'var(--ink-3)',
-              lineHeight: 1.6,
-            }}
+            style={{ fontSize: 13, fontWeight: 300, color: 'var(--ink-3)', lineHeight: 1.6 }}
             className="body-content"
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
@@ -223,7 +344,7 @@ function StopRow({ stop }: { stop: Stop }) {
 }
 
 // ── DAY BLOCK ────────────────────────────────────────────────────────────────
-function DayBlock({ day }: { day: Day }) {
+function DayBlock({ day, weather }: { day: Day; weather: DayWeather | null }) {
   return (
     <div>
       <div style={{
@@ -237,26 +358,23 @@ function DayBlock({ day }: { day: Day }) {
         borderTop: '1px solid var(--border)',
         borderBottom: '1px solid var(--border)',
         position: 'sticky',
-        top: 44, // below the tab bar
+        top: 0,
         zIndex: 40,
+        display: 'flex',
+        alignItems: 'center',
       }}>
-        {day.label}
+        <span style={{ flex: 1 }}>{day.label}</span>
+        {weather && <WeatherBadge w={weather} />}
       </div>
-      {(day.stops ?? []).map(stop => (
-        <StopRow key={stop.id} stop={stop} />
-      ))}
+      {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} />)}
     </div>
   );
 }
 
-// ── TAB BAR ──────────────────────────────────────────────────────────────────
+// ── PILL TAB BAR ─────────────────────────────────────────────────────────────
 type Tab = 'itinerary' | 'logistics';
 
-function TabBar({
-  active,
-  onChange,
-  theme,
-}: {
+function PillTabBar({ active, onChange, theme }: {
   active: Tab;
   onChange: (t: Tab) => void;
   theme: { bg: string; fg: string };
@@ -265,16 +383,8 @@ function TabBar({
     { key: 'itinerary', label: 'Itinerary' },
     { key: 'logistics', label: 'Logistics' },
   ];
-
   return (
-    <div style={{
-      display: 'flex',
-      background: theme.bg,
-      borderBottom: '1px solid var(--border)',
-      position: 'sticky',
-      top: 0,
-      zIndex: 50,
-    }}>
+    <div style={{ background: theme.bg, padding: '0 var(--px) 14px', display: 'flex', gap: 8 }}>
       {tabs.map(tab => {
         const isActive = tab.key === active;
         return (
@@ -283,15 +393,17 @@ function TabBar({
             onClick={() => onChange(tab.key)}
             style={{
               flex: 1,
-              padding: '11px 0',
+              padding: '7px 0',
               fontFamily: 'var(--font-mono)',
               fontSize: 9,
-              letterSpacing: '0.2em',
+              letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              color: isActive ? theme.fg : `${theme.fg}66`,
-              background: isActive ? `${theme.fg}14` : 'transparent',
-              borderBottom: isActive ? `2px solid ${theme.fg}` : '2px solid transparent',
+              color: isActive ? theme.fg : `${theme.fg}55`,
+              background: isActive ? `${theme.fg}18` : 'transparent',
+              border: isActive ? `1px solid ${theme.fg}44` : '1px solid transparent',
+              borderRadius: 20,
               transition: 'all 0.15s ease',
+              cursor: 'pointer',
             }}
           >
             {tab.label}
@@ -302,7 +414,7 @@ function TabBar({
   );
 }
 
-// ── MAIN COMPONENT ───────────────────────────────────────────────────────────
+// ── MAIN ─────────────────────────────────────────────────────────────────────
 interface TripViewProps {
   trip: Trip;
   logistics: Logistics[];
@@ -310,17 +422,51 @@ interface TripViewProps {
 }
 
 export function TripView({ trip, logistics, days }: TripViewProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('itinerary');
+  const [activeTab, setActiveTab]       = useState<Tab>('itinerary');
+  const [weatherMap, setWeatherMap]     = useState<Record<string, DayWeather>>({});
+  const [weatherLoading, setLoading]    = useState(false);
   const theme = THEMES[trip.header_theme] ?? THEMES.forest;
+
+  const hasLocation = !!trip.location && !!trip.date_start;
+
+  useEffect(() => {
+    if (!hasLocation) return;
+
+    let cancelled = false;
+    setLoading(true);
+
+    (async () => {
+      // Step 1: geocode the location string
+      const coords = await geocode(trip.location!);
+      if (cancelled || !coords) { setLoading(false); return; }
+
+      // Step 2: fetch weather for the trip date range
+      const end = tripEndDate(trip, days);
+      const results = await fetchWeather(coords.lat, coords.lng, trip.date_start!, end);
+      if (cancelled) return;
+
+      const map: Record<string, DayWeather> = {};
+      for (const w of results) map[w.date] = w;
+      setWeatherMap(map);
+      setLoading(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [trip.location, trip.date_start, trip.date_end, hasLocation, days]);
+
+  const allWeather = Object.values(weatherMap).sort((a, b) => a.date.localeCompare(b.date));
+
+  function weatherForDay(index: number): DayWeather | null {
+    if (!trip.date_start) return null;
+    const date = dateForDay(trip.date_start, index);
+    return weatherMap[date] ?? null;
+  }
 
   return (
     <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 60px' }}>
 
       {/* Site header */}
-      <header style={{
-        padding: '24px var(--px) 16px',
-        borderBottom: '1px solid var(--border)',
-      }}>
+      <header style={{ padding: '24px var(--px) 16px', borderBottom: '1px solid var(--border)' }}>
         <a href="/" style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -336,73 +482,67 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
         </a>
       </header>
 
-      {/* Trip header */}
-      <div style={{
-        background: theme.bg,
-        color: theme.fg,
-        padding: '20px var(--px)',
-      }}>
-        <div style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9,
-          letterSpacing: '0.22em',
-          textTransform: 'uppercase',
-          opacity: 0.55,
-          marginBottom: 8,
-        }}>
-          {trip.eyebrow}
+      {/* Trip header + pill tabs — one contiguous dark block */}
+      <div style={{ background: theme.bg, color: theme.fg }}>
+        <div style={{ padding: '20px var(--px) 14px' }}>
+          <div style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+            opacity: 0.55,
+            marginBottom: 8,
+          }}>
+            {trip.eyebrow}
+          </div>
+          <h1 style={{
+            fontFamily: 'var(--font-serif)',
+            fontWeight: 300,
+            fontSize: 22,
+            letterSpacing: '-0.01em',
+            lineHeight: 1.2,
+            marginBottom: 4,
+          }}>
+            {trip.title}
+          </h1>
+          <div style={{
+            fontFamily: 'var(--font-serif)',
+            fontWeight: 300,
+            fontStyle: 'italic',
+            fontSize: 16,
+            opacity: 0.8,
+            marginBottom: 10,
+          }}>
+            {trip.subtitle}
+          </div>
+          <div style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: 12,
+            fontWeight: 300,
+            lineHeight: 1.5,
+            opacity: 0.65,
+          }}>
+            {trip.meta}
+          </div>
         </div>
-        <h1 style={{
-          fontFamily: 'var(--font-serif)',
-          fontWeight: 300,
-          fontSize: 22,
-          letterSpacing: '-0.01em',
-          lineHeight: 1.2,
-          marginBottom: 4,
-        }}>
-          {trip.title}
-        </h1>
-        <div style={{
-          fontFamily: 'var(--font-serif)',
-          fontWeight: 300,
-          fontStyle: 'italic',
-          fontSize: 16,
-          opacity: 0.8,
-          marginBottom: 10,
-        }}>
-          {trip.subtitle}
-        </div>
-        <div style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 12,
-          fontWeight: 300,
-          lineHeight: 1.5,
-          opacity: 0.65,
-        }}>
-          {trip.meta}
-        </div>
+
+        <PillTabBar active={activeTab} onChange={setActiveTab} theme={theme} />
       </div>
 
-      {/* Tab bar — sticky, themed to match the header */}
-      <TabBar active={activeTab} onChange={setActiveTab} theme={theme} />
-
-      {/* ── ITINERARY TAB ── */}
+      {/* ITINERARY TAB */}
       {activeTab === 'itinerary' && (
         <>
-          {/* Quick strip: logistics column only (hotel, getting around, etc.) */}
-          {logistics.length > 0 && <QuickStrip logistics={logistics} />}
-
-          {/* Day blocks */}
+          <QuickStrip logistics={logistics} weather={allWeather} loading={weatherLoading} />
           <main>
-            {days.map(day => <DayBlock key={day.id} day={day} />)}
+            {days.map((day, i) => (
+              <DayBlock key={day.id} day={day} weather={hasLocation ? weatherForDay(i) : null} />
+            ))}
           </main>
         </>
       )}
 
-      {/* ── LOGISTICS TAB ── */}
-      {activeTab === 'logistics' && (
-        <LogisticsSection logistics={logistics} />
-      )}
+      {/* LOGISTICS TAB */}
+      {activeTab === 'logistics' && <LogisticsSection logistics={logistics} />}
 
       {/* Footer */}
       <footer style={{
@@ -414,7 +554,6 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
         textTransform: 'uppercase',
         color: 'var(--ink-4)',
         borderTop: '1px solid var(--border)',
-        marginTop: 0,
       }}>
         {trip.title}
       </footer>

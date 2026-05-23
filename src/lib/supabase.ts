@@ -36,6 +36,7 @@ export interface Trip {
   companion:    string | null;
   date_start:   string | null;
   date_end:     string | null;
+  location:     string | null;
   published:    boolean;
   sort_order:   number;
   created_at:   string;
