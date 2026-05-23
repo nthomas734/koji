@@ -221,9 +221,13 @@ async function fetchSeasonalWeather(
 }
 
 function shiftYear(dateStr: string, delta: number): string {
-  const d = new Date(dateStr);
-  d.setFullYear(d.getFullYear() + delta);
-  return d.toISOString().split('T')[0];
+  // Parse as local date to avoid UTC midnight timezone shift
+  const [y, m, day] = dateStr.split('-').map(Number);
+  const shifted = new Date(y + delta, m - 1, day);
+  const yyyy = shifted.getFullYear();
+  const mm = String(shifted.getMonth() + 1).padStart(2, '0');
+  const dd = String(shifted.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 // ── WEATHER AGGREGATION ──────────────────────────────────────────────────────
