@@ -1275,13 +1275,18 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
   useEffect(() => {
     if (!hasCoords || !trip.date_start) return;
 
+    // Check if trip is beyond the 16-day forecast window
+    const forecastLimit = new Date();
+    forecastLimit.setDate(forecastLimit.getDate() + 16);
+    const beyondForecast = new Date(trip.date_start) > forecastLimit;
+
     let cancelled = false;
-    setLoading(true);
+    if (!beyondForecast) setLoading(true);
     setIsSeasonal(false);
 
     (async () => {
       const locationGroups = getLocationGroups();
-      if (locationGroups.length === 0) { setLoading(false); return; }
+      if (locationGroups.length === 0) return;
 
       const allResults: DayWeather[] = [];
       let anySeasonal = false;
