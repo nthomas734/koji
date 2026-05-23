@@ -585,7 +585,7 @@ function DayBlock({
         position: 'relative',
         margin: '20px 12px 0',
         padding: '14px 16px 12px 22px',
-        background: 'var(--bg-subtle)',
+        background: `color-mix(in srgb, ${themeColor.bg} 12%, var(--bg-subtle))`,
         border: '0.5px solid var(--border)',
         borderRadius: 14,
         lineHeight: 1.5,
