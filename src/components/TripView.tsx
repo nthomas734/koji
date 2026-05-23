@@ -352,18 +352,30 @@ function condenseRow(row: Logistics): string {
   return row.label;
 }
 
+// Build a Google Maps link from a hotel label
+function hotelLink(label: string): string {
+  const q = label.trim().replace(/&/g, '%26').replace(/'/g, '').replace(/\s+/g, '+');
+  return `[${label}](https://www.google.com/maps/search/?api=1&query=${q})`;
+}
+
+interface StripRow {
+  label: string;
+  lines: string[];
+  isMarkdown?: boolean;
+}
+
 function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg: string; fg: string } }) {
   const flights = logistics.filter(l => l.category === 'flight');
   const trains  = logistics.filter(l => l.category === 'train');
   const hotels  = logistics.filter(l => l.category === 'hotel');
 
-  const stripRows: { label: string; value: string; isMarkdown?: boolean }[] = [];
+  const stripRows: StripRow[] = [];
 
   const outbound  = flights.filter(f => f.label.toLowerCase().includes('out') || f.sort_order === Math.min(...flights.map(x => x.sort_order)));
   const returning = flights.filter(f => !outbound.includes(f));
 
   if (outbound.length > 0) {
-    stripRows.push({ label: 'Fly out', value: outbound.map(r => condenseRow(r)).join(' \u00b7 ') });
+    stripRows.push({ label: 'Fly out', lines: outbound.map(r => condenseRow(r)) });
   }
   if (returning.length > 0) {
     const codes = returning.map(r => {
@@ -372,18 +384,19 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
     }).filter(Boolean).join(' \u2192 ');
     const dateMatch = returning[0]?.value_md.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i);
     const date = dateMatch ? dateMatch[1] : '';
-    stripRows.push({ label: 'Fly home', value: [codes, date].filter(Boolean).join(' \u00b7 ') });
+    stripRows.push({ label: 'Fly home', lines: [[codes, date].filter(Boolean).join(' \u00b7 ')] });
   }
 
   if (trains.length > 0) {
-    stripRows.push({ label: 'Trains', value: trains.map(r => condenseRow(r)).join('  \u00b7  ') });
+    stripRows.push({ label: 'Trains', lines: trains.map(r => condenseRow(r)) });
   }
+
   if (hotels.length > 0) {
-    const hotelLinks = hotels.map(r => {
-      const mdLink = r.value_md.match(/(\[[^\]]+\]\([^)]+\))/);
-      return mdLink ? mdLink[1] : r.label;
-    }).join(' \u00b7 ');
-    stripRows.push({ label: 'Hotels', value: hotelLinks, isMarkdown: true });
+    stripRows.push({
+      label: 'Hotels',
+      lines: hotels.map(r => hotelLink(r.label)),
+      isMarkdown: true,
+    });
   }
 
   if (stripRows.length === 0) return null;
@@ -401,7 +414,7 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
             key={row.label}
             style={{
               display: 'flex',
-              alignItems: 'baseline',
+              alignItems: 'flex-start',
               gap: 10,
               padding: '10px 16px',
               borderBottom: i < stripRows.length - 1 ? '0.5px solid var(--bg-subtle)' : 'none',
@@ -415,20 +428,23 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
               color: theme.bg,
               flexShrink: 0,
               width: 64,
+              paddingTop: 1,
             }}>
               {row.label}
             </span>
-            {row.isMarkdown ? (
-              <span
-                style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5 }}
-                className="body-content"
-                dangerouslySetInnerHTML={{ __html: renderMd(row.value) }}
-              />
-            ) : (
-              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5 }}>
-                {row.value}
-              </span>
-            )}
+            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.6 }}>
+              {row.lines.map((line, li) =>
+                row.isMarkdown ? (
+                  <div
+                    key={li}
+                    className="body-content"
+                    dangerouslySetInnerHTML={{ __html: renderMd(line) }}
+                  />
+                ) : (
+                  <div key={li}>{line}</div>
+                )
+              )}
+            </div>
           </div>
         ))}
       </div>
