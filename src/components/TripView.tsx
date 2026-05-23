@@ -302,7 +302,7 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
   const trains  = logistics.filter(l => l.category === 'train');
   const hotels  = logistics.filter(l => l.category === 'hotel');
 
-  const stripRows: { label: string; value: string }[] = [];
+  const stripRows: { label: string; value: string; isMarkdown?: boolean }[] = [];
 
   const outbound  = flights.filter(f => f.label.toLowerCase().includes('out') || f.sort_order === Math.min(...flights.map(x => x.sort_order)));
   const returning = flights.filter(f => !outbound.includes(f));
@@ -324,7 +324,11 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
     stripRows.push({ label: 'Trains', value: trains.map(r => condenseRow(r)).join('  \u00b7  ') });
   }
   if (hotels.length > 0) {
-    stripRows.push({ label: 'Hotels', value: hotels.map(r => r.label).join(' \u00b7 ') });
+    const hotelLinks = hotels.map(r => {
+      const mdLink = r.value_md.match(/(\[[^\]]+\]\([^)]+\))/);
+      return mdLink ? mdLink[1] : r.label;
+    }).join(' \u00b7 ');
+    stripRows.push({ label: 'Hotels', value: hotelLinks, isMarkdown: true });
   }
 
   if (stripRows.length === 0) return null;
@@ -359,9 +363,17 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
             }}>
               {row.label}
             </span>
-            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5 }}>
-              {row.value}
-            </span>
+            {row.isMarkdown ? (
+              <span
+                style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5 }}
+                className="body-content"
+                dangerouslySetInnerHTML={{ __html: renderMd(row.value) }}
+              />
+            ) : (
+              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.5 }}>
+                {row.value}
+              </span>
+            )}
           </div>
         ))}
       </div>
@@ -645,7 +657,7 @@ function DayBlock({
         position: 'relative',
         margin: '20px 12px 0',
         padding: '14px 16px 12px 22px',
-        background: `color-mix(in srgb, ${themeColor.bg} 12%, var(--bg-subtle))`,
+        background: 'var(--bg-subtle)',
         border: '0.5px solid var(--border)',
         borderRadius: 14,
         lineHeight: 1.5,
