@@ -385,13 +385,17 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
     stripRows.push({ label: 'Fly out', lines: outbound.map(r => condenseRow(r)) });
   }
   if (returning.length > 0) {
-    const codes = returning.map(r => {
-      const m = r.value_md.match(/\b([A-Z]{2})\s*(\d{1,4})\b/);
-      return m ? `${m[1]}${m[2]}` : '';
-    }).filter(Boolean).join(' \u2192 ');
-    const dateMatch = returning[0]?.value_md.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i);
-    const date = dateMatch ? dateMatch[1] : '';
-    stripRows.push({ label: 'Fly home', lines: [[codes, date].filter(Boolean).join(' \u00b7 ')] });
+    if (returning.length === 1) {
+      stripRows.push({ label: 'Fly home', lines: [condenseRow(returning[0])] });
+    } else {
+      const codes = returning.map(r => {
+        const m = r.value_md.match(/\b([A-Z]{2})\s*(\d{1,4})\b/);
+        return m ? `${m[1]}${m[2]}` : '';
+      }).filter(Boolean).join(' \u2192 ');
+      const dateMatch = returning[0]?.value_md.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i);
+      const date = dateMatch ? dateMatch[1] : '';
+      stripRows.push({ label: 'Fly home', lines: [[codes, date].filter(Boolean).join(' \u00b7 ')] });
+    }
   }
 
   if (trains.length > 0) {
