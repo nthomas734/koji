@@ -94,6 +94,114 @@ async function fetchWeather(
   }
 }
 
+// Seasonal averages: fetches the same date range from the previous year
+// via Open-Meteo's archive API. Returns a synthetic DayWeather array
+// representing typical conditions for the trip dates.
+async function fetchSeasonalWeather(
+  lat: number,
+  lng: number,
+  dateStart: string,
+  dateEnd: string,
+): Promise<DayWeather[]> {
+  try {
+    // Shift both dates back by one year to get historical data
+    const lastYearStart = shiftYear(dateStart, -1);
+    const lastYearEnd   = shiftYear(dateEnd,   -1);
+
+    const url = new URL('https://archive-api.open-meteo.com/v1/archive');
+    url.searchParams.set('latitude',         String(lat));
+    url.searchParams.set('longitude',        String(lng));
+    url.searchParams.set('daily',            'temperature_2m_max,temperature_2m_min,weathercode');
+    url.searchParams.set('temperature_unit', 'fahrenheit');
+    url.searchParams.set('timezone',         'auto');
+    url.searchParams.set('start_date',       lastYearStart);
+    url.searchParams.set('end_date',         lastYearEnd);
+
+    const res = await fetch(url.toString());
+    if (!res.ok) return [];
+    const json = await res.json();
+    const { time, temperature_2m_max, temperature_2m_min, weathercode } = json.daily ?? {};
+    if (!time) return [];
+
+    return (time as string[]).map((date: string, i: number) => ({
+      date: shiftYear(date, 1), // shift back to the future date for matching
+      tempMax: Math.round(temperature_2m_max[i]),
+      tempMin: Math.round(temperature_2m_min[i]),
+      wmoCode: weathercode[i],
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function shiftYear(dateStr: string, delta: number): string {
+  const d = new Date(dateStr);
+  d.setFullYear(d.getFullYear() + delta);
+  return d.toISOString().split('T')[0];
+}
+
+// ── WEATHER AGGREGATION ──────────────────────────────────────────────────────
+interface WeatherSummary {
+  avgMax: number;
+  avgMin: number;
+  dominantCode: number;
+  conditionLabel: string;
+}
+
+function summarizeWeather(weather: DayWeather[]): WeatherSummary | null {
+  if (weather.length === 0) return null;
+  const avgMax = Math.round(weather.reduce((s, w) => s + w.tempMax, 0) / weather.length);
+  const avgMin = Math.round(weather.reduce((s, w) => s + w.tempMin, 0) / weather.length);
+
+  // Find the most common WMO code (group similar codes together)
+  const buckets: Record<string, number[]> = {};
+  for (const w of weather) {
+    const bucket = wmoBucket(w.wmoCode);
+    if (!buckets[bucket]) buckets[bucket] = [];
+    buckets[bucket].push(w.wmoCode);
+  }
+  let dominantBucket = '';
+  let dominantCount = 0;
+  for (const [bucket, codes] of Object.entries(buckets)) {
+    if (codes.length > dominantCount) {
+      dominantBucket = bucket;
+      dominantCount = codes.length;
+    }
+  }
+  const dominantCode = buckets[dominantBucket][0];
+  const dominantShare = dominantCount / weather.length;
+
+  // If conditions are evenly split across buckets, call it mixed
+  const conditionLabel = dominantShare >= 0.6
+    ? `Mostly ${wmoDisplay(dominantCode).label.toLowerCase()}`
+    : 'Mixed conditions';
+
+  return { avgMax, avgMin, dominantCode, conditionLabel };
+}
+
+function wmoBucket(code: number): string {
+  if (code === 0)  return 'clear';
+  if (code <= 2)   return 'partly';
+  if (code === 3)  return 'cloudy';
+  if (code <= 49)  return 'fog';
+  if (code <= 67)  return 'rain';
+  if (code <= 77)  return 'snow';
+  if (code <= 82)  return 'showers';
+  return 'storm';
+}
+
+// Format a trip's date range as "May 23–25" or "Mar 1 – Apr 5"
+function formatTripDateRange(start: string | null, end: string | null): string {
+  if (!start) return '';
+  const s = new Date(start + 'T00:00');
+  const e = end ? new Date(end + 'T00:00') : null;
+  const monthsSame = e && s.getMonth() === e.getMonth();
+  const fmtMonth = (d: Date) => d.toLocaleDateString('en-US', { month: 'short' });
+  if (!e) return `${fmtMonth(s)} ${s.getDate()}`;
+  if (monthsSame) return `${fmtMonth(s)} ${s.getDate()}–${e.getDate()}`;
+  return `${fmtMonth(s)} ${s.getDate()} – ${fmtMonth(e)} ${e.getDate()}`;
+}
+
 // ── DATE HELPERS ─────────────────────────────────────────────────────────────
 // Derive a YYYY-MM-DD for a given day by offsetting from trip start
 function dateForDay(dateStart: string, index: number): string {
@@ -132,58 +240,17 @@ function WeatherBadge({ w }: { w: DayWeather }) {
 }
 
 // ── QUICK STRIP — itinerary tab top summary ──────────────────────────────────
-function QuickStrip({
-  logistics,
-  weather,
-  loading,
-  hasCoords,
-}: {
-  logistics: Logistics[];
-  weather: DayWeather[];
-  loading: boolean;
-  hasCoords: boolean;
-}) {
-  const rows = logistics.filter(l => l.column_key === 'logistics');
+function QuickStrip({ logistics }: { logistics: Logistics[] }) {
+  // Show logistics rows except any labeled "weather" (it's in the hero now)
+  const rows = logistics.filter(l =>
+    l.column_key === 'logistics' &&
+    l.label.trim().toLowerCase() !== 'weather'
+  );
 
-  // Show the most relevant weather: today if within trip, else first day
-  const todayStr = new Date().toISOString().split('T')[0];
-  const spotDay = weather.find(w => w.date >= todayStr) ?? weather[0];
+  if (rows.length === 0) return null;
 
   return (
     <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-
-      {/* Live weather row */}
-      {hasCoords && (loading || spotDay) && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '7px 20px',
-          borderBottom: rows.length > 0 ? '1px solid var(--bg-subtle)' : 'none',
-        }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 8,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: 'var(--ink-4)',
-            width: 80,
-            flexShrink: 0,
-          }}>
-            Weather
-          </span>
-          {loading && !spotDay ? (
-            <span style={{ fontSize: 12, color: 'var(--ink-4)' }}>Loading…</span>
-          ) : spotDay ? (
-            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 15, lineHeight: 1 }}>{wmoDisplay(spotDay.wmoCode).icon}</span>
-              {wmoDisplay(spotDay.wmoCode).label} · {spotDay.tempMax}° / {spotDay.tempMin}°F
-            </span>
-          ) : null}
-        </div>
-      )}
-
-      {/* Other logistics rows */}
       {rows.map((row, i) => (
         <div
           key={row.id}
@@ -191,7 +258,7 @@ function QuickStrip({
             display: 'flex',
             alignItems: 'baseline',
             gap: 10,
-            padding: '7px 20px',
+            padding: '9px 20px',
             borderBottom: i < rows.length - 1 ? '1px solid var(--bg-subtle)' : 'none',
           }}
         >
@@ -213,6 +280,79 @@ function QuickStrip({
           />
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── WEATHER HERO CARD ────────────────────────────────────────────────────────
+function WeatherHeroCard({
+  loading,
+  weather,
+  isSeasonal,
+  fg,
+}: {
+  loading: boolean;
+  weather: DayWeather[];
+  isSeasonal: boolean;
+  fg: string;
+}) {
+  if (loading && weather.length === 0) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '9px 12px',
+        background: `${fg}10`,
+        borderRadius: 8,
+      }}>
+        <span style={{ fontSize: 11, color: `${fg}80`, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          Loading weather…
+        </span>
+      </div>
+    );
+  }
+
+  const summary = summarizeWeather(weather);
+  if (!summary) return null;
+
+  const { icon } = wmoDisplay(summary.dominantCode);
+
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      padding: '9px 12px',
+      background: `${fg}10`,
+      borderRadius: 8,
+    }}>
+      <span style={{ fontSize: 17, lineHeight: 1 }}>{icon}</span>
+      <span style={{ fontSize: 13, fontWeight: 500, color: '#FFFFFF' }}>
+        avg {summary.avgMax}° / {summary.avgMin}°F
+      </span>
+      <span style={{
+        marginLeft: 'auto',
+        fontSize: 10,
+        color: `${fg}99`,
+        textAlign: 'right',
+        lineHeight: 1.3,
+      }}>
+        {summary.conditionLabel}
+        {isSeasonal && (
+          <>
+            <br />
+            <span style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 8,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: `${fg}77`,
+            }}>
+              Seasonal avg
+            </span>
+          </>
+        )}
+      </span>
     </div>
   );
 }
@@ -408,6 +548,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
   const [activeTab, setActiveTab]       = useState<Tab>('itinerary');
   const [weatherMap, setWeatherMap]     = useState<Record<string, DayWeather>>({});
   const [weatherLoading, setLoading]    = useState(false);
+  const [isSeasonal, setIsSeasonal]     = useState(false);
   const theme = THEMES[trip.header_theme] ?? THEMES.forest;
 
   const hasCoords = trip.lat != null && trip.lng != null && !!trip.date_start;
@@ -417,12 +558,20 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
 
     let cancelled = false;
     setLoading(true);
+    setIsSeasonal(false);
 
     (async () => {
       const end = tripEndDate(trip, days);
-      const results = await fetchWeather(trip.lat!, trip.lng!, trip.date_start!, end);
-      if (cancelled) return;
+      let results = await fetchWeather(trip.lat!, trip.lng!, trip.date_start!, end);
 
+      // If forecast returned nothing (likely trip > 16 days out),
+      // fall back to seasonal averages from the previous year
+      if (results.length === 0) {
+        results = await fetchSeasonalWeather(trip.lat!, trip.lng!, trip.date_start!, end);
+        if (results.length > 0 && !cancelled) setIsSeasonal(true);
+      }
+
+      if (cancelled) return;
       const map: Record<string, DayWeather> = {};
       for (const w of results) map[w.date] = w;
       setWeatherMap(map);
@@ -479,23 +628,14 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
 
       {/* Trip header + pill tabs — one contiguous dark block */}
       <div style={{ background: theme.bg, color: theme.fg }}>
-        <div style={{ padding: '20px var(--px) 14px' }}>
-          <div style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9,
-            letterSpacing: '0.22em',
-            textTransform: 'uppercase',
-            opacity: 0.55,
-            marginBottom: 8,
-          }}>
-            {trip.eyebrow}
-          </div>
+        <div style={{ padding: '22px var(--px) 14px' }}>
           <h1 style={{
             fontFamily: 'var(--font-serif)',
             fontWeight: 300,
-            fontSize: 22,
+            fontSize: 26,
             letterSpacing: '-0.01em',
-            lineHeight: 1.2,
+            lineHeight: 1.15,
+            color: '#FFFFFF',
             marginBottom: 4,
           }}>
             {trip.title}
@@ -504,21 +644,28 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
             fontFamily: 'var(--font-serif)',
             fontWeight: 300,
             fontStyle: 'italic',
-            fontSize: 16,
-            opacity: 0.8,
-            marginBottom: 10,
+            fontSize: 15,
+            opacity: 0.7,
+            marginBottom: trip.date_start || hasCoords ? 14 : 4,
           }}>
             {trip.subtitle}
+            {trip.subtitle && trip.date_start && <span style={{ opacity: 0.65 }}> · </span>}
+            {trip.date_start && (
+              <span style={{ fontStyle: 'normal', fontFamily: 'var(--font-sans)', fontSize: 12, letterSpacing: '0.02em' }}>
+                {formatTripDateRange(trip.date_start, trip.date_end)}
+              </span>
+            )}
           </div>
-          <div style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 12,
-            fontWeight: 300,
-            lineHeight: 1.5,
-            opacity: 0.65,
-          }}>
-            {trip.meta}
-          </div>
+
+          {/* Live or seasonal weather summary */}
+          {hasCoords && (
+            <WeatherHeroCard
+              loading={weatherLoading}
+              weather={allWeather}
+              isSeasonal={isSeasonal}
+              fg={theme.fg}
+            />
+          )}
         </div>
 
         <PillTabBar active={activeTab} onChange={setActiveTab} theme={theme} />
@@ -527,7 +674,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
       {/* ITINERARY TAB */}
       {activeTab === 'itinerary' && (
         <>
-          <QuickStrip logistics={logistics} weather={allWeather} loading={weatherLoading} hasCoords={hasCoords} />
+          <QuickStrip logistics={logistics} />
           <main>
             {days.map((day, i) => (
               <DayBlock key={day.id} day={day} weather={hasCoords ? weatherForDay(i) : null} />
