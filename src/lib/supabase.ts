@@ -37,6 +37,8 @@ export interface Trip {
   date_start:   string | null;
   date_end:     string | null;
   location:     string | null;
+  lat:          number | null;
+  lng:          number | null;
   published:    boolean;
   sort_order:   number;
   created_at:   string;

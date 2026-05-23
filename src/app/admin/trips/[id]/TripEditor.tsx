@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import type { Trip, Day, Stop, Logistics } from '@/lib/supabase';
 
@@ -102,6 +102,172 @@ function Field({
           onChange={e => onChange(e.target.value)}
           style={inputStyle()}
         />
+      )}
+    </div>
+  );
+}
+
+// ── LOCATION AUTOCOMPLETE ───────────────────────────────────────────────────
+// Hits Open-Meteo's geocoding API on every keystroke (debounced).
+// When a result is picked, it sets location + lat + lng all at once.
+// Typing manually clears lat/lng — forces the user to pick from the dropdown.
+type GeoResult = {
+  name:        string;
+  admin1?:     string;
+  country?:    string;
+  latitude:    number;
+  longitude:   number;
+};
+
+function LocationAutocomplete({
+  value,
+  onPick,
+  onTextChange,
+}: {
+  value: string;
+  onPick: (place: { label: string; lat: number; lng: number }) => void;
+  onTextChange: (text: string) => void;
+}) {
+  const [query, setQuery] = useState(value);
+  const [results, setResults] = useState<GeoResult[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Keep local query in sync if parent value changes externally
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
+
+  // Debounced search
+  useEffect(() => {
+    if (!focused) return;
+    if (!query || query.trim().length < 2) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
+        url.searchParams.set('name', query);
+        url.searchParams.set('count', '5');
+        url.searchParams.set('language', 'en');
+        url.searchParams.set('format', 'json');
+        const res = await fetch(url.toString());
+        const json = await res.json();
+        setResults(json.results ?? []);
+        setOpen(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query, focused]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  function formatResult(r: GeoResult): string {
+    const parts = [r.name, r.admin1, r.country].filter(Boolean);
+    return parts.join(', ');
+  }
+
+  function pick(r: GeoResult) {
+    const label = formatResult(r);
+    setQuery(label);
+    setOpen(false);
+    setResults([]);
+    onPick({ label, lat: r.latitude, lng: r.longitude });
+  }
+
+  return (
+    <div ref={wrapperRef} style={{ marginBottom: 12, position: 'relative' }}>
+      <label style={labelStyle()}>Location (for weather)</label>
+      <input
+        type="text"
+        value={query}
+        autoComplete="off"
+        spellCheck={false}
+        onFocus={() => {
+          setFocused(true);
+          if (results.length > 0) setOpen(true);
+        }}
+        onChange={e => {
+          const v = e.target.value;
+          setQuery(v);
+          // Any manual edit clears the saved coords — user must re-pick
+          onTextChange(v);
+        }}
+        style={inputStyle()}
+        placeholder="Start typing a city…"
+      />
+      {loading && (
+        <div style={{
+          position: 'absolute',
+          right: 10,
+          top: 32,
+          fontSize: 10,
+          color: 'var(--ink-4)',
+          fontFamily: 'var(--font-mono)',
+          letterSpacing: '0.1em',
+        }}>
+          …
+        </div>
+      )}
+      {open && results.length > 0 && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          background: 'var(--surface)',
+          border: '1px solid var(--border-mid)',
+          borderRadius: 4,
+          marginTop: 2,
+          maxHeight: 240,
+          overflowY: 'auto',
+          zIndex: 100,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+        }}>
+          {results.map((r, i) => (
+            <button
+              key={`${r.latitude}-${r.longitude}-${i}`}
+              type="button"
+              onClick={() => pick(r)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '10px 12px',
+                fontSize: 13,
+                color: 'var(--ink-2)',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: i < results.length - 1 ? '1px solid var(--bg-subtle)' : 'none',
+                cursor: 'pointer',
+              }}
+            >
+              {formatResult(r)}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -783,6 +949,8 @@ export default function TripEditor({
         companion:    trip.companion,
         published:    trip.published,
         location:     trip.location ?? null,
+        lat:          trip.lat ?? null,
+        lng:          trip.lng ?? null,
         date_start:   trip.date_start ?? null,
         date_end:     trip.date_end ?? null,
       }),
@@ -1005,10 +1173,15 @@ export default function TripEditor({
             />
           </div>
 
-          <Field
-            label="Location (for weather)"
-            value={trip.location ?? trip.title ?? ''}
-            onChange={v => setField('location', v || null)}
+          <LocationAutocomplete
+            value={trip.location ?? ''}
+            onPick={({ label, lat, lng }) => {
+              setTrip(t => ({ ...t, location: label, lat, lng }));
+            }}
+            onTextChange={text => {
+              // Manual edit clears coords until they pick a real result
+              setTrip(t => ({ ...t, location: text || null, lat: null, lng: null }));
+            }}
           />
 
           <CompanionPicker

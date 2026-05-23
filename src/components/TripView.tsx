@@ -51,25 +51,6 @@ function wmoDisplay(code: number): { icon: string; label: string } {
   return { icon: '🌡️', label: '' };
 }
 
-// ── GEOCODING via Open-Meteo ─────────────────────────────────────────────────
-async function geocode(location: string): Promise<{ lat: number; lng: number } | null> {
-  try {
-    const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
-    url.searchParams.set('name', location);
-    url.searchParams.set('count', '1');
-    url.searchParams.set('language', 'en');
-    url.searchParams.set('format', 'json');
-    const res = await fetch(url.toString());
-    if (!res.ok) return null;
-    const json = await res.json();
-    const r = json.results?.[0];
-    if (!r) return null;
-    return { lat: r.latitude, lng: r.longitude };
-  } catch {
-    return null;
-  }
-}
-
 // ── WEATHER FETCH via Open-Meteo ─────────────────────────────────────────────
 // Automatically uses archive API for past trips (> 16 days ago)
 async function fetchWeather(
@@ -155,10 +136,12 @@ function QuickStrip({
   logistics,
   weather,
   loading,
+  hasCoords,
 }: {
   logistics: Logistics[];
   weather: DayWeather[];
   loading: boolean;
+  hasCoords: boolean;
 }) {
   const rows = logistics.filter(l => l.column_key === 'logistics');
 
@@ -170,7 +153,7 @@ function QuickStrip({
     <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
 
       {/* Live weather row */}
-      {(loading || spotDay) && (
+      {hasCoords && (loading || spotDay) && (
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -427,24 +410,17 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
   const [weatherLoading, setLoading]    = useState(false);
   const theme = THEMES[trip.header_theme] ?? THEMES.forest;
 
-  const hasLocation = !!trip.location && !!trip.date_start;
+  const hasCoords = trip.lat != null && trip.lng != null && !!trip.date_start;
 
   useEffect(() => {
-    console.log('[koji weather] effect fired', { hasLocation, location: trip.location, date_start: trip.date_start });
-    if (!hasLocation) return;
+    if (!hasCoords) return;
 
     let cancelled = false;
     setLoading(true);
 
     (async () => {
-      const coords = await geocode(trip.location!);
-      console.log('[koji weather] geocode result', coords);
-      if (cancelled || !coords) { setLoading(false); return; }
-
       const end = tripEndDate(trip, days);
-      console.log('[koji weather] fetching', trip.date_start, end);
-      const results = await fetchWeather(coords.lat, coords.lng, trip.date_start!, end);
-      console.log('[koji weather] results', results);
+      const results = await fetchWeather(trip.lat!, trip.lng!, trip.date_start!, end);
       if (cancelled) return;
 
       const map: Record<string, DayWeather> = {};
@@ -455,7 +431,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trip.location, trip.date_start, trip.date_end, hasLocation, days.length]);
+  }, [trip.lat, trip.lng, trip.date_start, trip.date_end, hasCoords, days.length]);
 
   const allWeather = Object.values(weatherMap).sort((a, b) => a.date.localeCompare(b.date));
 
@@ -551,10 +527,10 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
       {/* ITINERARY TAB */}
       {activeTab === 'itinerary' && (
         <>
-          <QuickStrip logistics={logistics} weather={allWeather} loading={weatherLoading} />
+          <QuickStrip logistics={logistics} weather={allWeather} loading={weatherLoading} hasCoords={hasCoords} />
           <main>
             {days.map((day, i) => (
-              <DayBlock key={day.id} day={day} weather={hasLocation ? weatherForDay(i) : null} />
+              <DayBlock key={day.id} day={day} weather={hasCoords ? weatherForDay(i) : null} />
             ))}
           </main>
         </>
