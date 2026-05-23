@@ -827,7 +827,7 @@ function WeatherTab({
     }
   }
 
-  // Derive city label from first day using those coords (use day label prefix)
+  // Use location_label field on the day; fall back to trip.location for trip-level coords
   const cityLabel: Record<string, string> = {};
   for (const day of days) {
     const lat = day.lat ?? trip.lat;
@@ -835,12 +835,12 @@ function WeatherTab({
     if (lat == null || lng == null) continue;
     const key = `${lat},${lng}`;
     if (!cityLabel[key]) {
-      const { subtitle } = parseDayLabel(day.label);
-      // subtitle might be "Arrive Rome" or "Florence - Sales Club..." — grab first segment
-      const firstSegment = subtitle.split(/[·\-]/)[0].trim();
-      // Extract city-like word (first capitalized word)
-      const cityMatch = firstSegment.match(/([A-Z][a-z]+)/);
-      cityLabel[key] = cityMatch ? cityMatch[1] : firstSegment || 'Day';
+      if (day.location_label) {
+        cityLabel[key] = day.location_label;
+      } else if (day.lat == null && trip.location) {
+        // Day uses trip-level coords — use trip location
+        cityLabel[key] = trip.location.split(',')[0].trim();
+      }
     }
   }
 

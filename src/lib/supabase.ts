@@ -61,13 +61,14 @@ export interface Logistics {
 }
 
 export interface Day {
-  id:         number;
-  trip_id:    number;
-  label:      string;
-  sort_order: number;
-  lat:        number | null;
-  lng:        number | null;
-  stops?:     Stop[];
+  id:             number;
+  trip_id:        number;
+  label:          string;
+  sort_order:     number;
+  lat:            number | null;
+  lng:            number | null;
+  location_label: string | null;
+  stops?:         Stop[];
 }
 
 export interface Stop {

@@ -453,6 +453,7 @@ function DayEditor({
   const [adding, setAdding] = useState(false);
   const [lat, setLat] = useState(day.lat != null ? String(day.lat) : '');
   const [lng, setLng] = useState(day.lng != null ? String(day.lng) : '');
+  const [locationLabel, setLocationLabel] = useState(day.location_label ?? '');
 
   async function addStop() {
     setAdding(true);
@@ -463,8 +464,9 @@ function DayEditor({
   async function saveCoords() {
     const newLat = lat.trim() ? parseFloat(lat) : null;
     const newLng = lng.trim() ? parseFloat(lng) : null;
-    if (newLat === day.lat && newLng === day.lng) return;
-    await onSaveDay(day.id, { lat: newLat, lng: newLng });
+    const newLabel = locationLabel.trim() || null;
+    if (newLat === day.lat && newLng === day.lng && newLabel === day.location_label) return;
+    await onSaveDay(day.id, { lat: newLat, lng: newLng, location_label: newLabel });
   }
 
   return (
@@ -501,6 +503,24 @@ function DayEditor({
 
       <div style={{ padding: '10px 12px' }}>
         <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          <input
+            value={locationLabel}
+            onChange={e => setLocationLabel(e.target.value)}
+            onBlur={saveCoords}
+            placeholder="City (e.g. Rome)"
+            style={{
+              width: '100%',
+              border: '0.5px solid var(--border)',
+              borderRadius: 6,
+              padding: '5px 8px',
+              fontSize: 11,
+              fontFamily: 'var(--font-mono)',
+              background: 'var(--bg)',
+              color: 'var(--ink-2)',
+              outline: 'none',
+              marginBottom: 6,
+            }}
+          />
           <input
             value={lat}
             onChange={e => setLat(e.target.value)}
