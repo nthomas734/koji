@@ -1293,8 +1293,9 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
       const map: Record<string, DayWeather> = {};
       for (const w of allResults) map[w.date] = w;
       setWeatherMap(map);
-      setLoading(false);
-    })();
+    })().catch(() => {}).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
