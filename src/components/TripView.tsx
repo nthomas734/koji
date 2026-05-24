@@ -1301,7 +1301,9 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
 
     // archive-api.open-meteo.com is unreachable from Vercel — no seasonal fetch.
     // For beyond-forecast trips, skip weather entirely.
-    if (beyondForecast) return;
+    const forecastLimit2 = new Date();
+    forecastLimit2.setDate(forecastLimit2.getDate() + 16);
+    if (new Date(trip.date_start) > forecastLimit2) return;
 
     let cancelled = false;
     setLoading(true);
