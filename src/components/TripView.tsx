@@ -295,9 +295,13 @@ function formatTripDateRange(start: string | null, end: string | null): string {
 // ── DATE HELPERS ─────────────────────────────────────────────────────────────
 // Derive a YYYY-MM-DD for a given day by offsetting from trip start
 function dateForDay(dateStart: string, index: number): string {
-  const d = new Date(dateStart);
-  d.setDate(d.getDate() + index);
-  return d.toISOString().split('T')[0];
+  // Parse as local date to avoid UTC midnight timezone shift (same fix as shiftYear)
+  const [y, m, day] = dateStart.split('-').map(Number);
+  const d = new Date(y, m - 1, day + index);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function tripEndDate(trip: Trip, days: Day[]): string {
@@ -500,7 +504,23 @@ function WeatherHeroCard({
   }
 
   const summary = summarizeWeather(weather);
-  if (!summary) return null;
+  if (!summary) {
+    // Weather fetch completed but returned no data — show a quiet unavailable pill
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '10px 18px',
+        background: `${fg}0f`,
+        border: `0.5px solid ${fg}18`,
+        borderRadius: 999,
+      }}>
+        <span style={{ fontSize: 11, color: `${fg}50`, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          Weather unavailable
+        </span>
+      </div>
+    );
+  }
 
   const { icon } = wmoDisplay(summary.dominantCode);
 
@@ -1286,15 +1306,17 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
     // Check if trip is beyond the 16-day forecast window
     const forecastLimit = new Date();
     forecastLimit.setDate(forecastLimit.getDate() + 16);
-    const beyondForecast = new Date(trip.date_start) > forecastLimit;
 
     let cancelled = false;
-    if (!beyondForecast) setLoading(true);
+    setLoading(true);
     setIsSeasonal(false);
 
     (async () => {
       const locationGroups = getLocationGroups();
-      if (locationGroups.length === 0) return;
+      if (locationGroups.length === 0) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
 
       const allResults: DayWeather[] = [];
       let anySeasonal = false;
