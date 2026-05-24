@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Proxy for Open-Meteo archive API — avoids browser-side timeout issues
-// and caches the response at the edge for 24 hours.
-export const runtime = 'edge';
+// Node.js runtime (not edge) — edge functions have network restrictions
+// that can block archive-api.open-meteo.com from Vercel's network.
+export const runtime = 'nodejs';
+// Cache this at the CDN level for 24h — historical data never changes
+export const revalidate = 86400;
 
 const DAILY_FIELDS = [
   'temperature_2m_max',
@@ -35,21 +37,19 @@ export async function GET(req: NextRequest) {
   url.searchParams.set('end_date',         end);
 
   try {
-    const res = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(25000),
-    });
+    const res = await fetch(url.toString());
     if (!res.ok) {
-      return NextResponse.json({ error: `Archive API ${res.status}` }, { status: 502 });
+      const body = await res.text();
+      return NextResponse.json({ error: body }, { status: 502 });
     }
     const json = await res.json();
     return NextResponse.json(json, {
       headers: {
-        // Cache at the edge for 24 hours — historical data never changes
         'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=3600',
       },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Unknown error';
+    const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 504 });
   }
 }
