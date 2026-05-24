@@ -82,6 +82,13 @@ function wmoDisplay(code: number): { icon: string; label: string } {
 
 // ── WEATHER FETCH via Open-Meteo ─────────────────────────────────────────────
 // Automatically uses archive API for past trips (> 16 days ago)
+// Wraps fetch with an AbortController timeout (ms). Throws on timeout/abort.
+function fetchWithTimeout(url: string, ms = 8000): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
 async function fetchWeather(
   lat: number,
   lng: number,
@@ -123,7 +130,7 @@ async function fetchWeather(
     url.searchParams.set('start_date',       dateStart);
     url.searchParams.set('end_date',         dateEnd);
 
-    const res = await fetch(url.toString());
+    const res = await fetchWithTimeout(url.toString());
     if (!res.ok) return [];
     const json = await res.json();
     const {
@@ -188,7 +195,7 @@ async function fetchSeasonalWeather(
     url.searchParams.set('start_date',       lastYearStart);
     url.searchParams.set('end_date',         lastYearEnd);
 
-    const res = await fetch(url.toString());
+    const res = await fetchWithTimeout(url.toString());
     if (!res.ok) return [];
     const json = await res.json();
     const {
