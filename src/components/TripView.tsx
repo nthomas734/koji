@@ -166,8 +166,8 @@ async function fetchWeather(
 // Seasonal averages: fetches the same date range from the previous year
 // via Open-Meteo's archive API. Returns a synthetic DayWeather array
 // representing typical conditions for the trip dates.
-// Fetches one year of archive data for the given date range (shifted by `delta` years).
-// Drops hourly humidity to keep the payload small and the request fast.
+// Fetches one year of archive data via the /api/weather proxy route.
+// Proxying server-side avoids browser timeout issues and gets edge caching.
 async function fetchArchiveYear(
   lat: number,
   lng: number,
@@ -178,25 +178,14 @@ async function fetchArchiveYear(
   const start = shiftYear(dateStart, delta);
   const end   = shiftYear(dateEnd,   delta);
 
-  const url = new URL('https://archive-api.open-meteo.com/v1/archive');
-  url.searchParams.set('latitude',         String(lat));
-  url.searchParams.set('longitude',        String(lng));
-  url.searchParams.set('daily',            [
-    'temperature_2m_max',
-    'temperature_2m_min',
-    'weathercode',
-    'windspeed_10m_max',
-    'precipitation_sum',
-    'uv_index_max',
-  ].join(','));
-  url.searchParams.set('temperature_unit', 'fahrenheit');
-  url.searchParams.set('wind_speed_unit',  'mph');
-  url.searchParams.set('timezone',         'auto');
-  url.searchParams.set('start_date',       start);
-  url.searchParams.set('end_date',         end);
+  const url = new URL('/api/weather', window.location.origin);
+  url.searchParams.set('lat',   String(lat));
+  url.searchParams.set('lng',   String(lng));
+  url.searchParams.set('start', start);
+  url.searchParams.set('end',   end);
 
-  const res = await fetchWithTimeout(url.toString());
-  if (!res.ok) throw new Error(`Archive API ${res.status}`);
+  const res = await fetchWithTimeout(url.toString(), 28000);
+  if (!res.ok) throw new Error(`Weather proxy ${res.status}`);
   const json = await res.json();
   const {
     time, temperature_2m_max, temperature_2m_min, weathercode,
