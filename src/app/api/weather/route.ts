@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Node.js runtime (not edge) — edge functions have network restrictions
-// that can block archive-api.open-meteo.com from Vercel's network.
 export const runtime = 'nodejs';
-// Cache this at the CDN level for 24h — historical data never changes
 export const revalidate = 86400;
 
 const DAILY_FIELDS = [
@@ -14,6 +11,10 @@ const DAILY_FIELDS = [
   'precipitation_sum',
   'uv_index_max',
 ].join(',');
+
+// archive-api.open-meteo.com is unreachable from Vercel's network.
+// historical-forecast-api.open-meteo.com serves the same data and works.
+const HISTORICAL_BASE = 'https://historical-forecast-api.open-meteo.com/v1/forecast';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 });
   }
 
-  const url = new URL('https://archive-api.open-meteo.com/v1/archive');
+  const url = new URL(HISTORICAL_BASE);
   url.searchParams.set('latitude',         lat);
   url.searchParams.set('longitude',        lng);
   url.searchParams.set('daily',            DAILY_FIELDS);
