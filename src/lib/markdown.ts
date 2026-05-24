@@ -1,4 +1,4 @@
-import { marked, type Tokens } from 'marked';
+import { marked } from 'marked';
 
 // marked v12 enables GFM strikethrough by default, which treats single ~
 // as strikethrough (e.g. ~45min, ~1.5 hrs get struck through in itinerary
@@ -7,8 +7,9 @@ marked.use({
   extensions: [{
     name: 'del',
     level: 'inline' as const,
-    renderer(token: Tokens.Del) {
-      return token.text;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    renderer(token: any) {
+      return token.text as string;
     },
   }],
 });
