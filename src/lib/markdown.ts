@@ -1,5 +1,18 @@
 import { marked } from 'marked';
 
+// marked v12 enables GFM strikethrough by default, which treats single ~
+// as strikethrough (e.g. ~45min, ~1.5 hrs get struck through in itinerary
+// body text). Override the del renderer to output plain text instead.
+marked.use({
+  extensions: [{
+    name: 'del',
+    level: 'inline' as const,
+    renderer(token: { text: string }) {
+      return token.text;
+    },
+  }],
+});
+
 export function renderMd(md: string): string {
   if (!md) return '';
   let html = marked.parseInline(md) as string;
