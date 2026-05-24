@@ -83,7 +83,7 @@ function wmoDisplay(code: number): { icon: string; label: string } {
 // ── WEATHER FETCH via Open-Meteo ─────────────────────────────────────────────
 // Automatically uses archive API for past trips (> 16 days ago)
 // Wraps fetch with an AbortController timeout (ms). Throws on timeout/abort.
-function fetchWithTimeout(url: string, ms = 8000): Promise<Response> {
+function fetchWithTimeout(url: string, ms = 12000): Promise<Response> {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), ms);
   return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
@@ -166,65 +166,77 @@ async function fetchWeather(
 // Seasonal averages: fetches the same date range from the previous year
 // via Open-Meteo's archive API. Returns a synthetic DayWeather array
 // representing typical conditions for the trip dates.
+// Fetches one year of archive data for the given date range (shifted by `delta` years).
+// Drops hourly humidity to keep the payload small and the request fast.
+async function fetchArchiveYear(
+  lat: number,
+  lng: number,
+  dateStart: string,
+  dateEnd: string,
+  delta: number,
+): Promise<DayWeather[]> {
+  const start = shiftYear(dateStart, delta);
+  const end   = shiftYear(dateEnd,   delta);
+
+  const url = new URL('https://archive-api.open-meteo.com/v1/archive');
+  url.searchParams.set('latitude',         String(lat));
+  url.searchParams.set('longitude',        String(lng));
+  url.searchParams.set('daily',            [
+    'temperature_2m_max',
+    'temperature_2m_min',
+    'weathercode',
+    'windspeed_10m_max',
+    'precipitation_sum',
+    'uv_index_max',
+  ].join(','));
+  url.searchParams.set('temperature_unit', 'fahrenheit');
+  url.searchParams.set('wind_speed_unit',  'mph');
+  url.searchParams.set('timezone',         'auto');
+  url.searchParams.set('start_date',       start);
+  url.searchParams.set('end_date',         end);
+
+  const res = await fetchWithTimeout(url.toString());
+  if (!res.ok) throw new Error(`Archive API ${res.status}`);
+  const json = await res.json();
+  const {
+    time, temperature_2m_max, temperature_2m_min, weathercode,
+    windspeed_10m_max, precipitation_sum, uv_index_max,
+  } = json.daily ?? {};
+  if (!time || (time as string[]).length === 0) throw new Error('No data');
+
+  // Shift dates back to the trip year so weatherMap keys match
+  const yearShift = -delta;
+  return (time as string[]).map((date: string, i: number) => ({
+    date:       shiftYear(date, yearShift),
+    tempMax:    Math.round(temperature_2m_max[i]),
+    tempMin:    Math.round(temperature_2m_min[i]),
+    wmoCode:    weathercode[i],
+    windMax:    windspeed_10m_max?.[i]  != null ? Math.round(windspeed_10m_max[i])  : null,
+    precipSum:  precipitation_sum?.[i]  != null ? Math.round(precipitation_sum[i] * 10) / 10 : null,
+    precipProb: null,
+    uvIndex:    uv_index_max?.[i]       != null ? Math.round(uv_index_max[i])       : null,
+    humidity:   null,
+  }));
+}
+
+// Seasonal averages: tries last year first, falls back to 2 years ago.
+// Drops hourly humidity to keep requests fast.
 async function fetchSeasonalWeather(
   lat: number,
   lng: number,
   dateStart: string,
   dateEnd: string,
 ): Promise<DayWeather[]> {
-  try {
-    // Shift both dates back by one year to get historical data
-    const lastYearStart = shiftYear(dateStart, -1);
-    const lastYearEnd   = shiftYear(dateEnd,   -1);
-
-    const url = new URL('https://archive-api.open-meteo.com/v1/archive');
-    url.searchParams.set('latitude',         String(lat));
-    url.searchParams.set('longitude',        String(lng));
-    url.searchParams.set('daily',            [
-      'temperature_2m_max',
-      'temperature_2m_min',
-      'weathercode',
-      'windspeed_10m_max',
-      'precipitation_sum',
-      'uv_index_max',
-    ].join(','));
-    url.searchParams.set('hourly',           'relative_humidity_2m');
-    url.searchParams.set('temperature_unit', 'fahrenheit');
-    url.searchParams.set('wind_speed_unit',  'mph');
-    url.searchParams.set('timezone',         'auto');
-    url.searchParams.set('start_date',       lastYearStart);
-    url.searchParams.set('end_date',         lastYearEnd);
-
-    const res = await fetchWithTimeout(url.toString());
-    if (!res.ok) return [];
-    const json = await res.json();
-    const {
-      time, temperature_2m_max, temperature_2m_min, weathercode,
-      windspeed_10m_max, precipitation_sum, uv_index_max,
-    } = json.daily ?? {};
-    if (!time) return [];
-
-    const hourlyHumidity: number[] = json.hourly?.relative_humidity_2m ?? [];
-    const dailyHumidity = (time as string[]).map((_: string, i: number) => {
-      const slice = hourlyHumidity.slice(i * 24, i * 24 + 24).filter((v: number) => v != null);
-      if (slice.length === 0) return null;
-      return Math.round(slice.reduce((a: number, b: number) => a + b, 0) / slice.length);
-    });
-
-    return (time as string[]).map((date: string, i: number) => ({
-      date:       shiftYear(date, 1),
-      tempMax:    Math.round(temperature_2m_max[i]),
-      tempMin:    Math.round(temperature_2m_min[i]),
-      wmoCode:    weathercode[i],
-      windMax:    windspeed_10m_max?.[i]  != null ? Math.round(windspeed_10m_max[i])  : null,
-      precipSum:  precipitation_sum?.[i]  != null ? Math.round(precipitation_sum[i] * 10) / 10 : null,
-      precipProb: null,
-      uvIndex:    uv_index_max?.[i]       != null ? Math.round(uv_index_max[i])       : null,
-      humidity:   dailyHumidity[i],
-    }));
-  } catch {
-    return [];
+  // Try -1 year first, then -2 as fallback
+  for (const delta of [-1, -2]) {
+    try {
+      const results = await fetchArchiveYear(lat, lng, dateStart, dateEnd, delta);
+      if (results.length > 0) return results;
+    } catch {
+      // try next year
+    }
   }
+  return [];
 }
 
 function shiftYear(dateStr: string, delta: number): string {
