@@ -512,23 +512,7 @@ function WeatherHeroCard({
   }
 
   const summary = summarizeWeather(weather);
-  if (!summary) {
-    // Weather fetch completed but returned no data — show a quiet unavailable pill
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '10px 18px',
-        background: `${fg}0f`,
-        border: `0.5px solid ${fg}18`,
-        borderRadius: 999,
-      }}>
-        <span style={{ fontSize: 11, color: `${fg}50`, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Weather unavailable
-        </span>
-      </div>
-    );
-  }
+  if (!summary) return null;
 
   const { icon } = wmoDisplay(summary.dominantCode);
 
@@ -1315,6 +1299,10 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
     const forecastLimit = new Date();
     forecastLimit.setDate(forecastLimit.getDate() + 16);
 
+    // archive-api.open-meteo.com is unreachable from Vercel — no seasonal fetch.
+    // For beyond-forecast trips, skip weather entirely.
+    if (beyondForecast) return;
+
     let cancelled = false;
     setLoading(true);
     setIsSeasonal(false);
@@ -1327,19 +1315,13 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
       }
 
       const allResults: DayWeather[] = [];
-      let anySeasonal = false;
 
       for (const group of locationGroups) {
-        let results = await fetchWeather(group.lat, group.lng, group.dateStart, group.dateEnd);
-        if (results.length === 0) {
-          results = await fetchSeasonalWeather(group.lat, group.lng, group.dateStart, group.dateEnd);
-          if (results.length > 0) anySeasonal = true;
-        }
+        const results = await fetchWeather(group.lat, group.lng, group.dateStart, group.dateEnd);
         allResults.push(...results);
       }
 
       if (cancelled) return;
-      if (anySeasonal) setIsSeasonal(true);
       const map: Record<string, DayWeather> = {};
       for (const w of allResults) map[w.date] = w;
       setWeatherMap(map);
@@ -1470,15 +1452,53 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
       {activeTab === 'logistics' && <LogisticsSection logistics={logistics} theme={theme} />}
 
       {/* WEATHER TAB */}
-      {activeTab === 'weather' && (
-        <WeatherTab
-          days={days}
-          weatherMap={weatherMap}
-          trip={trip}
-          isSeasonal={isSeasonal}
-          theme={theme}
-        />
-      )}
+      {activeTab === 'weather' && (() => {
+        const forecastLimit = new Date();
+        forecastLimit.setDate(forecastLimit.getDate() + 16);
+        const tooFarOut = trip.date_start ? new Date(trip.date_start) > forecastLimit : false;
+        if (tooFarOut) {
+          return (
+            <div style={{
+              padding: '60px 24px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12,
+            }}>
+              <span style={{ fontSize: 32 }}>🗓️</span>
+              <div style={{
+                fontFamily: 'var(--font-serif)',
+                fontSize: 18,
+                color: 'var(--ink)',
+                fontWeight: 400,
+              }}>
+                Check back closer to the trip
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: 'var(--ink-4)',
+                maxWidth: 240,
+                lineHeight: 1.6,
+              }}>
+                Forecasts are available within 16 days of departure
+              </div>
+            </div>
+          );
+        }
+        return (
+          <WeatherTab
+            days={days}
+            weatherMap={weatherMap}
+            trip={trip}
+            isSeasonal={isSeasonal}
+            theme={theme}
+          />
+        );
+      })()}
 
       {/* Footer */}
       <footer style={{
