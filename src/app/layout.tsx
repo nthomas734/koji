@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { UpdateBanner } from '@/components/UpdateBanner';
 
 export const metadata: Metadata = {
   title: 'koji',
@@ -39,7 +40,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {/* Client-only deploy detector — renders nothing until a new Vercel
+            deploy lands, so it cannot affect ISR/static rendering. Mounted in
+            the root layout so both the public trip pages and /admin get it. */}
+        <UpdateBanner />
+        {children}
+      </body>
     </html>
   );
 }
