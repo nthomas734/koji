@@ -83,7 +83,7 @@ All of this lives in `src/components/TripView.tsx` and runs client-side in a `us
 
 Several fields are free-text but are parsed by regex for display, so the authoring format matters:
 - `Day.label` is split on a spaced dash (` - `, ` – `, ` — `) into headline + subtitle (`parseDayLabel`).
-- `Logistics.value_md` is split on `' - '` into fields, then interpreted per `category` (`flight`, `train`, `hotel`, `book`, `other`) by `parseLogisticsValue` and `condenseRow` — e.g. a flight row reads as `UA970 - Sun, May 24 - ORD to FCO - Departs 3:45 PM - Arrives 7:55 AM`. Hotel labels are auto-linked to a Google Maps search by `hotelLink`. Flight/train/hotel categories also feed the QuickStrip at the top of the itinerary tab — rows left as `other` never appear there.
+- `Logistics.value_md` is split on `' - '` into fields, then interpreted per `category` (`flight`, `train`, `hotel`, `book`, `other`) by `parseLogisticsValue` and `condenseRow` — e.g. a flight row reads as `UA970 - Sun, May 24 - ORD to FCO - Departs 3:45 PM - Arrives 7:55 AM`. Hotel labels are auto-linked to a Google Maps search by `hotelLink` — unless the row's value contains "Not booked yet", in which case the QuickStrip shows the label as plain text with a TBD marker (placeholder labels like "London base" make junk maps queries). Flight/train/hotel categories also feed the QuickStrip at the top of the itinerary tab — rows left as `other` never appear there.
 - In the public Logistics tab, rows group by `category`, **except `column_key: 'book'` rows, which always group under "Book Ahead"** regardless of category (`LogisticsSection`).
 - `Trip.companion` is a formatted string round-tripped by `parseCompanion`/`formatCompanion` in `TripEditor.tsx`.
 

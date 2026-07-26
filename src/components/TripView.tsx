@@ -416,7 +416,13 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
   if (hotels.length > 0) {
     stripRows.push({
       label: 'Hotels',
-      lines: hotels.map(r => hotelLink(r.label)),
+      // Unbooked rows ("Not booked yet" anywhere in the value) render as plain
+      // text with a TBD marker — auto-linking a placeholder label like
+      // "London base" produces a junk maps search. The link appears once the
+      // row's value no longer says not booked.
+      lines: hotels.map(r =>
+        /not booked/i.test(r.value_md) ? `${r.label} · TBD` : hotelLink(r.label)
+      ),
       isMarkdown: true,
     });
   }
