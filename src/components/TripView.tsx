@@ -728,8 +728,8 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
             </span>
           </div>
 
-          {/* Cards */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* Cards — flex column on phones, 2-up grid on desktop (planning mode) */}
+          <div className="logistics-cards">
             {byCategory[cat].map(row => {
               const { headline, secondary, detail } = parseLogisticsValue(row.value_md, cat);
               return (
@@ -1049,16 +1049,16 @@ function WeatherTab({
   }
 
   return (
-    <div style={{ padding: '12px 12px 40px' }}>
+    <div className="weather-list" style={{ padding: '12px 12px 40px' }}>
       {isSeasonal && (
-        <div style={{
+        <div className="weather-span" style={{
           fontFamily: 'var(--font-mono)',
           fontSize: 8.5,
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
           color: 'var(--ink-4)',
           textAlign: 'center',
-          padding: '0 0 12px',
+          padding: '0 0 4px',
         }}>
           Seasonal averages from prior year
         </div>
@@ -1073,7 +1073,6 @@ function WeatherTab({
             border: '0.5px solid var(--border)',
             borderRadius: 14,
             padding: '14px 16px',
-            marginBottom: 8,
             opacity: 0.4,
           }}>
             <div style={{ fontFamily: 'var(--font-serif)', fontSize: 16, color: 'var(--ink)' }}>
@@ -1102,7 +1101,6 @@ function WeatherTab({
               border: '0.5px solid var(--border)',
               borderRadius: 14,
               padding: '14px 16px 14px 20px',
-              marginBottom: 8,
               overflow: 'hidden',
             }}
           >
@@ -1215,7 +1213,7 @@ function WeatherTab({
           </div>
         );
       })}
-      <div style={{
+      <div className="weather-span" style={{
         fontFamily: 'var(--font-mono)',
         fontSize: 8,
         letterSpacing: '0.12em',
