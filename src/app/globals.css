@@ -200,3 +200,20 @@ input, textarea, select {
   .shimmer-anim { animation: none; }
   .pressable, .pressable:active { transition: none; transform: none; }
 }
+
+/* ── Desktop = planning mode ────────────────────────────────────────────────
+   The trip itself is used on phones (Safari/PWA); desktop is where planning
+   happens. ≥1000px the column breathes wider and the card-collection tabs
+   (weather, logistics) grid out so the whole trip is visible with less
+   scrolling. The itinerary stays a single prose column at every width. */
+.weather-list    { display: flex; flex-direction: column; gap: 8px; }
+.logistics-cards { display: flex; flex-direction: column; gap: 6px; }
+
+@media (min-width: 1000px) {
+  :root { --max-w: 780px; --px: 24px; }
+
+  .weather-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .weather-span { grid-column: 1 / -1; }
+
+  .logistics-cards { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+}
