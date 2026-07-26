@@ -96,16 +96,22 @@ async function fetchWeather(
   dateEnd: string,
 ): Promise<DayWeather[]> {
   try {
-    const today = new Date();
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 16);
     const forecastLimit = new Date();
     forecastLimit.setDate(forecastLimit.getDate() + 16);
     const tripDate = new Date(dateStart);
     const isPast = tripDate < cutoff;
-    // If trip starts beyond the 16-day forecast window, skip straight to seasonal
-    const beyondForecast = tripDate > forecastLimit;
-    if (beyondForecast) return [];
+    // If the range starts beyond the 16-day forecast window there's nothing to fetch
+    if (tripDate > forecastLimit) return [];
+
+    // The forecast API rejects end_dates beyond its ~16-day horizon — clamp so
+    // a trip that has partially entered the window still gets its near days.
+    let end = dateEnd;
+    if (!isPast) {
+      const limit = fmtLocalDate(forecastLimit);
+      if (end > limit) end = limit;
+    }
 
     const base = isPast
       ? 'https://archive-api.open-meteo.com/v1/archive'
@@ -128,7 +134,7 @@ async function fetchWeather(
     url.searchParams.set('wind_speed_unit',  'mph');
     url.searchParams.set('timezone',         'auto');
     url.searchParams.set('start_date',       dateStart);
-    url.searchParams.set('end_date',         dateEnd);
+    url.searchParams.set('end_date',         end);
 
     const res = await fetchWithTimeout(url.toString());
     if (!res.ok) return [];
@@ -231,10 +237,14 @@ async function fetchSeasonalWeather(
 function shiftYear(dateStr: string, delta: number): string {
   // Parse as local date to avoid UTC midnight timezone shift
   const [y, m, day] = dateStr.split('-').map(Number);
-  const shifted = new Date(y + delta, m - 1, day);
-  const yyyy = shifted.getFullYear();
-  const mm = String(shifted.getMonth() + 1).padStart(2, '0');
-  const dd = String(shifted.getDate()).padStart(2, '0');
+  return fmtLocalDate(new Date(y + delta, m - 1, day));
+}
+
+// Format a Date as local YYYY-MM-DD (toISOString would shift across UTC midnight)
+function fmtLocalDate(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
 }
 
@@ -305,48 +315,7 @@ function formatTripDateRange(start: string | null, end: string | null): string {
 function dateForDay(dateStart: string, index: number): string {
   // Parse as local date to avoid UTC midnight timezone shift (same fix as shiftYear)
   const [y, m, day] = dateStart.split('-').map(Number);
-  const d = new Date(y, m - 1, day + index);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function tripEndDate(trip: Trip, days: Day[]): string {
-  // Returns end_date + 1 day to ensure the final trip day is included
-  // (Open-Meteo's daily endpoint sometimes excludes the boundary date)
-  const base = trip.date_end
-    ? new Date(trip.date_end + 'T00:00')
-    : (() => {
-        const d = new Date(trip.date_start! + 'T00:00');
-        d.setDate(d.getDate() + Math.max(days.length - 1, 0));
-        return d;
-      })();
-  base.setDate(base.getDate() + 1);
-  return base.toISOString().split('T')[0];
-}
-
-// ── WEATHER BADGE — inline in day header ─────────────────────────────────────
-function WeatherBadge({ w }: { w: DayWeather }) {
-  const { icon } = wmoDisplay(w.wmoCode);
-  return (
-    <span style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 4,
-      fontFamily: 'var(--font-mono)',
-      fontSize: 9,
-      color: 'var(--ink-3)',
-      background: 'var(--surface)',
-      border: '0.5px solid var(--border)',
-      borderRadius: 999,
-      padding: '3px 9px',
-      whiteSpace: 'nowrap',
-    }}>
-      <span style={{ fontSize: 11, lineHeight: 1 }}>{icon}</span>
-      {w.tempMax}° / {w.tempMin}°
-    </span>
-  );
+  return fmtLocalDate(new Date(y, m - 1, day + index));
 }
 
 // ── QUICK STRIP — itinerary tab top summary ──────────────────────────────────
@@ -665,7 +634,9 @@ function parseLogisticsValue(value: string, category: string): { headline: strin
 function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme: { bg: string; fg: string } }) {
   const byCategory: Record<string, Logistics[]> = {};
   for (const row of logistics) {
-    const cat = row.category || 'other';
+    // Rows authored in the admin's "book" column always group under Book Ahead,
+    // regardless of their category value
+    const cat = row.column_key === 'book' ? 'book' : (row.category || 'other');
     if (!byCategory[cat]) byCategory[cat] = [];
     byCategory[cat].push(row);
   }
@@ -1295,15 +1266,12 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
   useEffect(() => {
     if (!hasCoords || !trip.date_start) return;
 
-    // Check if trip is beyond the 16-day forecast window
+    // Trips beyond the 16-day forecast window fall back to seasonal averages:
+    // the same date range from a prior year, fetched via the /api/weather proxy
+    // (historical-forecast-api — reachable from Vercel, unlike archive-api).
     const forecastLimit = new Date();
     forecastLimit.setDate(forecastLimit.getDate() + 16);
-
-    // archive-api.open-meteo.com is unreachable from Vercel — no seasonal fetch.
-    // For beyond-forecast trips, skip weather entirely.
-    const forecastLimit2 = new Date();
-    forecastLimit2.setDate(forecastLimit2.getDate() + 16);
-    if (new Date(trip.date_start) > forecastLimit2) return;
+    const useSeasonal = new Date(trip.date_start) > forecastLimit;
 
     let cancelled = false;
     setLoading(true);
@@ -1319,11 +1287,14 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
       const allResults: DayWeather[] = [];
 
       for (const group of locationGroups) {
-        const results = await fetchWeather(group.lat, group.lng, group.dateStart, group.dateEnd);
+        const results = useSeasonal
+          ? await fetchSeasonalWeather(group.lat, group.lng, group.dateStart, group.dateEnd)
+          : await fetchWeather(group.lat, group.lng, group.dateStart, group.dateEnd);
         allResults.push(...results);
       }
 
       if (cancelled) return;
+      if (useSeasonal && allResults.length > 0) setIsSeasonal(true);
       const map: Record<string, DayWeather> = {};
       for (const w of allResults) map[w.date] = w;
       setWeatherMap(map);
@@ -1455,10 +1426,8 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
 
       {/* WEATHER TAB */}
       {activeTab === 'weather' && (() => {
-        const forecastLimit = new Date();
-        forecastLimit.setDate(forecastLimit.getDate() + 16);
-        const tooFarOut = trip.date_start ? new Date(trip.date_start) > forecastLimit : false;
-        if (tooFarOut) {
+        const hasData = Object.keys(weatherMap).length > 0;
+        if (!hasData) {
           return (
             <div style={{
               padding: '60px 24px',
@@ -1468,26 +1437,28 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
               alignItems: 'center',
               gap: 12,
             }}>
-              <span style={{ fontSize: 32 }}>🗓️</span>
+              <span style={{ fontSize: 32 }}>{weatherLoading ? '🌤️' : '🗓️'}</span>
               <div style={{
                 fontFamily: 'var(--font-serif)',
                 fontSize: 18,
                 color: 'var(--ink)',
                 fontWeight: 400,
               }}>
-                Check back closer to the trip
+                {weatherLoading ? 'Loading weather…' : 'Weather unavailable'}
               </div>
-              <div style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: 'var(--ink-4)',
-                maxWidth: 240,
-                lineHeight: 1.6,
-              }}>
-                Forecasts are available within 16 days of departure
-              </div>
+              {!weatherLoading && (
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-4)',
+                  maxWidth: 240,
+                  lineHeight: 1.6,
+                }}>
+                  Live forecasts within 16 days of departure · seasonal averages otherwise
+                </div>
+              )}
             </div>
           );
         }
