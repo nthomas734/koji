@@ -33,7 +33,7 @@ function TripCard({ trip }: { trip: Trip }) {
     : null;
 
   return (
-    <Link href={`/trips/${trip.slug}`} style={{ display: 'block' }}>
+    <Link href={`/trips/${trip.slug}`} className="pressable" style={{ display: 'block' }}>
       <div style={{
         background: theme.bg,
         color: theme.fg,

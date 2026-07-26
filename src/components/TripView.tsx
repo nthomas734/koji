@@ -494,21 +494,18 @@ function WeatherHeroCard({
   fg: string;
 }) {
   if (loading && weather.length === 0) {
+    // Shimmer skeleton in the shape of the loaded pill
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '10px 18px',
-        background: `${fg}1f`,
-        border: `0.5px solid ${fg}2c`,
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        borderRadius: 999,
-      }}>
-        <span style={{ fontSize: 11, color: `${fg}80`, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Loading weather…
-        </span>
-      </div>
+      <div
+        className="shimmer-anim"
+        aria-label="Loading weather"
+        style={{
+          height: 38,
+          maxWidth: 230,
+          borderRadius: 999,
+          backgroundImage: `linear-gradient(90deg, ${fg}14 25%, ${fg}2e 50%, ${fg}14 75%)`,
+        }}
+      />
     );
   }
 
@@ -828,7 +825,7 @@ function StopRow({ stop }: { stop: Stop }) {
         borderRadius: 4,
         opacity: stop.is_optional ? 0.4 : 1,
       }} />
-      <div style={{
+      <div className="num" style={{
         fontFamily: 'var(--font-mono)',
         fontSize: 10,
         fontWeight: 500,
@@ -882,23 +879,30 @@ function DayBlock({
   dayIndex,
   dayTotal,
   themeColor,
+  isToday,
 }: {
   day: Day;
   weather: DayWeather | null;
   dayIndex: number;
   dayTotal: number;
   themeColor: { bg: string; fg: string };
+  isToday: boolean;
 }) {
   const { headline, subtitle } = parseDayLabel(day.label);
+  const accent = isToday ? 'var(--brass)' : themeColor.bg;
 
   return (
-    <div>
+    <div
+      id={`day-${day.id}`}
+      className="row-in"
+      style={{ animationDelay: `${Math.min(dayIndex, 8) * 40}ms` }}
+    >
       <div style={{
         position: 'relative',
         margin: '20px 12px 0',
         padding: '14px 16px 12px 22px',
-        background: 'var(--bg-subtle)',
-        border: '0.5px solid var(--border)',
+        background: isToday ? 'var(--brass-light)' : 'var(--bg-subtle)',
+        border: `0.5px solid ${isToday ? 'var(--brass)' : 'var(--border)'}`,
         borderRadius: 14,
         lineHeight: 1.5,
         overflow: 'hidden',
@@ -909,20 +913,35 @@ function DayBlock({
           top: 10,
           bottom: 10,
           width: 4,
-          background: themeColor.bg,
+          background: accent,
           borderRadius: 4,
         }} />
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
               fontFamily: 'var(--font-mono)',
               fontSize: 9,
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              color: themeColor.bg,
+              color: accent,
               marginBottom: 4,
             }}>
-              Day {dayIndex + 1} of {dayTotal}
+              {isToday && (
+                <span style={{
+                  background: 'var(--brass)',
+                  color: '#FFFFFF',
+                  borderRadius: 4,
+                  padding: '1.5px 6px',
+                  fontSize: 7.5,
+                  letterSpacing: '0.14em',
+                }}>
+                  Today
+                </span>
+              )}
+              <span>Day {dayIndex + 1} of {dayTotal}</span>
             </div>
             <div style={{
               fontFamily: 'var(--font-serif)',
@@ -948,7 +967,7 @@ function DayBlock({
             )}
           </div>
           {weather && (
-            <span style={{
+            <span className="num" style={{
               flexShrink: 0,
               marginTop: 2,
               display: 'inline-flex',
@@ -1232,6 +1251,7 @@ function PillTabBar({ active, onChange, theme }: {
           <button
             key={tab.key}
             onClick={() => onChange(tab.key)}
+            className="pressable"
             style={{
               flex: 1,
               padding: '8px 0',
@@ -1269,7 +1289,22 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
   const [weatherMap, setWeatherMap]     = useState<Record<string, DayWeather>>({});
   const [weatherLoading, setLoading]    = useState(false);
   const [isSeasonal, setIsSeasonal]     = useState(false);
+  // Set after mount so SSR (server timezone) can't disagree with the client
+  const [todayKey, setTodayKey]         = useState<string | null>(null);
   const theme = THEMES[trip.header_theme] ?? THEMES.forest;
+
+  useEffect(() => {
+    setTodayKey(fmtLocalDate(new Date()));
+  }, []);
+
+  // During the trip, open the itinerary scrolled to today's day
+  useEffect(() => {
+    if (!todayKey || !trip.date_start) return;
+    const idx = days.findIndex((_, i) => dateForDay(trip.date_start!, i) === todayKey);
+    if (idx <= 0) return;
+    document.getElementById(`day-${days[idx].id}`)?.scrollIntoView({ block: 'start' });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayKey]);
 
   const hasCoords = (trip.lat != null && trip.lng != null && !!trip.date_start)
     || days.some(d => d.lat != null && d.lng != null);
@@ -1450,6 +1485,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
                 dayIndex={i}
                 dayTotal={days.length}
                 themeColor={theme}
+                isToday={!!trip.date_start && todayKey === dateForDay(trip.date_start, i)}
               />
             ))}
           </main>

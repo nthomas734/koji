@@ -70,6 +70,8 @@
 
   --max-w: 640px;
   --px:    20px;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 html { scroll-behavior: smooth; }
@@ -170,4 +172,31 @@ input, textarea, select {
     margin: 18px 12px 0;
     overflow: hidden;
   }
+}
+
+/* ── Motion & feel ──────────────────────────────────────────────────────────
+   Staggered entrance for day blocks; press feedback for elements that
+   actually navigate (tabs, trip cards) — never on inert content cards. */
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.row-in { animation: rowIn 0.38s var(--ease-out) both; }
+
+.pressable { transition: transform 0.12s var(--ease-out); }
+.pressable:active { transform: scale(0.97); }
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+/* Pair with an inline backgroundImage gradient; this class only animates it */
+.shimmer-anim { background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
+
+.num { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .row-in { animation: none; }
+  .shimmer-anim { animation: none; }
+  .pressable, .pressable:active { transition: none; transform: none; }
 }
