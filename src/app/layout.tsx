@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { UpdateBanner } from '@/components/UpdateBanner';
+import { SWRegister } from '@/components/SWRegister';
 
 export const metadata: Metadata = {
   title: 'koji',
@@ -45,6 +46,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             deploy lands, so it cannot affect ISR/static rendering. Mounted in
             the root layout so both the public trip pages and /admin get it. */}
         <UpdateBanner />
+        {/* Offline support — caches visited pages so installed PWAs work
+            without signal (Tube, rural dead zones). See public/sw.js. */}
+        <SWRegister />
         {children}
       </body>
     </html>

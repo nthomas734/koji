@@ -13,7 +13,7 @@ npm run lint    # next lint
 
 There is **no test setup** in this repo — no test runner, no test files, no test script. Do not invent test commands. Verification is done by running `npm run build` and exercising the app in the browser.
 
-There is also no lockfile, no `.gitignore`, and no ESLint config file checked in (`next lint` falls back to Next's defaults; the code contains `eslint-disable-next-line` comments for `@typescript-eslint/no-explicit-any` and `react-hooks/exhaustive-deps`). Deployment is Vercel, tracking `main` (production: `koji-iota.vercel.app`). Per `UPDATE.md`, changes have historically been committed straight to `main`, sometimes via the GitHub web upload UI.
+There is also no lockfile and no ESLint config file checked in (`next lint` falls back to Next's defaults; the code contains `eslint-disable-next-line` comments for `@typescript-eslint/no-explicit-any` and `react-hooks/exhaustive-deps`). Deployment is Vercel, tracking `main` (production: `koji-iota.vercel.app`). Per `UPDATE.md`, changes have historically been committed straight to `main`, sometimes via the GitHub web upload UI.
 
 ## Environment
 
@@ -60,14 +60,15 @@ Deliberately minimal single-password auth, no Supabase Auth:
 
 `admin/trips`, `admin/trips/[id]`, `admin/days`, `admin/stops`, `admin/logistics` — thin CRUD wrappers over Supabase. Consistent shape: auth check → parse body → `supabaseAdmin()` call → `{ error }` with 500 or `{ ok: true }` / `{ <entity>: data }`. Collection routes take the row id as a **query param** (`?id=`) for PATCH/DELETE; only trips use a dynamic segment.
 
-`api/weather` is a proxy, not CRUD. It exists because **`archive-api.open-meteo.com` is unreachable from Vercel's network** — it forwards to `historical-forecast-api.open-meteo.com` instead, with `revalidate = 86400` and an explicit `s-maxage=86400` cache header.
+`api/weather` is a proxy, not CRUD. It exists because **`archive-api.open-meteo.com` is unreachable from Vercel's network** — it forwards to `historical-forecast-api.open-meteo.com` instead, with `revalidate = 86400` and an explicit `s-maxage=86400` cache header. It is what powers the seasonal-average weather fallback for far-future trips.
 
 ## Weather (the most fragile area — see git history)
 
 All of this lives in `src/components/TripView.tsx` and runs client-side in a `useEffect`:
 - Days are grouped by unique `lat,lng`, one Open-Meteo request per location, results merged into `weatherMap` keyed by ISO date.
 - Live forecast comes straight from `api.open-meteo.com` in the browser; fetches are wrapped in `fetchWithTimeout` (AbortController).
-- Trips more than **16 days in the future are skipped entirely** — the seasonal-average fallback (`fetchSeasonalWeather` / `fetchArchiveYear`, which fetch the same date range from 1 then 2 years ago and shift the dates forward to match `weatherMap` keys) is still in the file but is currently **dead code**, disabled because the archive API is unreachable from Vercel. Commit `baca617` ("claude gave up on weather") is that retreat. Don't re-enable the archive path without confirming reachability.
+- Trips more than **16 days in the future fall back to seasonal averages**: `fetchSeasonalWeather` / `fetchArchiveYear` fetch the same date range from 1 then 2 years ago **through the `/api/weather` proxy** (`historical-forecast-api` — confirmed reachable from Vercel) and shift the dates forward to match `weatherMap` keys. This path was dead code between commit `baca617` ("claude gave up on weather") and its re-enable; the browser-direct `archive-api.open-meteo.com` call still exists only for *past* trips and must not be moved server-side (unreachable from Vercel).
+- Forecast requests **clamp `end_date` to today+16** (`fetchWeather`) — Open-Meteo rejects out-of-range end dates, and without the clamp a trip partially inside the window would get no weather at all.
 - WMO weather codes are mapped to emoji + label by `wmoDisplay`; `summarizeWeather` averages highs/lows and picks a dominant condition bucket for the hero card.
 
 ## Rendering & presentation conventions
@@ -82,7 +83,8 @@ All of this lives in `src/components/TripView.tsx` and runs client-side in a `us
 
 Several fields are free-text but are parsed by regex for display, so the authoring format matters:
 - `Day.label` is split on a spaced dash (` - `, ` – `, ` — `) into headline + subtitle (`parseDayLabel`).
-- `Logistics.value_md` is split on `' - '` into fields, then interpreted per `category` (`flight`, `train`, `hotel`, `book`, `other`) by `parseLogisticsValue` and `condenseRow` — e.g. a flight row reads as `UA970 - Sun, May 24 - ORD to FCO - Departs 3:45 PM - Arrives 7:55 AM`. Hotel labels are auto-linked to a Google Maps search by `hotelLink`.
+- `Logistics.value_md` is split on `' - '` into fields, then interpreted per `category` (`flight`, `train`, `hotel`, `book`, `other`) by `parseLogisticsValue` and `condenseRow` — e.g. a flight row reads as `UA970 - Sun, May 24 - ORD to FCO - Departs 3:45 PM - Arrives 7:55 AM`. Hotel labels are auto-linked to a Google Maps search by `hotelLink` — unless the row's value contains "Not booked yet", in which case the QuickStrip shows the label as plain text with a TBD marker (placeholder labels like "London base" make junk maps queries). Flight/train/hotel categories also feed the QuickStrip at the top of the itinerary tab — rows left as `other` never appear there.
+- In the public Logistics tab, rows group by `category`, **except `column_key: 'book'` rows, which always group under "Book Ahead"** regardless of category (`LogisticsSection`).
 - `Trip.companion` is a formatted string round-tripped by `parseCompanion`/`formatCompanion` in `TripEditor.tsx`.
 
 Editing these regexes changes how already-authored trip data renders — check existing content before tightening them.
@@ -94,3 +96,5 @@ Editing these regexes changes how already-authored trip data renders — check e
 ## Icons / PWA (from UPDATE.md)
 
 `layout.tsx` declares `manifest: '/manifest.json'`, an SVG + 32px PNG favicon, and `apple-touch-icon.png` at 180px — iOS reads that file specifically, and its absence was why the home screen showed a generic "K". `public/` carries icons at 32/180/192/512. `next.config.js` exists solely to serve `/manifest.json` with `Content-Type: application/manifest+json`. Manifest `theme_color`/`background_color` and the viewport `themeColor` are all parchment `#F5F0E8`; `appleWebApp.statusBarStyle` is `'default'` to match (flip to `'black-translucent'` only if the app goes dark). `KojiMark.tsx` (the inline logo) is proportioned to match `icon.svg` — change them together.
+
+`public/sw.js` (registered by `SWRegister` in `layout.tsx`) provides offline support: network-first with cache fallback for same-origin pages/RSC payloads, cache-first for `/_next/static`. It never intercepts `/api/`, `/admin`, cross-origin, or non-GET requests — the `UpdateBanner` deploy check (HEAD `/`) passes through untouched. Bump its `VERSION` constant to invalidate old caches.
