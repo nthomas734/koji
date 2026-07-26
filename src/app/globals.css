@@ -160,3 +160,14 @@ input, textarea, select {
 
 /* Inline body markdown — preserve linebreaks from <br><br> in body_md */
 .body-content br + br { display: block; content: ""; margin-top: 6px; }
+
+/* Trip hero: full-bleed app-style band on phones. On wider screens (desktop,
+   iPad) that reads as a stray square slab on the parchment page, so give it
+   the same rounded-card treatment as the home page trip cards. */
+@media (min-width: 700px) {
+  .trip-hero {
+    border-radius: 18px;
+    margin: 18px 12px 0;
+    overflow: hidden;
+  }
+}

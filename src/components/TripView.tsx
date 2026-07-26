@@ -1385,8 +1385,9 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
         </a>
       </header>
 
-      {/* Trip header + pill tabs — one contiguous dark block */}
-      <div style={{ background: theme.bg, color: theme.fg }}>
+      {/* Trip header + pill tabs — one contiguous dark block.
+          .trip-hero rounds it into a card on desktop widths. */}
+      <div className="trip-hero" style={{ background: theme.bg, color: theme.fg }}>
         <div style={{ padding: '22px var(--px) 14px' }}>
           <h1 style={{
             fontFamily: 'var(--font-serif)',
