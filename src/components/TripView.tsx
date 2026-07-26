@@ -320,11 +320,40 @@ function dateForDay(dateStart: string, index: number): string {
 
 // ── QUICK STRIP — itinerary tab top summary ──────────────────────────────────
 // ── QUICK STRIP HELPERS ──────────────────────────────────────────────────────
+// IATA carrier code → airline name for display. Data keeps the codes
+// (parseLogisticsValue and condenseRow match on them); unknown codes fall
+// back to the raw code + number.
+const AIRLINE_NAMES: Record<string, string> = {
+  UA: 'United',
+  DL: 'Delta',
+  VS: 'Virgin Atlantic',
+  AA: 'American',
+  BA: 'British Airways',
+  AF: 'Air France',
+  KL: 'KLM',
+  LH: 'Lufthansa',
+  AC: 'Air Canada',
+  EI: 'Aer Lingus',
+  IB: 'Iberia',
+  JL: 'Japan Airlines',
+  NH: 'ANA',
+};
+
+function airlineDisplay(code: string, num: string): string {
+  const name = AIRLINE_NAMES[code.toUpperCase()];
+  return name ? `${name} ${num}` : `${code}${num}`;
+}
+
+// "Nathan & Dez - Out (Economy Light)" → "Nathan & Dez"
+function flightParty(row: Logistics): string {
+  return row.label.split(/\s+[-–—]\s+/)[0].replace(/\s*\(.*\)\s*$/, '').trim();
+}
+
 function condenseRow(row: Logistics): string {
   const v = row.value_md;
   if (row.category === 'flight') {
     const flightMatch = v.match(/\b([A-Z]{2})\s*(\d{1,4})\b/);
-    const flight = flightMatch ? `${flightMatch[1]}${flightMatch[2]}` : '';
+    const flight = flightMatch ? airlineDisplay(flightMatch[1], flightMatch[2]) : '';
     const routeMatch = v.match(/([A-Z]{3})\s*(?:to|\u2192|-+>)\s*([A-Z]{3})/i);
     const route = routeMatch ? `${routeMatch[1].toUpperCase()} \u2192 ${routeMatch[2].toUpperCase()}` : '';
     const dateMatch = v.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[,.]?\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i)
@@ -366,21 +395,18 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
   const outbound  = flights.filter(f => f.label.toLowerCase().includes('out') || f.sort_order === Math.min(...flights.map(x => x.sort_order)));
   const returning = flights.filter(f => !outbound.includes(f));
 
+  // One line per flight, prefixed with who's on it (from the row label)
+  const flightLine = (r: Logistics) => {
+    const party = flightParty(r);
+    const rest = condenseRow(r);
+    return party && party !== rest ? `${party} \u00b7 ${rest}` : rest;
+  };
+
   if (outbound.length > 0) {
-    stripRows.push({ label: 'Fly out', lines: outbound.map(r => condenseRow(r)) });
+    stripRows.push({ label: 'Fly out', lines: outbound.map(flightLine) });
   }
   if (returning.length > 0) {
-    if (returning.length === 1) {
-      stripRows.push({ label: 'Fly home', lines: [condenseRow(returning[0])] });
-    } else {
-      const codes = returning.map(r => {
-        const m = r.value_md.match(/\b([A-Z]{2})\s*(\d{1,4})\b/);
-        return m ? `${m[1]}${m[2]}` : '';
-      }).filter(Boolean).join(' \u2192 ');
-      const dateMatch = returning[0]?.value_md.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i);
-      const date = dateMatch ? dateMatch[1] : '';
-      stripRows.push({ label: 'Fly home', lines: [[codes, date].filter(Boolean).join(' \u00b7 ')] });
-    }
+    stripRows.push({ label: 'Fly home', lines: returning.map(flightLine) });
   }
 
   if (trains.length > 0) {
@@ -569,7 +595,9 @@ function parseLogisticsValue(value: string, category: string): { headline: strin
     // Extract route (contains "to" or "→"), flight number, date, times
     const routePart = parts.find(p => /to|→/.test(p)) ?? '';
     const route = routePart.replace(/to/i, '→').replace(/\s+/g, ' ');
-    const flightNum = parts.find(p => /^[A-Z]{2}\d+/.test(p.trim())) ?? '';
+    const rawFlightNum = parts.find(p => /^[A-Z]{2}\d+/.test(p.trim())) ?? '';
+    const numMatch = rawFlightNum.match(/^([A-Z]{2})\s*(\d{1,4})/);
+    const flightNum = numMatch ? airlineDisplay(numMatch[1], numMatch[2]) : rawFlightNum;
     const datePart = parts.find(p => /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(p) && !/depart|arriv/i.test(p)) ?? '';
     const departs = parts.find(p => /depart/i.test(p))?.replace(/departs?\s*/i, '') ?? '';
     const arrives = parts.find(p => /arriv/i.test(p))?.replace(/arriv[a-z]*\s*/i, '') ?? '';
