@@ -78,6 +78,8 @@ All of this lives in `src/components/TripView.tsx` and runs client-side in a `us
 - Only genuinely responsive/pseudo-selector things are classes in `globals.css` (`.stop-row`, `.stop-tag`, `.logistics-grid`, `.body-content`), with a `max-width: 480px` breakpoint.
 - **Markdown is inline-only.** `renderMd` in `src/lib/markdown.ts` calls `marked.parseInline` and post-processes anchors to add `target="_blank" rel="noopener noreferrer"`. It also overrides marked's `del` renderer so a single `~` (as in `~45min`, `~1.5 hrs` in itinerary text) is **not** treated as strikethrough — this is intentional; don't remove it.
 - The trip page is a three-tab client view (`itinerary` / `logistics` / `weather`) driven by `activeTab` state in `TripView` — no routing, no URL state.
+- **Motion utilities** in `globals.css` (borrowed from clip/stack): `.row-in` staggered entrance (pair with an inline `animationDelay`, capped at 8 steps), `.pressable` scale-on-tap (only on elements that navigate — tabs, trip-card links — never on inert content cards), `.shimmer-anim` skeleton (pair with an inline `backgroundImage` gradient), `.num` tabular numerals, all guarded by `prefers-reduced-motion`. Ease token: `--ease-out`.
+- **Today ribbon**: during the trip, `TripView` computes today's date client-side post-mount (avoids SSR timezone hydration mismatch), highlights that day's banner in brass with a TODAY chip, and auto-scrolls the itinerary to it (`day-<id>` element ids).
 
 ## Text-parsing conventions (non-obvious)
 
