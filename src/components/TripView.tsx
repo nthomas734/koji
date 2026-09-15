@@ -914,6 +914,7 @@ function DayBlock({
       <div className="glass" style={{
         position: 'sticky',
         top: 'calc(env(safe-area-inset-top, 0px) + var(--gbar-h, 0px) + 14px)',
+        transition: 'top 0.18s ease',
         zIndex: 5,
         margin: '20px 12px 0',
         padding: '12px 14px 11px 20px',
@@ -1468,7 +1469,12 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
       // Past the last block's bottom edge: stay on the last day
       setActiveDay(current);
     };
-    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    // rAF is paused in background tabs, so run synchronously there; otherwise
+    // coalesce to one pass per frame
+    const onScroll = () => {
+      if (document.visibilityState === 'hidden') { update(); return; }
+      if (!raf) raf = requestAnimationFrame(update);
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
     update();
