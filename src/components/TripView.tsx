@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import type { Day, Logistics, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { KojiMark } from '@/components/KojiMark';
@@ -240,6 +241,13 @@ function shiftYear(dateStr: string, delta: number): string {
   return fmtLocalDate(new Date(y + delta, m - 1, day));
 }
 
+// "thu 15" for the day rail
+function chipLabel(dateStart: string, index: number): string {
+  const [y, m, day] = dateStart.split('-').map(Number);
+  const d = new Date(y, m - 1, day + index);
+  return `${d.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase()} ${d.getDate()}`;
+}
+
 // Format a Date as local YYYY-MM-DD (toISOString would shift across UTC midnight)
 function fmtLocalDate(d: Date): string {
   const yyyy = d.getFullYear();
@@ -375,7 +383,7 @@ function condenseRow(row: Logistics): string {
 
 // Build a Google Maps link from a hotel label
 function hotelLink(label: string): string {
-  const q = label.trim().replace(/&/g, '%26').replace(/'/g, '').replace(/\s+/g, '+');
+  const q = encodeURIComponent(label.trim().replace(/\(.*?\)/g, '').trim()).replace(/%20/g, '+');
   return `[${label}](https://www.google.com/maps/search/?api=1&query=${q})`;
 }
 
@@ -392,7 +400,11 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
 
   const stripRows: StripRow[] = [];
 
-  const outbound  = flights.filter(f => f.label.toLowerCase().includes('out') || f.sort_order === Math.min(...flights.map(x => x.sort_order)));
+  // "Out"/"outbound" as a word; a bare includes('out') also matched Southampton
+  const isOutbound = (f: Logistics) => /\b(out|outbound)\b/i.test(f.label);
+  const outbound  = flights.some(isOutbound)
+    ? flights.filter(isOutbound)
+    : flights.filter(f => f.sort_order === Math.min(...flights.map(x => x.sort_order)));
   const returning = flights.filter(f => !outbound.includes(f));
 
   // One line per flight, prefixed with who's on it (from the row label)
@@ -420,9 +432,12 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
       // text with a TBD marker — auto-linking a placeholder label like
       // "London base" produces a junk maps search. The link appears once the
       // row's value no longer says not booked.
-      lines: hotels.map(r =>
-        /not booked/i.test(r.value_md) ? `${r.label} · TBD` : hotelLink(r.label)
-      ),
+      lines: hotels.map(r => {
+        if (/not booked/i.test(r.value_md)) return `${r.label} · TBD`;
+        // Prefer the first real link in the row over a search on the label
+        const m = r.value_md.match(/\[([^\]]+)\]\((https?:[^)\s]+)\)/);
+        return m ? `[${m[1]}](${m[2]})` : hotelLink(r.label);
+      }),
       isMarkdown: true,
     });
   }
@@ -450,17 +465,17 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
           >
             <span style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 8.5,
+              fontSize: 9.5,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               color: theme.bg,
               flexShrink: 0,
-              width: 64,
-              paddingTop: 1,
+              width: 66,
+              paddingTop: 2,
             }}>
               {row.label}
             </span>
-            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.6 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.6, minWidth: 0 }}>
               {row.lines.map((line, li) =>
                 row.isMarkdown ? (
                   <div
@@ -527,7 +542,7 @@ function WeatherHeroCard({
       borderRadius: 999,
     }}>
       <span style={{ fontSize: 17, lineHeight: 1 }}>{icon}</span>
-      <span style={{ fontSize: 13, fontWeight: 500, color: '#FFFFFF' }}>
+      <span style={{ fontSize: 13, fontWeight: 500, color: fg }}>
         avg {summary.avgMax}° / {summary.avgMin}°F
       </span>
       <span style={{
@@ -596,8 +611,8 @@ function parseLogisticsValue(value: string, category: string): { headline: strin
   if (category === 'flight') {
     // "UA970 - Sun, May 24 - ORD to FCO - Departs 3:45 PM - Arrives 7:55 AM - Seats 42J / 42K"
     // Extract route (contains "to" or "→"), flight number, date, times
-    const routePart = parts.find(p => /to|→/.test(p)) ?? '';
-    const route = routePart.replace(/to/i, '→').replace(/\s+/g, ' ');
+    const routePart = parts.find(p => /\bto\b|→/.test(p)) ?? '';
+    const route = routePart.replace(/\s+to\s+/i, ' → ').replace(/\s+/g, ' ');
     const rawFlightNum = parts.find(p => /^[A-Z]{2}\d+/.test(p.trim())) ?? '';
     const numMatch = rawFlightNum.match(/^([A-Z]{2})\s*(\d{1,4})/);
     const flightNum = numMatch ? airlineDisplay(numMatch[1], numMatch[2]) : rawFlightNum;
@@ -605,17 +620,19 @@ function parseLogisticsValue(value: string, category: string): { headline: strin
     const departs = parts.find(p => /depart/i.test(p))?.replace(/departs?\s*/i, '') ?? '';
     const arrives = parts.find(p => /arriv/i.test(p))?.replace(/arriv[a-z]*\s*/i, '') ?? '';
     const timeStr = [departs && `Departs ${departs}`, arrives && `Arrives ${arrives}`].filter(Boolean).join(' · ');
+    // Anything the sub-parsers did not claim (seats, confirmation) still shows
+    const leftover = parts.filter(p => p !== routePart && p !== rawFlightNum && p !== datePart && !/depart|arriv/i.test(p));
     return {
       headline: route,
       secondary: [flightNum, datePart].filter(Boolean).join(' · '),
-      detail: timeStr,
+      detail: [timeStr, ...leftover].filter(Boolean).join(' · '),
     };
   }
 
   if (category === 'train') {
     // "Wed, May 27 - Suggested 10:00 AM Frecciarossa - Roma Termini to Firenze SMN - Arrives approx 11:35 AM"
-    const routePart = parts.find(p => /to|→/.test(p)) ?? '';
-    const route = routePart.replace(/to/i, '→');
+    const routePart = parts.find(p => /\bto\b|→/.test(p)) ?? '';
+    const route = routePart.replace(/\s+to\s+/i, ' → ');
     const datePart = parts.find(p => /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)/i.test(p)) ?? '';
     const trainType = parts.find(p => /frecciarossa|italo|intercity|tgv|eurostar/i.test(p))
       ?.replace(/suggested\s*/i, '').replace(/\d{1,2}:\d{2}\s*(AM|PM)/i, '').trim() ?? '';
@@ -643,7 +660,9 @@ function parseLogisticsValue(value: string, category: string): { headline: strin
   }
 
   if (category === 'book') {
-    // "Tue, May 26 - 3:00 PM - confirm tickets in hand"
+    // "Tue, May 26 - 3:00 PM - confirm tickets in hand"; a single-segment row
+    // is a list of places and belongs in the body, not the bold headline
+    if (parts.length <= 1) return { headline: '', secondary: '', detail: value };
     const datePart = parts[0] ?? '';
     const timePart = parts[1] ?? '';
     const note = parts.slice(2).join(' · ');
@@ -698,8 +717,8 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
           {/* Section banner — matches day banner style */}
           <div style={{
             position: 'relative',
-            background: `color-mix(in srgb, ${theme.bg} 18%, var(--bg-subtle))`,
-            border: `0.5px solid color-mix(in srgb, ${theme.bg} 30%, var(--border))`,
+            background: `${theme.bg}22`,
+            border: `0.5px solid ${theme.bg}4d`,
             borderRadius: 14,
             padding: '11px 14px 11px 20px',
             marginBottom: 8,
@@ -754,7 +773,7 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
                   }} />
                   <div style={{
                     fontFamily: 'var(--font-mono)',
-                    fontSize: 8.5,
+                    fontSize: 9.5,
                     letterSpacing: '0.14em',
                     textTransform: 'uppercase',
                     color: theme.bg,
@@ -762,26 +781,27 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
                   }}>
                     {row.label}
                   </div>
-                  <div style={{
+                  {(headline || secondary) && <div style={{
                     display: 'flex',
                     alignItems: 'baseline',
                     gap: 8,
+                    flexWrap: 'wrap',
                     marginBottom: secondary || detail ? 2 : 0,
                   }}>
-                    <span
+                    {headline && <span
                       style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink)' }}
                       className="body-content"
                       dangerouslySetInnerHTML={{ __html: renderMd(headline) }}
-                    />
+                    />}
                     {secondary && (
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>
                         {secondary}
                       </span>
                     )}
-                  </div>
+                  </div>}
                   {detail && (
                     <div
-                      style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5 }}
+                      style={{ fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.55 }}
                       className="body-content"
                       dangerouslySetInnerHTML={{ __html: renderMd(detail) }}
                     />
@@ -802,11 +822,12 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
 function StopRow({ stop }: { stop: Stop }) {
   const tagColor = TAG_COLORS[stop.tag_color] ?? TAG_COLORS.gray;
   const bodyHtml = renderMd(stop.body_md);
+  const tagText = stop.is_optional && !/optional/i.test(stop.tag) ? `${stop.tag} · optional` : stop.tag;
   return (
-    <div style={{
+    <article id={`stop-${stop.id}`} style={{
       position: 'relative',
       display: 'grid',
-      gridTemplateColumns: '52px 1fr',
+      gridTemplateColumns: '54px 1fr',
       gap: 6,
       background: 'var(--surface)',
       border: '0.5px solid var(--border)',
@@ -814,6 +835,7 @@ function StopRow({ stop }: { stop: Stop }) {
       padding: '12px 14px 12px 18px',
       marginTop: 8,
       overflow: 'hidden',
+      scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + var(--gbar-h, 0px) + 12px)',
     }}>
       <div style={{
         position: 'absolute',
@@ -827,19 +849,19 @@ function StopRow({ stop }: { stop: Stop }) {
       }} />
       <div className="num" style={{
         fontFamily: 'var(--font-mono)',
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 500,
-        letterSpacing: '0.04em',
+        letterSpacing: '0.03em',
         color: tagColor.text,
         paddingTop: 4,
       }}>
         {stop.time_label || ''}
       </div>
-      <div>
+      <div style={{ minWidth: 0 }}>
         <span style={{
           display: 'inline-block',
           fontFamily: 'var(--font-mono)',
-          fontSize: 8.5,
+          fontSize: 9,
           fontWeight: 500,
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
@@ -849,30 +871,27 @@ function StopRow({ stop }: { stop: Stop }) {
           background: tagColor.bg,
           color: tagColor.text,
         }}>
-          {stop.tag}
+          {tagText}
         </span>
-        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.35, marginBottom: 4 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.35, marginBottom: 4, fontStyle: stop.is_optional ? 'italic' : 'normal' }}>
           {stop.title}
-        </div>
+        </h3>
         {bodyHtml && (
           <div
-            style={{ fontSize: 13, fontWeight: 300, color: 'var(--ink-3)', lineHeight: 1.6 }}
+            style={{ fontSize: 14, fontWeight: 400, color: 'var(--ink-2)', lineHeight: 1.6 }}
             className="body-content"
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
         )}
       </div>
-    </div>
+    </article>
   );
 }
 
 // ── DAY BLOCK ────────────────────────────────────────────────────────────────
-// Redesigned banner:
-//   - 4px theme-color accent bar on left (rounded, inset)
-//   - "DAY N OF M" eyebrow in theme color
-//   - Serif day-of-week as primary headline
-//   - Mono-caps subtitle for the rest of the label
-//   - Weather badge tucked to the right
+// The header is glass and sticks under the top bar while its stops scroll, so
+// the date stays readable over the cards beneath it. The wrapping <section> is
+// the sticky container, so each header releases when the next day arrives.
 function DayBlock({
   day,
   weather,
@@ -889,23 +908,17 @@ function DayBlock({
   isToday: boolean;
 }) {
   const { headline, subtitle } = parseDayLabel(day.label);
-  const accent = isToday ? 'var(--brass)' : themeColor.bg;
 
   return (
-    <div
-      id={`day-${day.id}`}
-      className="row-in"
-      style={{ animationDelay: `${Math.min(dayIndex, 8) * 40}ms` }}
-    >
-      <div style={{
-        position: 'relative',
+    <section id={`day-${dayIndex}`} data-day-idx={dayIndex} className="row-in" style={{ animationDelay: `${Math.min(dayIndex, 8) * 40}ms`, scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + var(--gbar-h, 0px) + 8px)' }}>
+      <div className="glass" style={{
+        position: 'sticky',
+        top: 'calc(env(safe-area-inset-top, 0px) + var(--gbar-h, 0px) + 14px)',
+        zIndex: 5,
         margin: '20px 12px 0',
-        padding: '14px 16px 12px 22px',
-        background: isToday ? 'var(--brass-light)' : 'var(--bg-subtle)',
-        border: `0.5px solid ${isToday ? 'var(--brass)' : 'var(--border)'}`,
+        padding: '12px 14px 11px 20px',
         borderRadius: 14,
         lineHeight: 1.5,
-        overflow: 'hidden',
       }}>
         <div style={{
           position: 'absolute',
@@ -913,52 +926,46 @@ function DayBlock({
           top: 10,
           bottom: 10,
           width: 4,
-          background: accent,
+          background: isToday ? 'var(--brass)' : themeColor.bg,
           borderRadius: 4,
         }} />
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9.5,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: isToday ? 'var(--brass)' : themeColor.bg,
+              marginBottom: 3,
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: accent,
-              marginBottom: 4,
             }}>
+              <span>Day {dayIndex + 1} of {dayTotal}</span>
               {isToday && (
-                <span style={{
-                  background: 'var(--brass)',
-                  color: '#FFFFFF',
-                  borderRadius: 4,
-                  padding: '1.5px 6px',
-                  fontSize: 7.5,
-                  letterSpacing: '0.14em',
-                }}>
-                  Today
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brass)', boxShadow: '0 0 0 3px rgba(184,148,78,0.22)' }} />
+                  today
                 </span>
               )}
-              <span>Day {dayIndex + 1} of {dayTotal}</span>
             </div>
-            <div style={{
+            <h2 style={{
               fontFamily: 'var(--font-serif)',
               fontWeight: 400,
               fontSize: 18,
               letterSpacing: '-0.005em',
               color: 'var(--ink)',
               lineHeight: 1.15,
-              marginBottom: subtitle ? 4 : 0,
+              marginBottom: subtitle ? 3 : 0,
             }}>
               {headline}
-            </div>
+            </h2>
             {subtitle && (
               <div style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                letterSpacing: '0.08em',
+                fontSize: 10.5,
+                letterSpacing: '0.06em',
                 color: 'var(--ink-2)',
                 lineHeight: 1.4,
               }}>
@@ -974,7 +981,7 @@ function DayBlock({
               alignItems: 'center',
               gap: 4,
               fontFamily: 'var(--font-mono)',
-              fontSize: 9,
+              fontSize: 10,
               color: 'var(--ink-3)',
               background: 'var(--surface)',
               border: '0.5px solid var(--border)',
@@ -991,7 +998,7 @@ function DayBlock({
       <div style={{ padding: '0 12px' }}>
         {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} />)}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -1231,10 +1238,80 @@ function WeatherTab({
 // ── PILL TAB BAR ─────────────────────────────────────────────────────────────
 type Tab = 'itinerary' | 'logistics' | 'weather';
 
-function PillTabBar({ active, onChange, theme }: {
+// ── DAY RAIL ─────────────────────────────────────────────────────────────────
+// One row of day chips. Lives in the dark hero and again in the glass top bar;
+// the variant only changes the colours.
+function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme }: {
+  days: Day[];
+  dateStart: string;
+  active: number;
+  todayIdx: number;
+  onPick: (i: number) => void;
+  variant: 'dark' | 'glass';
+  theme: { bg: string; fg: string };
+}) {
+  const railRef = useRef<HTMLDivElement>(null);
+
+  // Keep the active chip in view without scrolling the page
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const chip = rail.children[active] as HTMLElement | undefined;
+    if (!chip) return;
+    const left = chip.offsetLeft - (rail.clientWidth - chip.offsetWidth) / 2;
+    rail.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+  }, [active]);
+
+  const dark = variant === 'dark';
+  return (
+    <div ref={railRef} className="day-rail" role="tablist" aria-label="Days">
+      {days.map((day, i) => {
+        const on = i === active;
+        const today = i === todayIdx;
+        const fg = dark ? theme.fg : 'var(--ink)';
+        const style: React.CSSProperties = {
+          flexShrink: 0,
+          minHeight: 34,
+          padding: '0 11px',
+          borderRadius: 999,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          letterSpacing: '0.06em',
+          whiteSpace: 'nowrap',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          border: `1px solid ${on ? fg : today ? 'var(--brass)' : dark ? `${theme.fg}33` : 'var(--border-mid)'}`,
+          background: on ? fg : dark ? `${theme.fg}14` : 'rgba(255,255,255,0.35)',
+          color: on ? (dark ? theme.bg : 'var(--bg)') : today ? 'var(--brass)' : dark ? `${theme.fg}cc` : 'var(--ink-3)',
+        };
+        return (
+          <button
+            key={day.id}
+            role="tab"
+            aria-selected={on}
+            aria-label={`Day ${i + 1}${today ? ', today' : ''}`}
+            onClick={() => onPick(i)}
+            style={style}
+          >
+            {today && <span style={{ width: 5, height: 5, borderRadius: '50%', background: on ? 'var(--brass)' : 'var(--brass)' }} />}
+            {chipLabel(dateStart, i)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── FLOATING TAB CAPSULE ────────────────────────────────────────────────────
+// Sits just above Safari's own bottom bar (env(safe-area-inset-bottom) covers
+// it once viewport-fit=cover is set). The fixed wrapper is transparent and the
+// glass is drawn on the child, which is what Safari 26 wants.
+function GlassTabBar({ active, onChange, showToday, onToday }: {
   active: Tab;
   onChange: (t: Tab) => void;
-  theme: { bg: string; fg: string };
+  showToday: boolean;
+  onToday: () => void;
 }) {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'itinerary', label: 'Itinerary' },
@@ -1242,35 +1319,60 @@ function PillTabBar({ active, onChange, theme }: {
     { key: 'weather',   label: 'Weather' },
   ];
   return (
-    <div style={{ background: theme.bg, padding: '0 var(--px) 14px', display: 'flex', gap: 8 }}>
-      {tabs.map(tab => {
-        const isActive = tab.key === active;
-        return (
+    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, pointerEvents: 'none', display: 'flex', justifyContent: 'center', padding: '0 12px calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
+      <div style={{ pointerEvents: 'auto', display: 'flex', gap: 6, width: '100%', maxWidth: 380 }}>
+        {showToday && (
           <button
-            key={tab.key}
-            onClick={() => onChange(tab.key)}
-            className="pressable"
+            className="glass-dark"
+            onClick={onToday}
+            aria-label="Jump to today"
             style={{
-              flex: 1,
-              padding: '8px 0',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: isActive ? theme.fg : `${theme.fg}66`,
-              background: isActive ? `${theme.fg}1f` : 'transparent',
-              border: isActive ? `0.5px solid ${theme.fg}40` : '0.5px solid transparent',
-              backdropFilter: isActive ? 'blur(8px)' : 'none',
-              WebkitBackdropFilter: isActive ? 'blur(8px)' : 'none',
+              flexShrink: 0,
+              minHeight: 48,
+              padding: '0 14px 0 12px',
               borderRadius: 999,
-              transition: 'all 0.15s ease',
-              cursor: 'pointer',
+              color: 'var(--bg)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9.5,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
             }}
           >
-            {tab.label}
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--brass)', boxShadow: '0 0 0 3px rgba(184,148,78,0.28)' }} />
+            today
           </button>
-        );
-      })}
+        )}
+        <div className="glass" role="tablist" style={{ flex: 1, minHeight: 48, borderRadius: 999, padding: 4, display: 'flex', gap: 4 }}>
+          {tabs.map(tab => {
+            const isActive = tab.key === active;
+            return (
+              <button
+                key={tab.key}
+                role="tab"
+                aria-selected={isActive}
+                className="pressable"
+                onClick={() => onChange(tab.key)}
+                style={{
+                  flex: 1,
+                  minHeight: 40,
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9.5,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: isActive ? 'var(--bg)' : 'var(--ink-3)',
+                  background: isActive ? 'var(--ink)' : 'transparent',
+                  borderRadius: 999,
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1282,32 +1384,149 @@ interface TripViewProps {
   days: Day[];
 }
 
+const TAB_HASHES: Record<string, Tab> = { logistics: 'logistics', weather: 'weather', itinerary: 'itinerary' };
+
 export function TripView({ trip, logistics, days }: TripViewProps) {
-  const [activeTab, setActiveTab]       = useState<Tab>('itinerary');
+  const router = useRouter();
+  const [activeTab, setActiveTabState] = useState<Tab>('itinerary');
   const [weatherMap, setWeatherMap]     = useState<Record<string, DayWeather>>({});
   const [weatherLoading, setLoading]    = useState(false);
   const [isSeasonal, setIsSeasonal]     = useState(false);
-  // Set after mount so SSR (server timezone) can't disagree with the client
-  const [todayKey, setTodayKey]         = useState<string | null>(null);
   const theme = THEMES[trip.header_theme] ?? THEMES.forest;
 
-  useEffect(() => {
-    setTodayKey(fmtLocalDate(new Date()));
-  }, []);
-
-  // During the trip, open the itinerary scrolled to today's day
-  useEffect(() => {
-    if (!todayKey || !trip.date_start) return;
-    const idx = days.findIndex((_, i) => dateForDay(trip.date_start!, i) === todayKey);
-    if (idx <= 0) return;
-    document.getElementById(`day-${days[idx].id}`)?.scrollIntoView({ block: 'start' });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [todayKey]);
+  // Day awareness. todayIdx is -1 outside the trip; computed on the client so
+  // the server render (UTC) never disagrees with the phone.
+  const [todayIdx, setTodayIdx]   = useState(-1);
+  const [activeDay, setActiveDay] = useState(0);
+  const [barShown, setBarShown]   = useState(false);
+  const [barH, setBarH]           = useState(0);
+  const heroRef  = useRef<HTMLDivElement>(null);
+  const gbarRef  = useRef<HTMLDivElement>(null);
+  const pendingDay = useRef<number | null>(null);
 
   const hasCoords = (trip.lat != null && trip.lng != null && !!trip.date_start)
     || days.some(d => d.lat != null && d.lng != null);
 
-  // Build a map of "lat,lng" -> [dayIndex, ...] so we can fetch each unique location once
+  // ── today ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!trip.date_start) return;
+    const compute = () => {
+      const today = fmtLocalDate(new Date());
+      let idx = -1;
+      for (let i = 0; i < days.length; i++) if (dateForDay(trip.date_start!, i) === today) idx = i;
+      setTodayIdx(idx);
+      return idx;
+    };
+    const idx = compute();
+    // Open on the current day unless the URL points somewhere specific
+    const hash = window.location.hash.replace('#', '');
+    if (!TAB_HASHES[hash] && !hash.startsWith('day-') && !hash.startsWith('stop-') && idx > 0) {
+      pendingDay.current = idx;
+    } else if (TAB_HASHES[hash]) {
+      setActiveTabState(TAB_HASHES[hash]);
+    }
+    // Recompute when the phone wakes up on a new day
+    const onVisible = () => { if (document.visibilityState === 'visible') compute(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [trip.date_start, days.length]);
+
+  // ── scroll to a day ──────────────────────────────────────────────────────
+  const scrollToDay = useCallback((i: number, behavior: ScrollBehavior = 'smooth') => {
+    const el = document.getElementById(`day-${i}`);
+    if (!el) return;
+    const bar = gbarRef.current;
+    const offset = (bar ? bar.getBoundingClientRect().bottom : 0) + 8;
+    const top = el.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top: Math.max(0, top), behavior });
+    setActiveDay(i);
+  }, []);
+
+  // A day jump requested before the itinerary was on screen
+  useEffect(() => {
+    if (activeTab !== 'itinerary' || pendingDay.current == null) return;
+    const i = pendingDay.current;
+    pendingDay.current = null;
+    // Two frames so fonts and the sticky bar have laid out
+    requestAnimationFrame(() => requestAnimationFrame(() => scrollToDay(i, 'instant' as ScrollBehavior)));
+  }, [activeTab, scrollToDay]);
+
+  // ── track the day in view + whether the hero has scrolled away ───────────
+  useEffect(() => {
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const hero = heroRef.current;
+      const bar = gbarRef.current;
+      const safeTop = bar ? bar.getBoundingClientRect().top : 0;
+      if (hero) setBarShown(hero.getBoundingClientRect().bottom <= safeTop + 4);
+      if (activeTab !== 'itinerary') return;
+      const line = (bar ? bar.getBoundingClientRect().bottom : 0) + 24;
+      const blocks = document.querySelectorAll<HTMLElement>('[data-day-idx]');
+      let current = 0;
+      blocks.forEach(b => { if (b.getBoundingClientRect().top <= line) current = Number(b.dataset.dayIdx); });
+      // Past the last block's bottom edge: stay on the last day
+      setActiveDay(current);
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    update();
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [activeTab]);
+
+  // Measure the glass bar so sticky day headers sit under it
+  useEffect(() => {
+    const bar = gbarRef.current;
+    if (!bar || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setBarH(bar.offsetHeight));
+    ro.observe(bar);
+    setBarH(bar.offsetHeight);
+    return () => ro.disconnect();
+  }, [activeTab]);
+
+  // ── tabs ─────────────────────────────────────────────────────────────────
+  const setActiveTab = useCallback((t: Tab) => {
+    setActiveTabState(t);
+    try { history.replaceState(null, '', t === 'itinerary' ? window.location.pathname : `#${t}`); } catch {}
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+  }, []);
+
+  const goToday = useCallback(() => {
+    if (todayIdx < 0) return;
+    if (activeTab !== 'itinerary') {
+      pendingDay.current = todayIdx;
+      setActiveTab('itinerary');
+    } else {
+      scrollToDay(todayIdx);
+    }
+  }, [todayIdx, activeTab, setActiveTab, scrollToDay]);
+
+  const pickDay = useCallback((i: number) => {
+    if (activeTab !== 'itinerary') {
+      pendingDay.current = i;
+      setActiveTab('itinerary');
+    } else {
+      scrollToDay(i);
+    }
+  }, [activeTab, setActiveTab, scrollToDay]);
+
+  // ── stale-tab refresh: a tab left open overnight re-fetches on wake ───────
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000) router.refresh();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [router]);
+
+  // ── weather ──────────────────────────────────────────────────────────────
   function getLocationGroups(): { key: string; lat: number; lng: number; dateStart: string; dateEnd: string }[] {
     if (!trip.date_start) return [];
     const groups: Record<string, { lat: number; lng: number; dates: string[] }> = {};
@@ -1338,7 +1557,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
     // (historical-forecast-api — reachable from Vercel, unlike archive-api).
     const forecastLimit = new Date();
     forecastLimit.setDate(forecastLimit.getDate() + 16);
-    const useSeasonal = new Date(trip.date_start) > forecastLimit;
+    const useSeasonal = new Date(trip.date_start + 'T00:00') > forecastLimit;
 
     let cancelled = false;
     setLoading(true);
@@ -1373,14 +1592,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.lat, trip.lng, trip.date_start, trip.date_end, hasCoords, days.length]);
 
-  // For the hero card — use trip-level coords to show overall trip weather summary
-  const tripWeather = Object.values(weatherMap)
-    .filter(w => {
-      if (!trip.date_start || trip.lat == null) return true;
-      // Only include days whose location matches trip coords (first city approximation)
-      return true; // show all — hero card averages across whole trip
-    })
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const tripWeather = Object.values(weatherMap).sort((a, b) => a.date.localeCompare(b.date));
 
   function weatherForDay(index: number): DayWeather | null {
     if (!trip.date_start) return null;
@@ -1388,17 +1600,60 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
     return weatherMap[date] ?? null;
   }
 
+  const showRail = !!trip.date_start && days.length > 1;
+  const tripActive = todayIdx >= 0;
+  const showTodayButton = tripActive && (activeTab !== 'itinerary' || activeDay !== todayIdx);
+
   return (
-    <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 60px' }}>
+    <div style={{
+      maxWidth: 'var(--max-w)',
+      margin: '0 auto',
+      padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 110px)',
+      ['--gbar-h' as string]: barShown ? `${barH}px` : '0px',
+    }}>
+
+      {/* Glass top bar: trip name + day rail, shown once the dark hero scrolls away.
+          Transparent fixed wrapper, glass on the child. */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 30, pointerEvents: 'none', display: 'flex', justifyContent: 'center', padding: 'calc(env(safe-area-inset-top, 0px) + 8px) 12px 0' }}>
+        <div
+          ref={gbarRef}
+          className="glass"
+          aria-hidden={!barShown}
+          style={{
+            pointerEvents: barShown ? 'auto' : 'none',
+            visibility: barShown ? 'visible' : 'hidden',
+            opacity: barShown ? 1 : 0,
+            transform: barShown ? 'translateY(0)' : 'translateY(-8px)',
+            transition: 'opacity 0.18s ease, transform 0.18s ease, visibility 0.18s',
+            width: '100%',
+            maxWidth: 'calc(var(--max-w) - 24px)',
+            borderRadius: 18,
+            padding: '9px 12px 9px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '0 2px', marginBottom: showRail && activeTab === 'itinerary' ? 8 : 0 }}>
+            <span style={{ fontFamily: 'var(--font-serif)', fontSize: 15, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{trip.title}</span>
+            {trip.date_start && (
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.08em', color: 'var(--ink-4)', flexShrink: 0 }}>
+                {formatTripDateRange(trip.date_start, trip.date_end).toLowerCase()}
+              </span>
+            )}
+          </div>
+          {showRail && activeTab === 'itinerary' && (
+            <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} />
+          )}
+        </div>
+      </div>
 
       {/* Site header */}
-      <header style={{ padding: '24px var(--px) 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
-        <a href="/" style={{
+      <header style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 12px) var(--px) 8px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
+        <a href="/" className="tap" style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
+          minHeight: 44,
           fontFamily: 'var(--font-mono)',
-          fontSize: 9,
+          fontSize: 10,
           letterSpacing: '0.22em',
           textTransform: 'uppercase',
           color: 'var(--brass)',
@@ -1408,66 +1663,69 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
         </a>
         <a
           href={`/admin/trips/${trip.id}`}
+          className="tap"
           style={{
             marginLeft: 'auto',
             color: 'var(--ink-4)',
             display: 'flex',
             alignItems: 'center',
-            padding: 4,
+            justifyContent: 'center',
+            minWidth: 44,
+            minHeight: 44,
           }}
           aria-label="Edit trip"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
           </svg>
         </a>
       </header>
 
-      {/* Trip header + pill tabs — one contiguous dark block.
-          .trip-hero rounds it into a card on desktop widths. */}
-      <div className="trip-hero" style={{ background: theme.bg, color: theme.fg }}>
-        <div style={{ padding: '22px var(--px) 14px' }}>
-          <h1 style={{
-            fontFamily: 'var(--font-serif)',
-            fontWeight: 300,
-            fontSize: 26,
-            letterSpacing: '-0.01em',
-            lineHeight: 1.15,
-            color: '#FFFFFF',
-            marginBottom: 4,
-          }}>
-            {trip.title}
-          </h1>
-          <div style={{
-            fontFamily: 'var(--font-serif)',
-            fontWeight: 300,
-            fontStyle: 'italic',
-            fontSize: 15,
-            opacity: 0.7,
-            marginBottom: trip.date_start || hasCoords ? 14 : 4,
-          }}>
-            {trip.subtitle}
-            {trip.subtitle && trip.date_start && <span style={{ opacity: 0.65 }}> · </span>}
-            {trip.date_start && (
-              <span style={{ fontStyle: 'normal', fontFamily: 'var(--font-sans)', fontSize: 12, letterSpacing: '0.02em' }}>
-                {formatTripDateRange(trip.date_start, trip.date_end)}
-              </span>
-            )}
-          </div>
-
-          {/* Live or seasonal weather summary */}
-          {hasCoords && (
-            <WeatherHeroCard
-              loading={weatherLoading}
-              weather={tripWeather}
-              isSeasonal={isSeasonal}
-              fg={theme.fg}
-            />
+      {/* Trip hero: rounded dark card with the title, dates, weather and day rail */}
+      <div ref={heroRef} style={{ margin: '12px 12px 0', background: theme.bg, color: theme.fg, borderRadius: 18, padding: '20px 18px 16px' }}>
+        <h1 style={{
+          fontFamily: 'var(--font-serif)',
+          fontWeight: 300,
+          fontSize: 26,
+          letterSpacing: '-0.01em',
+          lineHeight: 1.15,
+          color: theme.fg,
+          marginBottom: 4,
+        }}>
+          {trip.title}
+        </h1>
+        <div style={{
+          fontFamily: 'var(--font-serif)',
+          fontWeight: 300,
+          fontStyle: 'italic',
+          fontSize: 15,
+          opacity: 0.75,
+          marginBottom: trip.date_start || hasCoords ? 14 : 4,
+        }}>
+          {trip.subtitle}
+          {trip.subtitle && trip.date_start && <span style={{ opacity: 0.65 }}> · </span>}
+          {trip.date_start && (
+            <span style={{ fontStyle: 'normal', fontFamily: 'var(--font-sans)', fontSize: 12, letterSpacing: '0.02em' }}>
+              {formatTripDateRange(trip.date_start, trip.date_end)}
+            </span>
           )}
         </div>
 
-        <PillTabBar active={activeTab} onChange={setActiveTab} theme={theme} />
+        {hasCoords && (
+          <WeatherHeroCard
+            loading={weatherLoading}
+            weather={tripWeather}
+            isSeasonal={isSeasonal}
+            fg={theme.fg}
+          />
+        )}
+
+        {showRail && (
+          <div style={{ marginTop: 14 }}>
+            <DayRail days={days} dateStart={trip.date_start!} active={activeTab === 'itinerary' ? activeDay : -1} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme} />
+          </div>
+        )}
       </div>
 
       {/* ITINERARY TAB */}
@@ -1483,7 +1741,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
                 dayIndex={i}
                 dayTotal={days.length}
                 themeColor={theme}
-                isToday={!!trip.date_start && todayKey === dateForDay(trip.date_start, i)}
+                isToday={i === todayIdx}
               />
             ))}
           </main>
@@ -1555,6 +1813,8 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
       }}>
         {trip.title}
       </footer>
+
+      <GlassTabBar active={activeTab} onChange={setActiveTab} showToday={showTodayButton} onToday={goToday} />
     </div>
   );
 }

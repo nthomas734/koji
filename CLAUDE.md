@@ -77,10 +77,10 @@ All of this lives in `src/components/TripView.tsx` and runs client-side in a `us
 - The `HeaderTheme` → `{bg, fg}` map is **duplicated** as a JS object in both `src/app/page.tsx` (`THEME_COLORS`) and `TripView.tsx` (`THEMES`), and again as CSS vars. Adding a theme means touching all three.
 - Only genuinely responsive/pseudo-selector things are classes in `globals.css` (`.stop-row`, `.stop-tag`, `.logistics-grid`, `.body-content`), with a `max-width: 480px` breakpoint.
 - **Desktop is planning mode** (the trip itself is used on phones): at `min-width: 1000px` the column widens to `--max-w: 780px`, the Weather tab grids 3-up (`.weather-list` / `.weather-span`), and Logistics cards grid 2-up (`.logistics-cards`). The itinerary stays a single prose column at every width — don't multi-column it.
-- **Markdown is inline-only.** `renderMd` in `src/lib/markdown.ts` calls `marked.parseInline` and post-processes anchors to add `target="_blank" rel="noopener noreferrer"`. It also overrides marked's `del` renderer so a single `~` (as in `~45min`, `~1.5 hrs` in itinerary text) is **not** treated as strikethrough — this is intentional; don't remove it.
-- The trip page is a three-tab client view (`itinerary` / `logistics` / `weather`) driven by `activeTab` state in `TripView` — no routing, no URL state.
+- **Markdown is inline-only.** `renderMd` in `src/lib/markdown.ts` calls `marked.parseInline` and post-processes anchors to add `target="_blank" rel="noopener noreferrer"`. It also escapes every lone `~` before parsing (`escapeLoneTildes`) so `~45min` is never read as strikethrough, even when two tildes appear in one string; `~~strike~~` still works. Intentional; don't remove it.
+- The trip page is a three-tab client view (`itinerary` / `logistics` / `weather`) driven by `activeTab` state in `TripView`; the tab mirrors to the URL hash (`#logistics`, `#weather`) so a link can open on a tab. No routing.
 - **Motion utilities** in `globals.css` (borrowed from clip/stack): `.row-in` staggered entrance (pair with an inline `animationDelay`, capped at 8 steps), `.pressable` scale-on-tap (only on elements that navigate — tabs, trip-card links — never on inert content cards), `.shimmer-anim` skeleton (pair with an inline `backgroundImage` gradient), `.num` tabular numerals, all guarded by `prefers-reduced-motion`. Ease token: `--ease-out`.
-- **Today ribbon**: during the trip, `TripView` computes today's date client-side post-mount (avoids SSR timezone hydration mismatch), highlights that day's banner in brass with a TODAY chip, and auto-scrolls the itinerary to it (`day-<id>` element ids).
+- **Today**: see "Trip page shell" below. Day sections are `day-<index>` (index, not row id), stops `stop-<id>`.
 
 ## Text-parsing conventions (non-obvious)
 
@@ -101,3 +101,30 @@ Editing these regexes changes how already-authored trip data renders — check e
 `layout.tsx` declares `manifest: '/manifest.json'`, an SVG + 32px PNG favicon, and `apple-touch-icon.png` at 180px — iOS reads that file specifically, and its absence was why the home screen showed a generic "K". `public/` carries icons at 32/180/192/512. `next.config.js` exists solely to serve `/manifest.json` with `Content-Type: application/manifest+json`. Manifest `theme_color`/`background_color` and the viewport `themeColor` are all parchment `#F5F0E8`; `appleWebApp.statusBarStyle` is `'default'` to match (flip to `'black-translucent'` only if the app goes dark). `KojiMark.tsx` (the inline logo) is proportioned to match `icon.svg` — change them together.
 
 `public/sw.js` (registered by `SWRegister` in `layout.tsx`) provides offline support: network-first with cache fallback for same-origin pages/RSC payloads, cache-first for `/_next/static`. It never intercepts `/api/`, `/admin`, cross-origin, or non-GET requests — the `UpdateBanner` deploy check (HEAD `/`) passes through untouched. Bump its `VERSION` constant to invalidate old caches.
+
+## Trip page shell (2026-09-15)
+
+`TripView` draws two Liquid Glass layers over the parchment page, both as
+transparent `position: fixed` wrappers with the glass (`.glass` in
+`globals.css`) on a child, which is what Safari 26+ wants:
+
+- a top bar (trip name + horizontal day rail) that fades in once the dark hero
+  card scrolls away. Its measured height is published as `--gbar-h` on the
+  root so the glass day headers (`position: sticky`, one per day `<section>`)
+  sit under it.
+- a floating tab capsule above Safari's own bottom bar, positioned off
+  `env(safe-area-inset-bottom)`. `viewport-fit: cover` in `layout.tsx` is what
+  makes that inset non-zero; do not remove it. `html` carries an explicit
+  background and `color-scheme: light` because Safari tints its toolbar from it.
+
+Day awareness: `todayIdx` is computed on the client from the phone's local
+date against `dateForDay`. During the trip the page opens scrolled to today
+(unless the URL carries `#logistics`, `#weather`, `#day-N` or `#stop-N`), the
+day chip and header are marked in brass, and a dark "today" segment appears in
+the capsule whenever you are not looking at today. The day in view is tracked
+on scroll and reflected in both rails.
+
+A hidden tab re-fetches on wake after 10 minutes via `router.refresh()`.
+
+`sql/` holds dated records of content edits applied live through the Supabase
+connection, like dashi's root `.sql` files. Read them, don't run them.

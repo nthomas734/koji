@@ -74,7 +74,25 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-html { scroll-behavior: smooth; }
+/* Liquid Glass surfaces (Safari 26+). The parchment tint keeps the blur warm;
+   the 1px white line and inset highlight are what read as "glass" over cards. */
+:root {
+  --glass:        rgba(252, 249, 244, 0.68);
+  --glass-line:   rgba(255, 255, 255, 0.7);
+  --glass-shadow: 0 10px 28px rgba(30, 26, 21, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.75), inset 0 -1px 0 rgba(30, 26, 21, 0.05);
+  --glass-dark:   rgba(42, 42, 42, 0.62);
+}
+
+/* Safari tints its own toolbar from the html/body background, so both are set
+   explicitly. color-scheme keeps a dark-mode phone from inverting form chrome. */
+html {
+  background: var(--bg);
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
 
 body {
   font-family: var(--font-sans);
@@ -82,6 +100,45 @@ body {
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+}
+
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-shadow);
+}
+.glass-dark {
+  background: var(--glass-dark);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 10px 28px rgba(30, 26, 21, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass { background: rgba(252, 249, 244, 0.96); }
+  .glass-dark { background: rgba(42, 42, 42, 0.94); }
+}
+
+/* Horizontal day rail: scrolls, snaps, hides its scrollbar */
+.day-rail {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.day-rail::-webkit-scrollbar { display: none; }
+.day-rail > button { scroll-snap-align: center; }
+
+/* Tap feedback: -webkit-tap-highlight-color is off, so links get a press state
+   (buttons that navigate use .pressable below) */
+.body-content a:active, .tap:active { opacity: 0.55; }
+@media (prefers-reduced-motion: no-preference) {
+  .body-content a, .tap { transition: opacity 0.12s ease; }
 }
 
 a { color: inherit; text-decoration: none; }
@@ -162,17 +219,6 @@ input, textarea, select {
 
 /* Inline body markdown — preserve linebreaks from <br><br> in body_md */
 .body-content br + br { display: block; content: ""; margin-top: 6px; }
-
-/* Trip hero: full-bleed app-style band on phones. On wider screens (desktop,
-   iPad) that reads as a stray square slab on the parchment page, so give it
-   the same rounded-card treatment as the home page trip cards. */
-@media (min-width: 700px) {
-  .trip-hero {
-    border-radius: 18px;
-    margin: 18px 12px 0;
-    overflow: hidden;
-  }
-}
 
 /* ── Motion & feel ──────────────────────────────────────────────────────────
    Staggered entrance for day blocks; press feedback for elements that

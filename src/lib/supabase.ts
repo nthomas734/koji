@@ -105,8 +105,11 @@ export async function getTripBySlug(slug: string): Promise<{
     .select('*')
     .eq('slug', slug)
     .eq('published', true)
-    .single();
-  if (error || !trip) return null;
+    .maybeSingle();
+  // A network/RLS error is not "no such trip". Throwing keeps the last good
+  // ISR copy in place instead of replacing it with a 404 for the next minute.
+  if (error) throw error;
+  if (!trip) return null;
 
   const { data: logistics } = await supabase
     .from('koji_logistics')

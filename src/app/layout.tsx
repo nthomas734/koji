@@ -26,7 +26,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // viewport-fit=cover is what makes env(safe-area-inset-*) non-zero on iOS;
+  // the glass top bar and floating tab capsule in TripView depend on it.
+  viewportFit: 'cover',
   themeColor: '#F5F0E8',
 };
 
