@@ -250,6 +250,22 @@ function FrameSheet({
         )}
 
         <Block label="Where to stand" md={s.position_md} />
+
+        {s.scout_url && (
+          <a
+            href={s.scout_url} target="_blank" rel="noopener noreferrer"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              marginTop: 10, padding: '11px 14px', borderRadius: 11,
+              border: 'var(--k-bw) solid var(--k-copper)',
+              color: 'var(--k-copper)', background: 'transparent',
+              fontFamily: 'var(--font-mono)', fontSize: 11,
+              letterSpacing: '0.07em', textTransform: 'uppercase',
+            }}
+          >
+            <span aria-hidden style={{ fontSize: 13 }}>◎</span> Scout it on the map
+          </a>
+        )}
         <Block label="Technical" md={s.tech_md} mono />
         <Block label="Notes" md={s.notes_md} />
 
