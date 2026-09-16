@@ -84,9 +84,10 @@ export interface Stop {
 }
 
 // ── KOMA ────────────────────────────────────────────────────────────────────
-// The private shooting plan. `koma_shots` has RLS on with no policies, so the
-// anon client above cannot see it at all — every read goes through
-// supabaseAdmin() on the server, behind the koji_admin cookie.
+// The shooting plan. Hidden rather than locked: the mode is reached by a
+// long-press on the aperture mark in the header, the same call daizu makes for
+// /barista. Reads are public so it works without being logged in and survives
+// in the service-worker cache offline.
 
 export type ShotType =
   | 'compression' | 'detail' | 'rhythm' | 'moment'
@@ -120,9 +121,9 @@ export interface Shot {
   sort_order:  number;
 }
 
-/** Server-only — the anon client cannot read this table. */
+/** koma is hidden behind a long-press, not access-controlled — see CLAUDE.md. */
 export async function getShotsForTrip(tripId: number): Promise<Shot[]> {
-  const { data, error } = await supabaseAdmin()
+  const { data, error } = await supabase
     .from('koma_shots')
     .select('*')
     .eq('trip_id', tripId)
@@ -147,6 +148,7 @@ export async function getTripBySlug(slug: string): Promise<{
   trip: Trip;
   logistics: Logistics[];
   days: Day[];
+  shots: Shot[];
 } | null> {
   const { data: trip, error } = await supabase
     .from('koji_trips')
@@ -173,9 +175,16 @@ export async function getTripBySlug(slug: string): Promise<{
     .order('sort_order')
     .order('sort_order', { referencedTable: 'koji_stops' });
 
+  const { data: shots } = await supabase
+    .from('koma_shots')
+    .select('*')
+    .eq('trip_id', trip.id)
+    .order('sort_order');
+
   return {
     trip,
     logistics: logistics ?? [],
     days: (days as Day[]) ?? [],
+    shots: (shots as Shot[]) ?? [],
   };
 }
