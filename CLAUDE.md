@@ -109,14 +109,25 @@ A private photography-planning layer over an existing itinerary, named for 齣
 site header (the glass top bar it also lived in is gone); it replaces the itinerary tab's body with
 `KomaView` and leaves logistics and weather alone.
 
-**Privacy comes from RLS, not from the UI.** `koma_shots` has RLS enabled with
-**no policies at all**, so the anon client in `lib/supabase.ts` cannot read a
-row of it. Everything goes through `/api/koma/shots`, which checks the
-`koji_admin` cookie and queries with the service key. That route's 401 is also
-the authorisation probe: `TripView` fetches it on mount and only renders the
-toggle when it gets a 200, so a guest never learns the mode exists. Do not add
-a public read policy, and do not fetch shots in the page's Server Component —
-reading cookies there would force the ISR-cached trip page dynamic.
+**Hidden, not locked** — the same call daizu makes for `/barista`. It shipped
+auth-gated on 2026-09-16 and was deliberately opened the same day: the gate
+depended on an admin cookie surviving on a phone mid-trip, and the mode was
+undiscoverable. Now `koma_shots` and `koma_rolls` have public read policies and
+the shots come down with the trip page, so koma works logged out and offline
+from the SW cache. Entry is a **350ms long-press on `KomaMark`**, which must
+stay an icon: a long-press on text raises iOS's Copy/Look Up callout and the
+gesture never reaches the handler. `-webkit-touch-callout` and `user-select`
+off are what actually stop Safari claiming it.
+
+Hidden applies to the entrance, not to every verb on a public URL.
+`/api/koma/shots` allows **GET and a PATCH of `status`/`status_note`
+unauthenticated** — marking a frame "got" has to work in the street — while
+`POST`, `DELETE` and a PATCH of any other field still need the `koji_admin`
+cookie. An unauthenticated DELETE here would be a wipe-the-plan-before-the-trip
+button. Keep that split if you touch the route.
+
+Accepted trade: the shot plan is in the trip page's HTML and is readable by
+anyone who loads it. It is not secret, only unadvertised.
 
 **Frames.** A shot is a named picture, not a location. `buildFrames` numbers a
 day's shots 1..n in itinerary order: shots inherit their stop's `sort_order`,
@@ -151,6 +162,30 @@ what helps is contrast and form, so there is deliberately no dark mode.
 **Authoring is SQL**, like the rest of koji's content (see `sql/`). The route
 supports POST/PATCH/DELETE and the app writes `status` from the field, but
 there is no admin editor yet — `TripEditor` is untouched.
+
+### Rolls (2026-09-16)
+
+A **roll** is one outing's worth of frames — the word the UI already used, and
+the pair to koma meaning *frame*. A roll either hangs off a koji trip day, or
+stands alone in `koma_rolls` with its own `roll_date` and coordinates, which is
+all `sunDay()` needs. A check constraint on `koma_shots` keeps every frame owned
+by exactly one of `trip_id` or `roll_id` — never both, never neither.
+
+`/koma` lists the standalone rolls; `/koma/[slug]` renders one. `KomaRollView`
+reuses `KomaDay` by handing it a **synthetic stop-less Day** (negative id, so it
+can never collide with a real `koji_days` row) and rewriting its shots to
+`stop_id: null`, so they all fall into the loose group in sort order. Curve,
+clock, sun mode and the frame sheet come along unchanged — don't fork them.
+
+`KomaDay` is deliberately generic: it takes `eyebrow`, `heading`, `lat`, `lng`
+rather than a trip and a day index, so both callers drive it the same way.
+
+An undated roll draws today's curve at its own coordinates. The shape of the
+light barely moves day to day, so it is honest enough to plan against; it just
+will not place a now-line unless the date matches.
+
+Entry is the same everywhere: long-press `KomaMark`. On the itineraries list
+(`KomaHomeMark`) it routes to `/koma`; on a trip page it toggles the mode.
 
 ## Trip page shell (2026-09-16)
 
