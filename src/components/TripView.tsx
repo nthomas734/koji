@@ -918,6 +918,8 @@ function DayBlock({
   railOpen: boolean;
   onToggleRail: () => void;
   rail: React.ReactNode;
+  showToday: boolean;
+  onToday: () => void;
 }) {
   const { headline, subtitle } = parseDayLabel(day.label);
   const accent = isToday ? 'var(--brass)' : themeColor.bg;
@@ -990,6 +992,31 @@ function DayBlock({
               </span>
             )}
             {!subtitle && <span style={{ flex: 1 }} />}
+            {showToday && (
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); onToday(); }}
+                aria-label="Jump to today"
+                style={{
+                  flexShrink: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  minHeight: 26,
+                  padding: '0 9px',
+                  borderRadius: 999,
+                  border: '1px solid var(--brass)',
+                  color: 'var(--brass)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--brass)' }} />
+                today
+              </button>
+            )}
             {weatherPill}
             <span aria-hidden style={{
               width: 7, height: 7, flexShrink: 0,
@@ -1360,15 +1387,13 @@ function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme }: 
   );
 }
 
-// ── FLOATING TAB CAPSULE ────────────────────────────────────────────────────
-// Sits just above Safari's own bottom bar (env(safe-area-inset-bottom) covers
-// it once viewport-fit=cover is set). The fixed wrapper is transparent and the
-// glass is drawn on the child, which is what Safari 26 wants.
-function GlassTabBar({ active, onChange, showToday, onToday }: {
+// ── HERO TABS ────────────────────────────────────────────────────────────────
+// Three pills inside the dark hero card. Logistics and Weather are reference
+// pages, so they live at the top of the page rather than floating over it.
+function HeroTabs({ active, onChange, theme }: {
   active: Tab;
   onChange: (t: Tab) => void;
-  showToday: boolean;
-  onToday: () => void;
+  theme: { bg: string; fg: string };
 }) {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'itinerary', label: 'Itinerary' },
@@ -1376,60 +1401,33 @@ function GlassTabBar({ active, onChange, showToday, onToday }: {
     { key: 'weather',   label: 'Weather' },
   ];
   return (
-    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, pointerEvents: 'none', display: 'flex', justifyContent: 'center', padding: '0 12px calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
-      <div style={{ pointerEvents: 'auto', display: 'flex', gap: 6, width: '100%', maxWidth: 380 }}>
-        {showToday && (
+    <div role="tablist" style={{ display: 'flex', gap: 4, padding: 3, borderRadius: 999, background: `${theme.fg}14` }}>
+      {tabs.map(tab => {
+        const isActive = tab.key === active;
+        return (
           <button
-            className="glass-dark"
-            onClick={onToday}
-            aria-label="Jump to today"
+            key={tab.key}
+            role="tab"
+            aria-selected={isActive}
+            className="pressable"
+            onClick={() => onChange(tab.key)}
             style={{
-              flexShrink: 0,
-              minHeight: 48,
-              padding: '0 14px 0 12px',
-              borderRadius: 999,
-              color: 'var(--bg)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 7,
+              flex: 1,
+              minHeight: 40,
               fontFamily: 'var(--font-mono)',
               fontSize: 9.5,
               letterSpacing: '0.14em',
               textTransform: 'uppercase',
+              color: isActive ? theme.bg : `${theme.fg}b8`,
+              background: isActive ? theme.fg : 'transparent',
+              borderRadius: 999,
+              transition: 'background 0.15s ease, color 0.15s ease',
             }}
           >
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--brass)', boxShadow: '0 0 0 3px rgba(184,148,78,0.28)' }} />
-            today
+            {tab.label}
           </button>
-        )}
-        <div className="glass" role="tablist" style={{ flex: 1, minHeight: 48, borderRadius: 999, padding: 4, display: 'flex', gap: 4 }}>
-          {tabs.map(tab => {
-            const isActive = tab.key === active;
-            return (
-              <button
-                key={tab.key}
-                role="tab"
-                aria-selected={isActive}
-                className="pressable"
-                onClick={() => onChange(tab.key)}
-                style={{
-                  flex: 1,
-                  minHeight: 40,
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 9.5,
-                  letterSpacing: '0.14em',
-                  textTransform: 'uppercase',
-                  color: isActive ? 'var(--bg)' : 'var(--ink-3)',
-                  background: isActive ? 'var(--ink)' : 'transparent',
-                  borderRadius: 999,
-                }}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
 }
@@ -1699,13 +1697,12 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
 
   const showRail = !!trip.date_start && days.length > 1;
   const tripActive = todayIdx >= 0;
-  const showTodayButton = tripActive && (activeTab !== 'itinerary' || activeDay !== todayIdx);
 
   return (
     <div style={{
       maxWidth: 'var(--max-w)',
       margin: '0 auto',
-      padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 110px)',
+      padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 40px)',
     }}>
 
       {/* Site header */}
@@ -1801,9 +1798,12 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
           />
         )}
 
-        {showRail && (
-          <div style={{ marginTop: 14 }}>
-            <DayRail days={days} dateStart={trip.date_start!} active={activeTab === 'itinerary' ? activeDay : -1} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme} />
+        <div style={{ marginTop: 14 }}>
+          <HeroTabs active={activeTab} onChange={setActiveTab} theme={theme} />
+        </div>
+        {showRail && activeTab === 'itinerary' && (
+          <div style={{ marginTop: 10 }}>
+            <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme} />
           </div>
         )}
       </div>
@@ -1837,6 +1837,8 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
                 pinned={i === pinnedDay}
                 railOpen={railOpen}
                 onToggleRail={() => setRailOpen(v => !v)}
+                showToday={tripActive && i !== todayIdx}
+                onToday={goToday}
                 rail={showRail ? (
                   <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} />
                 ) : null}
@@ -1912,7 +1914,6 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
         {trip.title}
       </footer>
 
-      <GlassTabBar active={activeTab} onChange={setActiveTab} showToday={showTodayButton} onToday={goToday} />
     </div>
   );
 }

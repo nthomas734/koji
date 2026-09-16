@@ -189,30 +189,32 @@ Entry is the same everywhere: long-press `KomaMark`. On the itineraries list
 
 ## Trip page shell (2026-09-16)
 
-Only one thing floats over the page: a Liquid Glass tab capsule above Safari's
-own bottom bar (`GlassTabBar`), a transparent `position: fixed` wrapper with the
-glass (`.glass` in `globals.css`) on a child, which is what Safari 26+ wants.
-It is positioned off `env(safe-area-inset-bottom)`; `viewport-fit: cover` in
-`layout.tsx` is what makes that inset non-zero, so do not remove it. `html`
-carries an explicit background and `color-scheme: light` because Safari tints
-its toolbar from it.
+Nothing floats over the trip page. A fixed glass top bar and a floating tab
+capsule were both tried and removed on 2026-09-16: on a text-heavy page three
+layers rode along with the reader. The three tabs (`HeroTabs`) are pills
+inside the dark hero card at the top; Logistics and Weather are reference
+pages reached by scrolling up. Glass (`.glass` in `globals.css`) is now used
+only for the day headers.
 
-There is deliberately **no fixed top bar** (one was tried and removed on
-2026-09-16 because three layers rode along with the reader). Instead each day
-`<section>` has a glass header that is `position: sticky` under the status bar.
-The scroll tracker in `TripView` decides which section is in view and whether
-its header has pinned (its offset inside the section exceeds
+Each day `<section>` has a glass header that is `position: sticky` under the
+status bar. The scroll tracker in `TripView` decides which section is in view
+and whether its header has pinned (its offset inside the section exceeds
 `DAY_HEADER_MARGIN`); a pinned header folds to one line (date, day number or
 "today", subtitle, weather) and tapping it drops the `DayRail` out beneath it.
 Picking a day scrolls there (`scrollIntoView`, honouring the section's
 `scroll-margin-top`) and folds the rail away; so does any change of pinned day.
+During the trip, a folded header for any day other than today carries a brass
+"today" chip that jumps there.
 
 Day awareness: `todayIdx` is computed on the client from the phone's local
 date against `dateForDay`. During the trip the page opens scrolled to today
-(unless the URL carries `#logistics`, `#weather`, `#day-N` or `#stop-N`), the
-day chip and header are marked in brass, and a dark "today" segment appears in
-the capsule whenever you are not looking at today. The dark hero card also
-carries a `DayRail`, which is where day jumping lives from the top of the page.
+(unless the URL carries `#logistics`, `#weather`, `#day-N` or `#stop-N`), and
+the day chip and header are marked in brass. The hero's `DayRail` is where day
+jumping lives from the top of the page.
+
+`viewport-fit: cover` in `layout.tsx` stays (safe-area insets pad the header
+and the bottom of the page), and `html` carries an explicit background and
+`color-scheme: light` because Safari tints its toolbar from it.
 
 A hidden tab re-fetches on wake after 10 minutes via `router.refresh()`.
 
