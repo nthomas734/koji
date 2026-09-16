@@ -83,6 +83,54 @@ export interface Stop {
   sort_order:  number;
 }
 
+// ── KOMA ────────────────────────────────────────────────────────────────────
+// The private shooting plan. `koma_shots` has RLS on with no policies, so the
+// anon client above cannot see it at all — every read goes through
+// supabaseAdmin() on the server, behind the koji_admin cookie.
+
+export type ShotType =
+  | 'compression' | 'detail' | 'rhythm' | 'moment'
+  | 'macro' | 'wildlife' | 'night' | 'portrait';
+
+export type ShotLight = 'golden' | 'blue' | 'morning' | 'midday' | 'night' | 'any';
+export type ShotPriority = 'must' | 'want' | 'maybe';
+export type ShotStatus = 'planned' | 'got' | 'missed' | 'skipped';
+
+export interface Shot {
+  id:          number;
+  trip_id:     number;
+  day_id:      number | null;
+  stop_id:     number | null;
+  title:       string;
+  subtitle:    string | null;
+  shot_type:   ShotType | null;
+  lens:        string | null;
+  focal_hint:  string | null;
+  light:       ShotLight | null;
+  at_time:     string | null;
+  position_md: string | null;
+  tech_md:     string | null;
+  notes_md:    string | null;
+  ref_url:     string | null;
+  priority:    ShotPriority;
+  status:      ShotStatus;
+  status_note: string | null;
+  lat:         number | null;
+  lng:         number | null;
+  sort_order:  number;
+}
+
+/** Server-only — the anon client cannot read this table. */
+export async function getShotsForTrip(tripId: number): Promise<Shot[]> {
+  const { data, error } = await supabaseAdmin()
+    .from('koma_shots')
+    .select('*')
+    .eq('trip_id', tripId)
+    .order('sort_order');
+  if (error) throw error;
+  return (data as Shot[]) ?? [];
+}
+
 // ── DATA FETCHING ───────────────────────────────────────────────────────────
 
 export async function getTrips(): Promise<Trip[]> {

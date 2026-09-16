@@ -102,6 +102,56 @@ Editing these regexes changes how already-authored trip data renders — check e
 
 `public/sw.js` (registered by `SWRegister` in `layout.tsx`) provides offline support: network-first with cache fallback for same-origin pages/RSC payloads, cache-first for `/_next/static`. It never intercepts `/api/`, `/admin`, cross-origin, or non-GET requests — the `UpdateBanner` deploy check (HEAD `/`) passes through untouched. Bump its `VERSION` constant to invalidate old caches.
 
+## koma — the shooting mode (2026-09-16)
+
+A private photography-planning layer over an existing itinerary, named for 齣
+(*koma*), a single frame of film. Toggled from the `齣 koma` pill in both the
+site header and the glass top bar; it replaces the itinerary tab's body with
+`KomaView` and leaves logistics and weather alone.
+
+**Privacy comes from RLS, not from the UI.** `koma_shots` has RLS enabled with
+**no policies at all**, so the anon client in `lib/supabase.ts` cannot read a
+row of it. Everything goes through `/api/koma/shots`, which checks the
+`koji_admin` cookie and queries with the service key. That route's 401 is also
+the authorisation probe: `TripView` fetches it on mount and only renders the
+toggle when it gets a 200, so a guest never learns the mode exists. Do not add
+a public read policy, and do not fetch shots in the page's Server Component —
+reading cookies there would force the ISR-cached trip page dynamic.
+
+**Frames.** A shot is a named picture, not a location. `buildFrames` numbers a
+day's shots 1..n in itinerary order: shots inherit their stop's `sort_order`,
+and loose shots (`day_id` set, `stop_id` null) fall in at the end under
+"Anywhere this day". A shot's time is `at_time` if set, else the parent stop's
+`time_label` via `parseTimeLabel` (which handles koji's free-text labels —
+"3:15pm", "Noon", bare "11:45").
+
+**The sun chart is the centrepiece.** `lib/sun.ts` is NOAA's solar position
+algorithm; `SunTrack` draws the day's real altitude curve with the golden band
+(0–6°) and blue band (−6–0°) shaded, and the frames hung *below* the axis so
+the curve is never obscured by its own data. Colliding chips are pushed apart
+by an iterative relaxation pass while a tick and a slanted leader keep pointing
+at the true time. The curve's shape is the information: a low flat arc means
+raking light all day, a tall dome means an unusable middle.
+
+Sun times need the location's UTC offset, which koji does not store. It comes
+from Open-Meteo `timezone=auto` (`utcOffsetFor`, cached in module scope);
+deriving it from longitude is the fallback only, since that is an hour wrong
+anywhere on summer time. This is a separate fetch from the weather code on
+purpose — don't couple koma to `TripView`'s weather effect.
+
+**Colour.** koma swaps koji's brass for a copper sampled off a Sony E-mount
+ring: `--k-copper #B83C01` (5.0:1 on parchment) with `#CF6A21` and `#FBB04F`
+for fills and tints. Brass is 2.5:1, which is decorative-only contrast — koma's
+labels are the first in koji that survive daylight. The scoped tokens live
+under `.koma` in `globals.css`; **sun mode** is `.koma.sun`, which pushes every
+role past 7:1 and also goes up a type size and weight, to 2px borders and solid
+fills. Under glare a light and a dark UI lose contrast at about the same rate;
+what helps is contrast and form, so there is deliberately no dark mode.
+
+**Authoring is SQL**, like the rest of koji's content (see `sql/`). The route
+supports POST/PATCH/DELETE and the app writes `status` from the field, but
+there is no admin editor yet — `TripEditor` is untouched.
+
 ## Trip page shell (2026-09-15)
 
 `TripView` draws two Liquid Glass layers over the parchment page, both as
