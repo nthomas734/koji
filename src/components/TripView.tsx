@@ -1568,7 +1568,12 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
     // rAF is paused in background tabs, so run synchronously there; otherwise
     // coalesce to one pass per frame
     const onScroll = () => {
-      if (document.visibilityState === 'hidden') { update(); return; }
+      if (document.visibilityState === 'hidden') {
+        // a frame requested before the tab went hidden would otherwise block every later pass
+        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+        update();
+        return;
+      }
       if (!raf) raf = requestAnimationFrame(update);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
