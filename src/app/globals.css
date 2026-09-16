@@ -263,3 +263,129 @@ input, textarea, select {
 
   .logistics-cards { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
 }
+
+/* ── koma — the shooting mode ───────────────────────────────────────────────
+   A private layer over the itinerary, gated on the koji_admin cookie. It keeps
+   koji's parchment dialect but swaps the accent from brass to a copper sampled
+   off a Sony E-mount ring: brass is 2.5:1 on parchment (decorative only), the
+   copper is 5.0:1, so koma's labels are legible outdoors where koji's are not.
+
+   `.koma.sun` is sun mode: every role pushed past 7:1, plus larger and heavier
+   type, solid fills and 2px borders. In bright ambient light the contrast of a
+   dark UI degrades about the same as a light one — what actually helps is that
+   your eyes are adapted to a bright surround, so the fix is contrast and form,
+   not a dark theme. */
+.koma {
+  --k-bg:       var(--bg);
+  --k-surface:  var(--surface);
+  --k-subtle:   var(--bg-subtle);
+  --k-border:   var(--border);
+  --k-border-2: var(--border-mid);
+  --k-ink:      var(--ink);
+  --k-ink-2:    var(--ink-2);
+  --k-ink-3:    var(--ink-3);
+  --k-copper:      #B83C01;
+  --k-copper-mid:  #CF6A21;
+  --k-copper-lite: #FBB04F;
+  --k-copper-tint: #FBE7D4;
+  --k-bw: 1px;
+  --k-fs: 0px;
+}
+.koma.sun {
+  --k-bg:       #FFFDF8;
+  --k-surface:  #FFFFFF;
+  --k-subtle:   #F2EEE4;
+  --k-border:   #8A8680;
+  --k-border-2: #5C5850;
+  --k-ink:      #100E0B;
+  --k-ink-2:    #2A2721;
+  --k-ink-3:    #46423A;
+  --k-copper:      #8F2F01;
+  --k-copper-mid:  #8F2F01;
+  --k-copper-tint: #FCE3CF;
+  --k-bw: 2px;
+  --k-fs: 1px;
+  background: var(--k-bg);
+}
+
+.koma-card {
+  border: var(--k-bw) solid var(--k-border);
+  border-radius: 13px;
+  background: var(--k-surface);
+  padding: 12px 13px 10px;
+  margin: 0 12px 12px;
+}
+.koma-label {
+  font-family: var(--font-mono);
+  font-size: calc(9.5px + var(--k-fs));
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--k-ink-3);
+}
+.koma-shot {
+  display: flex; gap: 10px; align-items: center;
+  border: var(--k-bw) solid var(--k-border);
+  border-radius: 12px;
+  background: var(--k-surface);
+  padding: 9px 10px;
+  min-height: 62px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.koma.sun .koma-shot { min-height: 74px; }
+.koma-shot.must  { border-color: var(--k-copper); border-width: calc(var(--k-bw) + 0.5px); background: #FEF8F2; }
+.koma.sun .koma-shot.must { background: #FFF4EA; border-width: 3px; }
+.koma-shot.done  { opacity: 0.52; }
+.koma-shot.done .koma-shot-t { text-decoration: line-through; text-decoration-color: var(--k-ink-3); }
+.koma-shot.missed { opacity: 0.52; border-style: dashed; }
+.koma-shot-t {
+  font-family: var(--font-serif);
+  font-size: calc(14px + var(--k-fs));
+  font-weight: 500;
+  line-height: 1.25;
+}
+.koma.sun .koma-shot-t { font-weight: 600; font-size: 15.5px; }
+.koma-chip {
+  font-family: var(--font-mono);
+  font-size: calc(9px + var(--k-fs));
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--k-subtle);
+  color: var(--k-ink-2);
+  border: 1px solid var(--k-border-2);
+  white-space: nowrap;
+}
+.koma.sun .koma-chip { font-weight: 500; border-width: 1.5px; }
+.koma-chip.lens { background: var(--k-ink); color: #EDE6DA; border-color: var(--k-ink); }
+.koma-chip.must { background: var(--k-copper); color: #fff; border-color: var(--k-copper); }
+.koma-ref  { width: 60px; height: 60px; border-radius: 9px; flex: 0 0 auto; object-fit: cover; border: var(--k-bw) solid var(--k-border-2); }
+.koma.sun .koma-ref, .koma.sun .koma-refx { width: 66px; height: 66px; }
+.koma-refx {
+  width: 60px; height: 60px; border-radius: 9px; flex: 0 0 auto;
+  border: calc(var(--k-bw) + 0.5px) dashed var(--k-border-2);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 8.5px; color: var(--k-ink-3);
+  text-align: center; line-height: 1.25;
+}
+.koma-now {
+  border-left: 3px solid var(--k-copper);
+  background: linear-gradient(90deg, var(--k-copper-tint) 0%, transparent 72%);
+}
+.koma-btn {
+  flex: 1; text-align: center; padding: 14px; border-radius: 12px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em;
+  text-transform: uppercase; border: none; cursor: pointer;
+}
+.koma-btn.pri { background: var(--k-copper); color: #fff; }
+.koma-btn.sec { background: transparent; border: 1.5px solid var(--k-border-2); color: var(--k-ink-2); }
+
+/* the finish strip fills frame by frame when the card comes into view */
+@keyframes koma-fill {
+  from { background: #35312A; transform: scaleY(0.35); opacity: 0.4; }
+  to   { background: var(--k-copper); transform: scaleY(1); opacity: 1; }
+}
+.koma-fill { animation: koma-fill 0.5s backwards cubic-bezier(0.23, 1, 0.32, 1); }
+@media (prefers-reduced-motion: reduce) { .koma-fill { animation: none; } }

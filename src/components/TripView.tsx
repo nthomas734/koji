@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Day, Logistics, Stop, Trip } from '@/lib/supabase';
+import type { Day, Logistics, Shot, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { KojiMark } from '@/components/KojiMark';
+import { KomaView } from '@/components/KomaView';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
 const THEMES: Record<string, { bg: string; fg: string }> = {
@@ -1390,6 +1391,41 @@ const TAB_HASHES: Record<string, Tab> = { logistics: 'logistics', weather: 'weat
 export function TripView({ trip, logistics, days }: TripViewProps) {
   const router = useRouter();
   const [activeTab, setActiveTabState] = useState<Tab>('itinerary');
+
+  // ── koma ──────────────────────────────────────────────────────────────────
+  // The shooting plan is private: koma_shots has RLS on with no policies, so
+  // this fetch is also the authorisation probe. 401 → no toggle, and nobody
+  // but the admin ever learns the mode exists.
+  const [shots, setShots]     = useState<Shot[] | null>(null);
+  const [komaOn, setKomaOn]   = useState(false);
+  const [sunMode, setSunMode] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/koma/shots?trip=${trip.id}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (alive && j?.shots) setShots(j.shots as Shot[]); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [trip.id]);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('koma:sun') === '1') setSunMode(true);
+    } catch { /* private mode */ }
+  }, []);
+
+  const toggleSun = useCallback(() => {
+    setSunMode(v => {
+      const next = !v;
+      try { localStorage.setItem('koma:sun', next ? '1' : '0'); } catch { /* private mode */ }
+      return next;
+    });
+  }, []);
+
+  const applyShot = useCallback((next: Shot) => {
+    setShots(cur => (cur ? cur.map(s => (s.id === next.id ? next : s)) : cur));
+  }, []);
   const [weatherMap, setWeatherMap]     = useState<Record<string, DayWeather>>({});
   const [weatherLoading, setLoading]    = useState(false);
   const [isSeasonal, setIsSeasonal]     = useState(false);
@@ -1644,6 +1680,36 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
                 {formatTripDateRange(trip.date_start, trip.date_end).toLowerCase()}
               </span>
             )}
+            {shots && shots.length > 0 && (
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexShrink: 0 }}>
+                {komaOn && (
+                  <button
+                    type="button" onClick={toggleSun}
+                    aria-label="Sun mode" aria-pressed={sunMode}
+                    style={{
+                      width: 28, height: 28, borderRadius: 8, cursor: 'pointer', lineHeight: 1,
+                      border: `1px solid ${sunMode ? '#B83C01' : 'var(--border-mid)'}`,
+                      background: sunMode ? '#B83C01' : 'transparent',
+                      color: sunMode ? '#FBE7D4' : 'var(--ink-3)', fontSize: 13,
+                    }}
+                  >☀</button>
+                )}
+                <button
+                  type="button" onClick={() => setKomaOn(v => !v)}
+                  aria-pressed={komaOn}
+                  style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.08em',
+                    padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
+                    border: `1px solid ${komaOn ? '#B83C01' : 'var(--border-mid)'}`,
+                    background: komaOn ? '#B83C01' : 'transparent',
+                    color: komaOn ? '#fff' : 'var(--ink-3)',
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                  }}
+                >
+                  <span style={{ opacity: 0.75 }}>齣</span> koma
+                </button>
+              </span>
+            )}
           </div>
           {showRail && activeTab === 'itinerary' && (
             <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} />
@@ -1667,11 +1733,41 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
           <KojiMark size={22} />
           <span>← koji</span>
         </a>
+        {shots && shots.length > 0 && (
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+            {komaOn && (
+              <button
+                type="button" onClick={toggleSun}
+                aria-label="Sun mode" aria-pressed={sunMode}
+                style={{
+                  width: 30, height: 30, borderRadius: 8, cursor: 'pointer', lineHeight: 1,
+                  border: `1px solid ${sunMode ? '#B83C01' : 'var(--border-mid)'}`,
+                  background: sunMode ? '#B83C01' : 'transparent',
+                  color: sunMode ? '#FBE7D4' : 'var(--ink-3)', fontSize: 14,
+                }}
+              >☀</button>
+            )}
+            <button
+              type="button" onClick={() => setKomaOn(v => !v)}
+              aria-pressed={komaOn}
+              style={{
+                fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.08em',
+                padding: '6px 11px', borderRadius: 999, cursor: 'pointer',
+                border: `1px solid ${komaOn ? '#B83C01' : 'var(--border-mid)'}`,
+                background: komaOn ? '#B83C01' : 'transparent',
+                color: komaOn ? '#fff' : 'var(--ink-3)',
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              <span style={{ opacity: 0.75 }}>齣</span> koma
+            </button>
+          </span>
+        )}
         <a
           href={`/admin/trips/${trip.id}`}
           className="tap"
           style={{
-            marginLeft: 'auto',
+            marginLeft: shots && shots.length > 0 ? 10 : 'auto',
             color: 'var(--ink-4)',
             display: 'flex',
             alignItems: 'center',
@@ -1735,7 +1831,19 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
       </div>
 
       {/* ITINERARY TAB */}
-      {activeTab === 'itinerary' && (
+      {activeTab === 'itinerary' && komaOn && shots && (
+        <KomaView
+          trip={trip}
+          days={days}
+          shots={shots}
+          dateForDay={(i) => (trip.date_start ? dateForDay(trip.date_start, i) : null)}
+          todayIdx={todayIdx}
+          sunMode={sunMode}
+          onShotChange={applyShot}
+        />
+      )}
+
+      {activeTab === 'itinerary' && !komaOn && (
         <>
           <QuickStrip logistics={logistics} theme={theme} />
           <main>
