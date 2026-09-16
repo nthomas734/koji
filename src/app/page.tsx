@@ -193,7 +193,7 @@ export default async function HomePage() {
             {upcoming.map(trip => <TripCard key={trip.id} trip={trip} />)}
             {past.length > 0 && (
               <>
-                <SectionLabel>{upcoming.length > 0 ? 'past trips' : 'past trips'}</SectionLabel>
+                <SectionLabel>past trips</SectionLabel>
                 {past.map(trip => <TripCard key={trip.id} trip={trip} />)}
               </>
             )}
