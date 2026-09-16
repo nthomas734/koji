@@ -1709,7 +1709,7 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
 
       {/* Site header */}
       <header style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 12px) var(--px) 8px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
-        <a href="/" className="tap" style={{
+        <a href={komaOn ? '/koma' : '/'} className="tap" style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
@@ -1718,10 +1718,10 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
           fontSize: 10,
           letterSpacing: '0.22em',
           textTransform: 'uppercase',
-          color: 'var(--brass)',
+          color: komaOn ? '#B83C01' : 'var(--brass)',
         }}>
-          <KojiMark size={22} />
-          <span>← koji</span>
+          {!komaOn && <KojiMark size={22} />}
+          <span>← {komaOn ? 'rolls' : 'koji'}</span>
         </a>
         {shots.length > 0 && (
           <span style={{ marginLeft: 'auto', display: 'flex', gap: 2, alignItems: 'center' }}>
