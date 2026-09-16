@@ -65,7 +65,7 @@ export default async function KomaIndex() {
 
         {entries.map((roll, i) => (
           <Link
-            key={roll.id}
+            key={roll.href}
             href={roll.href}
             className="pressable row-in"
             style={{
