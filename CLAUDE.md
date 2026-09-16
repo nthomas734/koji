@@ -105,8 +105,8 @@ Editing these regexes changes how already-authored trip data renders — check e
 ## koma — the shooting mode (2026-09-16)
 
 A private photography-planning layer over an existing itinerary, named for 齣
-(*koma*), a single frame of film. Toggled from the `齣 koma` pill in both the
-site header and the glass top bar; it replaces the itinerary tab's body with
+(*koma*), a single frame of film. Toggled from the camera mark in the
+site header (the glass top bar it also lived in is gone); it replaces the itinerary tab's body with
 `KomaView` and leaves logistics and weather alone.
 
 **Privacy comes from RLS, not from the UI.** `koma_shots` has RLS enabled with
@@ -152,27 +152,32 @@ what helps is contrast and form, so there is deliberately no dark mode.
 supports POST/PATCH/DELETE and the app writes `status` from the field, but
 there is no admin editor yet — `TripEditor` is untouched.
 
-## Trip page shell (2026-09-15)
+## Trip page shell (2026-09-16)
 
-`TripView` draws two Liquid Glass layers over the parchment page, both as
-transparent `position: fixed` wrappers with the glass (`.glass` in
-`globals.css`) on a child, which is what Safari 26+ wants:
+Only one thing floats over the page: a Liquid Glass tab capsule above Safari's
+own bottom bar (`GlassTabBar`), a transparent `position: fixed` wrapper with the
+glass (`.glass` in `globals.css`) on a child, which is what Safari 26+ wants.
+It is positioned off `env(safe-area-inset-bottom)`; `viewport-fit: cover` in
+`layout.tsx` is what makes that inset non-zero, so do not remove it. `html`
+carries an explicit background and `color-scheme: light` because Safari tints
+its toolbar from it.
 
-- a top bar (trip name + horizontal day rail) that fades in once the dark hero
-  card scrolls away. Its measured height is published as `--gbar-h` on the
-  root so the glass day headers (`position: sticky`, one per day `<section>`)
-  sit under it.
-- a floating tab capsule above Safari's own bottom bar, positioned off
-  `env(safe-area-inset-bottom)`. `viewport-fit: cover` in `layout.tsx` is what
-  makes that inset non-zero; do not remove it. `html` carries an explicit
-  background and `color-scheme: light` because Safari tints its toolbar from it.
+There is deliberately **no fixed top bar** (one was tried and removed on
+2026-09-16 because three layers rode along with the reader). Instead each day
+`<section>` has a glass header that is `position: sticky` under the status bar.
+The scroll tracker in `TripView` decides which section is in view and whether
+its header has pinned (its offset inside the section exceeds
+`DAY_HEADER_MARGIN`); a pinned header folds to one line (date, day number or
+"today", subtitle, weather) and tapping it drops the `DayRail` out beneath it.
+Picking a day scrolls there (`scrollIntoView`, honouring the section's
+`scroll-margin-top`) and folds the rail away; so does any change of pinned day.
 
 Day awareness: `todayIdx` is computed on the client from the phone's local
 date against `dateForDay`. During the trip the page opens scrolled to today
 (unless the URL carries `#logistics`, `#weather`, `#day-N` or `#stop-N`), the
 day chip and header are marked in brass, and a dark "today" segment appears in
-the capsule whenever you are not looking at today. The day in view is tracked
-on scroll and reflected in both rails.
+the capsule whenever you are not looking at today. The dark hero card also
+carries a `DayRail`, which is where day jumping lives from the top of the page.
 
 A hidden tab re-fetches on wake after 10 minutes via `router.refresh()`.
 

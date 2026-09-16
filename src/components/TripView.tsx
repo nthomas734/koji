@@ -837,7 +837,7 @@ function StopRow({ stop }: { stop: Stop }) {
       padding: '12px 14px 12px 18px',
       marginTop: 8,
       overflow: 'hidden',
-      scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + var(--gbar-h, 0px) + 12px)',
+      scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 64px)',
     }}>
       <div style={{
         position: 'absolute',
@@ -890,8 +890,10 @@ function StopRow({ stop }: { stop: Stop }) {
   );
 }
 
+const DAY_HEADER_MARGIN = 20;
+
 // ── DAY BLOCK ────────────────────────────────────────────────────────────────
-// The header is glass and sticks under the top bar while its stops scroll, so
+// The header is glass and sticks under the status bar while its stops scroll, so
 // the date stays readable over the cards beneath it. The wrapping <section> is
 // the sticky container, so each header releases when the next day arrives.
 function DayBlock({
@@ -901,6 +903,10 @@ function DayBlock({
   dayTotal,
   themeColor,
   isToday,
+  pinned,
+  railOpen,
+  onToggleRail,
+  rail,
 }: {
   day: Day;
   weather: DayWeather | null;
@@ -908,95 +914,143 @@ function DayBlock({
   dayTotal: number;
   themeColor: { bg: string; fg: string };
   isToday: boolean;
+  pinned: boolean;
+  railOpen: boolean;
+  onToggleRail: () => void;
+  rail: React.ReactNode;
 }) {
   const { headline, subtitle } = parseDayLabel(day.label);
+  const accent = isToday ? 'var(--brass)' : themeColor.bg;
+  const folded = pinned;
+
+  const weatherPill = weather && (
+    <span className="num" style={{
+      flexShrink: 0,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      fontFamily: 'var(--font-mono)',
+      fontSize: 10,
+      color: 'var(--ink-3)',
+      background: 'var(--surface)',
+      border: '0.5px solid var(--border)',
+      borderRadius: 999,
+      padding: '3px 9px',
+      whiteSpace: 'nowrap',
+    }}>
+      <span style={{ fontSize: 11, lineHeight: 1 }}>{wmoDisplay(weather.wmoCode).icon}</span>
+      {weather.tempMax}° / {weather.tempMin}°
+    </span>
+  );
 
   return (
-    <section id={`day-${dayIndex}`} data-day-idx={dayIndex} className="row-in" style={{ animationDelay: `${Math.min(dayIndex, 8) * 40}ms`, scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + var(--gbar-h, 0px) + 8px)' }}>
-      <div className="glass" style={{
-        position: 'sticky',
-        top: 'calc(env(safe-area-inset-top, 0px) + var(--gbar-h, 0px) + 14px)',
-        transition: 'top 0.18s ease',
-        zIndex: 5,
-        margin: '20px 12px 0',
-        padding: '12px 14px 11px 20px',
-        borderRadius: 14,
-        lineHeight: 1.5,
-      }}>
+    <section id={`day-${dayIndex}`} data-day-idx={dayIndex} className="row-in" style={{ animationDelay: `${Math.min(dayIndex, 8) * 40}ms`, scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}>
+      {/* Sticky glass header. While its day scrolls it pins under the status
+          bar and folds to one line; tapping the folded line drops the day rail
+          out beneath it. DAY_HEADER_MARGIN is what the scroll tracker uses to
+          tell "pinned" from "in flow". */}
+      <div
+        data-day-header
+        className="glass"
+        onClick={folded ? onToggleRail : undefined}
+        role={folded ? 'button' : undefined}
+        aria-expanded={folded ? railOpen : undefined}
+        style={{
+          position: 'sticky',
+          top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
+          zIndex: 5,
+          margin: `${DAY_HEADER_MARGIN}px 12px 0`,
+          padding: folded ? '8px 12px 8px 18px' : '12px 14px 11px 20px',
+          borderRadius: folded ? 12 : 14,
+          lineHeight: 1.5,
+          cursor: folded ? 'pointer' : 'default',
+          transition: 'padding 0.16s ease, border-radius 0.16s ease',
+        }}
+      >
         <div style={{
           position: 'absolute',
           left: 0,
-          top: 10,
-          bottom: 10,
+          top: folded ? 8 : 10,
+          bottom: folded ? 8 : 10,
           width: 4,
-          background: isToday ? 'var(--brass)' : themeColor.bg,
+          background: accent,
           borderRadius: 4,
         }} />
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: isToday ? 'var(--brass)' : themeColor.bg,
-              marginBottom: 3,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}>
-              <span>Day {dayIndex + 1} of {dayTotal}</span>
-              {isToday && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brass)', boxShadow: '0 0 0 3px rgba(184,148,78,0.22)' }} />
-                  today
-                </span>
-              )}
-            </div>
-            <h2 style={{
-              fontFamily: 'var(--font-serif)',
-              fontWeight: 400,
-              fontSize: 18,
-              letterSpacing: '-0.005em',
-              color: 'var(--ink)',
-              lineHeight: 1.15,
-              marginBottom: subtitle ? 3 : 0,
-            }}>
+        {folded ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 24 }}>
+            <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 16, color: 'var(--ink)', lineHeight: 1.1, whiteSpace: 'nowrap', margin: 0 }}>
               {headline}
             </h2>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, whiteSpace: 'nowrap' }}>
+              {isToday ? 'today' : `day ${dayIndex + 1}`}
+            </span>
             {subtitle && (
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.04em', color: 'var(--ink-3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {subtitle}
+              </span>
+            )}
+            {!subtitle && <span style={{ flex: 1 }} />}
+            {weatherPill}
+            <span aria-hidden style={{
+              width: 7, height: 7, flexShrink: 0,
+              borderRight: '1.5px solid var(--ink-4)', borderBottom: '1.5px solid var(--ink-4)',
+              transform: railOpen ? 'rotate(-135deg) translate(-2px, -2px)' : 'rotate(45deg) translate(-2px, -2px)',
+              transition: 'transform 0.16s ease',
+            }} />
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 10.5,
-                letterSpacing: '0.06em',
-                color: 'var(--ink-2)',
-                lineHeight: 1.4,
+                fontSize: 9.5,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: accent,
+                marginBottom: 3,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
               }}>
-                {subtitle}
+                <span>Day {dayIndex + 1} of {dayTotal}</span>
+                {isToday && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brass)', boxShadow: '0 0 0 3px rgba(184,148,78,0.22)' }} />
+                    today
+                  </span>
+                )}
               </div>
-            )}
+              <h2 style={{
+                fontFamily: 'var(--font-serif)',
+                fontWeight: 400,
+                fontSize: 18,
+                letterSpacing: '-0.005em',
+                color: 'var(--ink)',
+                lineHeight: 1.15,
+                marginBottom: subtitle ? 3 : 0,
+              }}>
+                {headline}
+              </h2>
+              {subtitle && (
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10.5,
+                  letterSpacing: '0.06em',
+                  color: 'var(--ink-2)',
+                  lineHeight: 1.4,
+                }}>
+                  {subtitle}
+                </div>
+              )}
+            </div>
+            {weatherPill && <span style={{ marginTop: 2, display: 'inline-flex' }}>{weatherPill}</span>}
           </div>
-          {weather && (
-            <span className="num" style={{
-              flexShrink: 0,
-              marginTop: 2,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: 'var(--ink-3)',
-              background: 'var(--surface)',
-              border: '0.5px solid var(--border)',
-              borderRadius: 999,
-              padding: '3px 9px',
-              whiteSpace: 'nowrap',
-            }}>
-              <span style={{ fontSize: 11, lineHeight: 1 }}>{wmoDisplay(weather.wmoCode).icon}</span>
-              {weather.tempMax}° / {weather.tempMin}°
-            </span>
-          )}
-        </div>
+        )}
+        {folded && railOpen && (
+          <div onClick={e => e.stopPropagation()} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(30,26,21,0.08)' }}>
+            {rail}
+          </div>
+        )}
       </div>
       <div style={{ padding: '0 12px' }}>
         {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} />)}
@@ -1242,7 +1296,7 @@ function WeatherTab({
 type Tab = 'itinerary' | 'logistics' | 'weather';
 
 // ── DAY RAIL ─────────────────────────────────────────────────────────────────
-// One row of day chips. Lives in the dark hero and again in the glass top bar;
+// One row of day chips. Lives in the dark hero and drops out of a pinned day header;
 // the variant only changes the colours.
 function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme }: {
   days: Day[];
@@ -1433,10 +1487,8 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
   // the server render (UTC) never disagrees with the phone.
   const [todayIdx, setTodayIdx]   = useState(-1);
   const [activeDay, setActiveDay] = useState(0);
-  const [barShown, setBarShown]   = useState(false);
-  const [barH, setBarH]           = useState(0);
-  const heroRef  = useRef<HTMLDivElement>(null);
-  const gbarRef  = useRef<HTMLDivElement>(null);
+  const [pinnedDay, setPinnedDay] = useState(-1);
+  const [railOpen, setRailOpen]   = useState(false);
   const pendingDay = useRef<number | null>(null);
 
   const hasCoords = (trip.lat != null && trip.lng != null && !!trip.date_start)
@@ -1470,11 +1522,10 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
   const scrollToDay = useCallback((i: number, behavior: ScrollBehavior = 'smooth') => {
     const el = document.getElementById(`day-${i}`);
     if (!el) return;
-    const bar = gbarRef.current;
-    const offset = (bar ? bar.getBoundingClientRect().bottom : 0) + 8;
-    const top = el.getBoundingClientRect().top + window.scrollY - offset;
-    window.scrollTo({ top: Math.max(0, top), behavior });
+    // scroll-margin-top on the section keeps the full header clear of the status bar
+    el.scrollIntoView({ block: 'start', behavior });
     setActiveDay(i);
+    setRailOpen(false);
   }, []);
 
   // A day jump requested before the itinerary was on screen
@@ -1486,22 +1537,33 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
     requestAnimationFrame(() => requestAnimationFrame(() => scrollToDay(i, 'instant' as ScrollBehavior)));
   }, [activeTab, scrollToDay]);
 
-  // ── track the day in view + whether the hero has scrolled away ───────────
+  // ── track the day in view and whether its header has pinned ─────────────
   useEffect(() => {
     let raf = 0;
     const update = () => {
       raf = 0;
-      const hero = heroRef.current;
-      const bar = gbarRef.current;
-      const safeTop = bar ? bar.getBoundingClientRect().top : 0;
-      if (hero) setBarShown(hero.getBoundingClientRect().bottom <= safeTop + 4);
       if (activeTab !== 'itinerary') return;
-      const line = (bar ? bar.getBoundingClientRect().bottom : 0) + 24;
       const blocks = document.querySelectorAll<HTMLElement>('[data-day-idx]');
       let current = 0;
-      blocks.forEach(b => { if (b.getBoundingClientRect().top <= line) current = Number(b.dataset.dayIdx); });
-      // Past the last block's bottom edge: stay on the last day
+      let currentEl: HTMLElement | null = null;
+      blocks.forEach(b => {
+        if (b.getBoundingClientRect().top <= 80) { current = Number(b.dataset.dayIdx); currentEl = b; }
+      });
       setActiveDay(current);
+      // A header is pinned once it sits lower in its section than its own top margin
+      let pinned = -1;
+      if (currentEl) {
+        const el = currentEl as HTMLElement;
+        const header = el.querySelector<HTMLElement>('[data-day-header]');
+        if (header) {
+          const offset = header.getBoundingClientRect().top - el.getBoundingClientRect().top;
+          if (offset > DAY_HEADER_MARGIN + 2) pinned = current;
+        }
+      }
+      setPinnedDay(prev => {
+        if (prev !== pinned) setRailOpen(false);
+        return pinned;
+      });
     };
     // rAF is paused in background tabs, so run synchronously there; otherwise
     // coalesce to one pass per frame
@@ -1517,16 +1579,6 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
       window.removeEventListener('resize', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [activeTab]);
-
-  // Measure the glass bar so sticky day headers sit under it
-  useEffect(() => {
-    const bar = gbarRef.current;
-    if (!bar || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => setBarH(bar.offsetHeight));
-    ro.observe(bar);
-    setBarH(bar.offsetHeight);
-    return () => ro.disconnect();
   }, [activeTab]);
 
   // ── tabs ─────────────────────────────────────────────────────────────────
@@ -1649,58 +1701,7 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
       maxWidth: 'var(--max-w)',
       margin: '0 auto',
       padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 110px)',
-      ['--gbar-h' as string]: barShown ? `${barH}px` : '0px',
     }}>
-
-      {/* Glass top bar: trip name + day rail, shown once the dark hero scrolls away.
-          Transparent fixed wrapper, glass on the child. */}
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 30, pointerEvents: 'none', display: 'flex', justifyContent: 'center', padding: 'calc(env(safe-area-inset-top, 0px) + 8px) 12px 0' }}>
-        <div
-          ref={gbarRef}
-          className="glass"
-          aria-hidden={!barShown}
-          style={{
-            pointerEvents: barShown ? 'auto' : 'none',
-            visibility: barShown ? 'visible' : 'hidden',
-            opacity: barShown ? 1 : 0,
-            transform: barShown ? 'translateY(0)' : 'translateY(-8px)',
-            transition: 'opacity 0.18s ease, transform 0.18s ease, visibility 0.18s',
-            width: '100%',
-            maxWidth: 'calc(var(--max-w) - 24px)',
-            borderRadius: 18,
-            padding: '9px 12px 9px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '0 2px', marginBottom: showRail && activeTab === 'itinerary' ? 8 : 0 }}>
-            <span style={{ fontFamily: 'var(--font-serif)', fontSize: 15, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{trip.title}</span>
-            {trip.date_start && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.08em', color: 'var(--ink-4)', flexShrink: 0 }}>
-                {formatTripDateRange(trip.date_start, trip.date_end).toLowerCase()}
-              </span>
-            )}
-            {shots.length > 0 && (
-              <span style={{ marginLeft: 'auto', display: 'flex', gap: 2, alignItems: 'center', flexShrink: 0, alignSelf: 'center' }}>
-                {komaOn && (
-                  <button
-                    type="button" onClick={toggleSun}
-                    aria-label="Sun mode" aria-pressed={sunMode}
-                    style={{
-                      width: 28, height: 28, borderRadius: 8, cursor: 'pointer', lineHeight: 1,
-                      border: `1px solid ${sunMode ? '#B83C01' : 'var(--border-mid)'}`,
-                      background: sunMode ? '#B83C01' : 'transparent',
-                      color: sunMode ? '#FBE7D4' : 'var(--ink-3)', fontSize: 13,
-                    }}
-                  >☀</button>
-                )}
-                <KomaMark on={komaOn} onToggle={() => setKomaOn(v => !v)} size={19} />
-              </span>
-            )}
-          </div>
-          {showRail && activeTab === 'itinerary' && (
-            <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} />
-          )}
-        </div>
-      </div>
 
       {/* Site header */}
       <header style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 12px) var(--px) 8px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
@@ -1757,7 +1758,7 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
       </header>
 
       {/* Trip hero: rounded dark card with the title, dates, weather and day rail */}
-      <div ref={heroRef} style={{ margin: '12px 12px 0', background: theme.bg, color: theme.fg, borderRadius: 18, padding: '20px 18px 16px' }}>
+      <div style={{ margin: '12px 12px 0', background: theme.bg, color: theme.fg, borderRadius: 18, padding: '20px 18px 16px' }}>
         <h1 style={{
           fontFamily: 'var(--font-serif)',
           fontWeight: 300,
@@ -1828,6 +1829,12 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
                 dayTotal={days.length}
                 themeColor={theme}
                 isToday={i === todayIdx}
+                pinned={i === pinnedDay}
+                railOpen={railOpen}
+                onToggleRail={() => setRailOpen(v => !v)}
+                rail={showRail ? (
+                  <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} />
+                ) : null}
               />
             ))}
           </main>
