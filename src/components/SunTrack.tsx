@@ -17,6 +17,11 @@ export interface TrackFrame {
  * information: a low flat arc means raking light all day, a tall dome means
  * a punishing middle.
  */
+/** A soft backing plate so a label stays readable over gradient, band or curve. */
+function Plate({ x, y, w, h, bg }: { x: number; y: number; w: number; h: number; bg: string }) {
+  return <rect x={x} y={y} width={w} height={h} rx="3" fill={bg} opacity="0.88" />;
+}
+
 export function SunTrack({
   sun, frames, now, sunMode = false, onPick,
 }: {
@@ -91,6 +96,7 @@ export function SunTrack({
   const face = sunMode ? '#FFFFFF' : '#FDFAF5';
   const edge = sunMode ? '#5C5850' : '#C8C2B6';
   const gid  = sunMode ? 'komaSkySun' : 'komaSky';
+  const plate = sunMode ? '#FFFDF8' : '#FDFAF5';
 
   return (
     <svg
@@ -115,27 +121,37 @@ export function SunTrack({
       <path d={geom.line} fill="none" stroke={cop} strokeWidth={sunMode ? 2.2 : 1.8} strokeLinejoin="round" />
 
       <line x1="0" y1={geom.horizonY} x2={W} y2={geom.horizonY} stroke={ink} strokeWidth={sunMode ? 1.2 : 0.9} opacity=".55" />
-      {/* The golden band is 0–6°, so on a high-sun day (San Diego peaks at 60°)
-          the two lines sit a few pixels apart and their labels collide. Below
-          ~16px of separation, collapse to one label for the band. */}
-      {geom.horizonY - geom.goldTopY >= 16 ? (
+
+      {/* Every label sits over the gradient, the bands or the curve, so each
+          gets a backing plate in the page colour. The golden band is only 0–6°,
+          so on a high-sun day (San Diego peaks at 60° against London's 28°) the
+          two lines are a few pixels apart — under 18px of separation they
+          collapse into one label for the band. */}
+      {geom.horizonY - geom.goldTopY >= 18 ? (
         <>
-          <text x="2" y={geom.goldTopY - 3} fontFamily="var(--font-mono)" fontSize="8.5" fill={cop}>6° golden</text>
-          <text x="2" y={geom.horizonY + 9} fontFamily="var(--font-mono)" fontSize="8.5" fill={ink3}>horizon</text>
+          <Plate x={3} y={geom.goldTopY - 11} w={52} h={11} bg={plate} />
+          <text x="6" y={geom.goldTopY - 2.5} fontFamily="var(--font-mono)" fontSize="8.5" fill={cop}>6° golden</text>
+          <Plate x={3} y={geom.horizonY + 1.5} w={42} h={11} bg={plate} />
+          <text x="6" y={geom.horizonY + 10} fontFamily="var(--font-mono)" fontSize="8.5" fill={ink3}>horizon</text>
         </>
       ) : (
-        <text x="2" y={geom.goldTopY - 4} fontFamily="var(--font-mono)" fontSize="8.5" fill={cop}>golden 0–6°</text>
+        <>
+          <Plate x={3} y={geom.goldTopY - 13} w={62} h={11.5} bg={plate} />
+          <text x="6" y={geom.goldTopY - 4} fontFamily="var(--font-mono)" fontSize="8.5" fill={cop}>golden 0–6°</text>
+        </>
       )}
 
       <circle cx={geom.noonX} cy={geom.noonY} r={sunMode ? 3.4 : 3} fill={cop} />
-      <text x={geom.noonX + 7} y={geom.noonY + 3.4} fontFamily="var(--font-mono)" fontSize={sunMode ? 10 : 9.5} fill={ink} fontWeight="500">
+      <Plate x={geom.noonX + 5} y={geom.noonY - 5.5} w={sunMode ? 46 : 43} h={11.5} bg={plate} />
+      <text x={geom.noonX + 8} y={geom.noonY + 3.4} fontFamily="var(--font-mono)" fontSize={sunMode ? 10 : 9.5} fill={ink} fontWeight="500">
         {Math.round(sun.peak)}° max
       </text>
 
       {geom.nowX != null && (
         <>
           <line x1={geom.nowX} y1="0" x2={geom.nowX} y2={AX} stroke={ink} strokeWidth="2" />
-          <text x={geom.nowX + 4} y="9" fontFamily="var(--font-mono)" fontSize="8.5" fill={ink}>now</text>
+          <Plate x={geom.nowX + 2.5} y={1} w={20} h={11} bg={plate} />
+          <text x={geom.nowX + 5} y="9.5" fontFamily="var(--font-mono)" fontSize="8.5" fill={ink}>now</text>
         </>
       )}
 

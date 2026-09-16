@@ -5,6 +5,7 @@ import type { Day, Roll, Shot, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { SunTrack, type TrackFrame } from './SunTrack';
 import { KomaSketch } from './KomaSketch';
+import { LensMark, lensLabel, lensLength } from './LensMark';
 import {
   sunDay, utcOffsetFor, parseTimeLabel, fmtHour, fmt24, bandAt,
   type SunDay,
@@ -86,8 +87,9 @@ function Chips({ frame }: { frame: Frame }) {
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
       {s.priority === 'must' && <span className="koma-chip must">must</span>}
       {s.lens && (
-        <span className="koma-chip lens">
-          {s.lens}{s.focal_hint ? ` · ${s.focal_hint}` : ''}
+        <span className="koma-chip lens" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <LensMark lens={s.lens} color="#EDE6DA" height={11} />
+          {lensLabel(s.lens, s.focal_hint)}
         </span>
       )}
       {s.shot_type && <span className="koma-chip">{s.shot_type}</span>}
@@ -190,7 +192,10 @@ function FrameSheet({
         </span>
       </div>
 
-      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '14px 16px 32px' }}>
+      <div style={{
+        maxWidth: 'var(--max-w)', margin: '0 auto',
+        padding: '14px 16px calc(env(safe-area-inset-bottom, 0px) + 52px)',
+      }}>
         {s.ref_url ? (
           <>
             <img
@@ -226,7 +231,12 @@ function FrameSheet({
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 11 }}>
           {s.priority === 'must' && <span className="koma-chip must" style={{ fontSize: 10, padding: '4px 8px' }}>must</span>}
-          {s.lens && <span className="koma-chip lens" style={{ fontSize: 10, padding: '4px 8px' }}>{s.lens}{s.focal_hint ? ` · ${s.focal_hint}` : ''}</span>}
+          {s.lens && (
+            <span className="koma-chip lens" style={{ fontSize: 10, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <LensMark lens={s.lens} color="#EDE6DA" height={12} />
+              {lensLabel(s.lens, s.focal_hint)}
+            </span>
+          )}
           {s.shot_type && <span className="koma-chip" style={{ fontSize: 10, padding: '4px 8px' }}>{s.shot_type}</span>}
           {s.light && s.light !== 'any' && <span className="koma-chip" style={{ fontSize: 10, padding: '4px 8px' }}>{s.light}</span>}
         </div>
@@ -474,8 +484,13 @@ function KomaDay({
           <div className="koma-label" style={{ color: 'var(--k-copper-lite)', marginBottom: 5 }}>
             Carry today
           </div>
-          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 500 }}>
-            {lenses.join(' · ')}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {[...lenses].sort((a, b) => lensLength(b) - lensLength(a)).map(l => (
+              <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <LensMark lens={l} color="var(--k-copper-lite)" height={15} />
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 500 }}>{l}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
