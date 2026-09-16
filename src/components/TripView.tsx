@@ -1680,7 +1680,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
                 {formatTripDateRange(trip.date_start, trip.date_end).toLowerCase()}
               </span>
             )}
-            {shots && shots.length > 0 && (
+            {shots !== null && (
               <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexShrink: 0 }}>
                 {komaOn && (
                   <button
@@ -1733,7 +1733,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
           <KojiMark size={22} />
           <span>← koji</span>
         </a>
-        {shots && shots.length > 0 && (
+        {shots !== null && (
           <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
             {komaOn && (
               <button
@@ -1767,7 +1767,7 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
           href={`/admin/trips/${trip.id}`}
           className="tap"
           style={{
-            marginLeft: shots && shots.length > 0 ? 10 : 'auto',
+            marginLeft: shots !== null ? 10 : 'auto',
             color: 'var(--ink-4)',
             display: 'flex',
             alignItems: 'center',
