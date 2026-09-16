@@ -133,6 +133,8 @@ export interface Shot {
   tech_md:     string | null;
   notes_md:    string | null;
   ref_url:     string | null;
+  /** Attribution for ref_url — required by the CC licences these come under. */
+  ref_credit:  string | null;
   /** Google Maps link for the standing position — rendered as a button. */
   scout_url:   string | null;
   /** Composition diagram spec, drawn by KomaSketch when there is no photo. */
