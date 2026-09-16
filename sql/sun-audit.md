@@ -58,3 +58,59 @@ Golden-hour windows that week, for reference:
 
 The window is about 47 minutes and drifts ~3 minutes earlier per day. The
 Cotswolds run ~15 minutes later than London, being further west.
+
+---
+
+# Orphan check
+
+Run alongside the sun audit. A frame points at a stop by id, and the FK is
+`on delete set null` — so if a session *deletes and recreates* a stop instead of
+updating it, the frame silently loses its time and its place in the day. It
+still renders, which is exactly what makes it worth checking for.
+
+```sql
+select 'orphan: lost its stop' as issue, s.id, s.title, d.label as day
+from koma_shots s
+left join koji_stops st on st.id = s.stop_id
+join koji_days d on d.id = s.day_id
+where s.trip_id is not null and s.stop_id is null
+union all
+select 'orphan: stop_id does not resolve', s.id, s.title, d.label
+from koma_shots s
+join koji_days d on d.id = s.day_id
+left join koji_stops st on st.id = s.stop_id
+where s.stop_id is not null and st.id is null
+union all
+select 'day mismatch: stop belongs to another day', s.id, s.title, d.label
+from koma_shots s
+join koji_stops st on st.id = s.stop_id
+join koji_days d on d.id = s.day_id
+where st.day_id <> s.day_id
+union all
+select 'no time: will not plot on the curve', s.id, s.title, coalesce(d.label, r.title)
+from koma_shots s
+left join koji_days d on d.id = s.day_id
+left join koma_rolls r on r.id = s.roll_id
+left join koji_stops st on st.id = s.stop_id
+where coalesce(s.at_time, st.time_label) is null
+order by 1, 2;
+```
+
+**2026-09-16:** no orphans, no day mismatches. It did catch three untimed
+Cuyamaca frames, which is the same defect seen from the other side — a frame
+with no time does not plot, so the chart looks half broken. Those are now timed
+against that location's dawn.
+
+# Dawn and dusk windows, for reference
+
+Golden hour is far shorter at low latitude than it is in Britain — the sun drops
+more steeply. Plan accordingly: London gives you three-quarters of an hour, San
+Diego barely half.
+
+| Place | Date | Golden | Length |
+|---|---|---|---|
+| London | 20 Oct | 17:10–17:57 | 47 min |
+| Cotswolds | 17 Oct | 17:24–18:11 | 47 min |
+| New York | 13 Oct | 17:42–18:19 | 37 min |
+| Balboa Park | 19 Sep | 18:17–18:49 | 32 min |
+| Cuyamaca (dawn) | 10 Oct | 06:47–07:20 | 33 min |
