@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import type { Day, Roll, Shot, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { SunTrack, type TrackFrame } from './SunTrack';
+import { KomaSketch } from './KomaSketch';
 import {
   sunDay, utcOffsetFor, parseTimeLabel, fmtHour, fmt24, bandAt,
   type SunDay,
@@ -107,7 +108,11 @@ function ShotRow({ frame, onOpen }: { frame: Frame; onOpen: () => void }) {
     <button type="button" className={cls} onClick={onOpen}>
       {s.ref_url
         ? <img className="koma-ref" src={s.ref_url} alt="" loading="lazy" />
-        : <span className="koma-refx">no<br />ref</span>}
+        : s.sketch
+          ? <span className="koma-ref" style={{ overflow: 'hidden', display: 'block' }}>
+              <KomaSketch spec={s.sketch} rounded={0} />
+            </span>
+          : <span className="koma-refx">no<br />ref</span>}
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--k-ink-3)' }}>{frame.n}</span>
@@ -184,6 +189,16 @@ function FrameSheet({
             />
             <div className="koma-label" style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', letterSpacing: '0.06em' }}>
               <span>reference</span><span>tap to enlarge</span>
+            </div>
+          </>
+        ) : s.sketch ? (
+          <>
+            <div style={{ width: '100%', aspectRatio: '1 / 1', border: 'var(--k-bw) solid var(--k-border-2)',
+                          borderRadius: 13, overflow: 'hidden' }}>
+              <KomaSketch spec={s.sketch} rounded={0} />
+            </div>
+            <div className="koma-label" style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', letterSpacing: '0.06em' }}>
+              <span>composition sketch</span><span>no photo yet</span>
             </div>
           </>
         ) : (
