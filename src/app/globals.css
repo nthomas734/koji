@@ -1,3 +1,14 @@
+
+/* ── Ampersand ─────────────────────────────────────────────────────────────
+   Fraunces' own & is a stylised et-ligature; at 22px it reads as a symbol.
+   This face covers U+0026 only, so headings keep Fraunces everywhere else. */
+@font-face {
+  font-family: 'AmpSerif';
+  src: local('Georgia'), local('Iowan Old Style'), local('Times New Roman'), local('Charter');
+  unicode-range: U+0026;
+  font-display: swap;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 :root {
@@ -65,7 +76,7 @@
   --trip-stone:     #E8E3D8;  --trip-stone-fg:    #2A2418;
 
   --font-sans:    'Manrope', system-ui, sans-serif;
-  --font-serif:   'Fraunces', Georgia, serif;
+  --font-serif:   'AmpSerif', 'Fraunces', Georgia, serif;
   --font-mono:    'Geist Mono', 'SF Mono', monospace;
 
   --max-w: 640px;
