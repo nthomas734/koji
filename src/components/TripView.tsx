@@ -907,6 +907,8 @@ function DayBlock({
   railOpen,
   onToggleRail,
   rail,
+  showToday,
+  onToday,
 }: {
   day: Day;
   weather: DayWeather | null;
