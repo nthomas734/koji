@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getTrips } from '@/lib/supabase';
 import type { Trip } from '@/lib/supabase';
 import { KojiMark } from '@/components/KojiMark';
+import { KomaHomeMark } from '@/components/KomaHomeMark';
 
 export const revalidate = 60;
 
@@ -110,9 +111,12 @@ export default async function HomePage() {
             letterSpacing: '0.22em',
             textTransform: 'uppercase',
             color: 'var(--brass)',
+            flex: 1,
           }}>
             koji · 行程
           </div>
+          {/* long-press → /koma, the rolls that are not attached to a trip */}
+          <KomaHomeMark />
         </div>
         <h1 style={{
           fontFamily: 'var(--font-serif)',

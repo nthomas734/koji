@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import type { Day, Shot, Stop, Trip } from '@/lib/supabase';
+import type { Day, Roll, Shot, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { SunTrack, type TrackFrame } from './SunTrack';
 import {
@@ -286,14 +286,14 @@ function bandNow(sun: SunDay, h: number): string {
 // ── DAY ──────────────────────────────────────────────────────────────────────
 
 function KomaDay({
-  day, dayIndex, dayTotal, dateISO, trip, shots, isToday, now, onOpen,
+  day, index, eyebrow, heading, lat, lng, dateISO, shots, isToday, now, onOpen,
 }: {
-  day: Day; dayIndex: number; dayTotal: number; dateISO: string | null;
-  trip: Trip; shots: Shot[]; isToday: boolean; now: Date;
+  /** A koji day, or a synthetic one (no stops) standing in for a roll. */
+  day: Day; index: number; eyebrow: string; heading: string;
+  lat: number | null; lng: number | null; dateISO: string | null;
+  shots: Shot[]; isToday: boolean; now: Date;
   onOpen: (f: Frame, frames: Frame[], sun: SunDay | null) => void;
 }) {
-  const lat = day.lat ?? trip.lat;
-  const lng = day.lng ?? trip.lng;
   const { sun, offset } = useSun(lat, lng, dateISO);
 
   // Times on this screen are the destination's, so the clock must be too.
@@ -347,15 +347,15 @@ function KomaDay({
   if (!frames.length) return null;
 
   return (
-    <section id={`day-${dayIndex}`} data-day-idx={dayIndex} className="row-in"
-             style={{ animationDelay: `${Math.min(dayIndex, 8) * 40}ms`, marginBottom: 26 }}>
+    <section id={`day-${index}`} data-day-idx={index} className="row-in"
+             style={{ animationDelay: `${Math.min(index, 8) * 40}ms`, marginBottom: 26 }}>
       <div style={{ padding: '16px 16px 11px' }}>
         <div className="koma-label" style={{ color: isToday ? 'var(--k-copper)' : 'var(--k-ink-3)' }}>
-          Day {dayIndex + 1} of {dayTotal}{isToday ? ' · today' : ''}
+          {eyebrow}{isToday ? ' · today' : ''}
         </div>
         <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 22,
                      letterSpacing: '-0.015em', marginTop: 3, color: 'var(--k-ink)' }}>
-          {day.label.split(/\s[-–—]\s/)[1] ?? day.label}
+          {heading}
         </h2>
       </div>
 
@@ -608,8 +608,11 @@ export function KomaView({
       {days.map((day, i) => (
         <KomaDay
           key={day.id}
-          day={day} dayIndex={i} dayTotal={days.length}
-          dateISO={dateForDay(i)} trip={trip} shots={shots}
+          day={day} index={i}
+          eyebrow={`Day ${i + 1} of ${days.length}`}
+          heading={day.label.split(/\s[-–—]\s/)[1] ?? day.label}
+          lat={day.lat ?? trip.lat} lng={day.lng ?? trip.lng}
+          dateISO={dateForDay(i)} shots={shots}
           isToday={i === todayIdx} now={now}
           onOpen={(frame, frames, sun) => setOpen({ frame, frames, sun })}
         />
@@ -629,4 +632,105 @@ export function KomaView({
       )}
     </main>
   );
+}
+
+// ── STANDALONE ROLL ──────────────────────────────────────────────────────────
+// Same day machinery, one synthetic day with no stops. A roll that is not
+// attached to an itinerary has nowhere for its frames to hang, so they all
+// render loose in itinerary order.
+
+export function KomaRollView({
+  roll, shots, sunMode, onShotChange,
+}: {
+  roll: Roll;
+  shots: Shot[];
+  sunMode: boolean;
+  onShotChange: (shot: Shot) => void;
+}) {
+  const [open, setOpen] = useState<{ frame: Frame; frames: Frame[]; sun: SunDay | null } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30000);
+    const onVis = () => { if (!document.hidden) setNow(new Date()); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); };
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const fresh = shots.find(s => s.id === open.frame.shot.id);
+    if (fresh && fresh !== open.frame.shot) {
+      setOpen(o => (o ? { ...o, frame: { ...o.frame, shot: fresh } } : o));
+    }
+  }, [shots, open]);
+
+  const setStatus = useCallback(async (shot: Shot, status: Shot['status']) => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/koma/shots?id=${shot.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) onShotChange({ ...shot, status });
+    } finally {
+      setBusy(false);
+    }
+  }, [onShotChange]);
+
+  // A roll with no date still gets a curve — today's, where it is. The shape of
+  // the light barely moves day to day, so it is honest enough to plan against.
+  const dateISO = roll.roll_date ?? localToday();
+  const isToday = !roll.roll_date || roll.roll_date === localToday();
+
+  // Synthetic day: same shape KomaDay expects, no stops.
+  const day: Day = {
+    id: -roll.id, trip_id: -1, label: roll.title, sort_order: 0,
+    lat: roll.lat, lng: roll.lng, location_label: roll.location_label, stops: [],
+  };
+  const asDayShots = shots.map(s => ({ ...s, day_id: day.id, stop_id: null }));
+
+  return (
+    <main className={sunMode ? 'koma sun' : 'koma'} style={{ background: 'var(--k-bg)', minHeight: '60vh' }}>
+      <KomaDay
+        day={day} index={0}
+        eyebrow={[roll.location_label, roll.roll_date ? fmtRollDate(roll.roll_date) : 'no date set']
+          .filter(Boolean).join(' · ')}
+        heading={roll.title}
+        lat={roll.lat} lng={roll.lng} dateISO={dateISO}
+        shots={asDayShots} isToday={isToday} now={now}
+        onOpen={(frame, frames, sun) => setOpen({ frame, frames, sun })}
+      />
+
+      {roll.notes_md && (
+        <div style={{ margin: '0 12px 26px', background: 'var(--k-subtle)', borderRadius: 12, padding: '11px 13px' }}>
+          <div className="koma-label" style={{ marginBottom: 5 }}>The brief</div>
+          <div className="body-content" style={{ fontSize: 12.5, color: 'var(--k-ink-2)', lineHeight: 1.55 }}
+               dangerouslySetInnerHTML={{ __html: renderMd(roll.notes_md) }} />
+        </div>
+      )}
+
+      {open && (
+        <div className={sunMode ? 'koma sun' : 'koma'}>
+          <FrameSheet
+            frame={open.frame} total={open.frames.length} sun={open.sun} busy={busy}
+            onClose={() => setOpen(null)}
+            onStatus={st => setStatus(open.frame.shot, st)}
+          />
+        </div>
+      )}
+    </main>
+  );
+}
+
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function fmtRollDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
