@@ -97,9 +97,29 @@ export type ShotLight = 'golden' | 'blue' | 'morning' | 'midday' | 'night' | 'an
 export type ShotPriority = 'must' | 'want' | 'maybe';
 export type ShotStatus = 'planned' | 'got' | 'missed' | 'skipped';
 
+/**
+ * A roll is one outing's worth of frames. It either hangs off a koji trip day,
+ * or stands alone with its own date and coordinates — which is all the sun
+ * chart needs. Balboa Park on a Sunday is as much a roll as a trip day is.
+ */
+export interface Roll {
+  id:             number;
+  slug:           string;
+  title:          string;
+  subtitle:       string | null;
+  roll_date:      string | null;
+  lat:            number | null;
+  lng:            number | null;
+  location_label: string | null;
+  notes_md:       string | null;
+  sort_order:     number;
+}
+
 export interface Shot {
   id:          number;
-  trip_id:     number;
+  /** Exactly one of trip_id / roll_id is set — enforced by a check constraint. */
+  trip_id:     number | null;
+  roll_id:     number | null;
   day_id:      number | null;
   stop_id:     number | null;
   title:       string;
@@ -119,6 +139,47 @@ export interface Shot {
   lat:         number | null;
   lng:         number | null;
   sort_order:  number;
+}
+
+/** Rolls that stand on their own, newest first, undated last. */
+export async function getRolls(): Promise<Array<Roll & { frames: number; got: number }>> {
+  const { data: rolls, error } = await supabase
+    .from('koma_rolls')
+    .select('*')
+    .order('sort_order');
+  if (error) throw error;
+
+  const { data: shots } = await supabase
+    .from('koma_shots')
+    .select('roll_id, status')
+    .not('roll_id', 'is', null);
+
+  return (rolls ?? []).map(r => {
+    const mine = (shots ?? []).filter((s: { roll_id: number }) => s.roll_id === r.id);
+    return {
+      ...r,
+      frames: mine.length,
+      got: mine.filter((s: { status: string }) => s.status === 'got').length,
+    };
+  });
+}
+
+export async function getRollBySlug(slug: string): Promise<{ roll: Roll; shots: Shot[] } | null> {
+  const { data: roll, error } = await supabase
+    .from('koma_rolls')
+    .select('*')
+    .eq('slug', slug)
+    .maybeSingle();
+  if (error) throw error;
+  if (!roll) return null;
+
+  const { data: shots } = await supabase
+    .from('koma_shots')
+    .select('*')
+    .eq('roll_id', roll.id)
+    .order('sort_order');
+
+  return { roll: roll as Roll, shots: (shots as Shot[]) ?? [] };
 }
 
 /** koma is hidden behind a long-press, not access-controlled — see CLAUDE.md. */
