@@ -1413,6 +1413,9 @@ export function TripView({ trip, logistics, days }: TripViewProps) {
     try {
       if (localStorage.getItem('koma:sun') === '1') setSunMode(true);
     } catch { /* private mode */ }
+    // /trips/<slug>#koma opens straight into the shooting plan, which is how
+    // the admin list links through to it.
+    if (window.location.hash === '#koma') setKomaOn(true);
   }, []);
 
   const toggleSun = useCallback(() => {

@@ -125,6 +125,24 @@ export default async function AdminPage() {
               </div>
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 <Link
+                  href={`/trips/${trip.slug}#koma`}
+                  title="Open the shooting plan"
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9,
+                    letterSpacing: '0.1em',
+                    color: '#B83C01',
+                    padding: '6px 10px',
+                    border: '1px solid #B83C01',
+                    borderRadius: 6,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <span style={{ opacity: 0.75 }}>齣</span> koma
+                </Link>
+                <Link
                   href={`/trips/${trip.slug}`}
                   style={{
                     fontFamily: 'var(--font-mono)',

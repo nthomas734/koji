@@ -5,7 +5,7 @@ import type { Day, Shot, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { SunTrack, type TrackFrame } from './SunTrack';
 import {
-  sunDay, utcOffsetFor, parseTimeLabel, fmtHour, bandAt,
+  sunDay, utcOffsetFor, parseTimeLabel, fmtHour, fmt24, bandAt,
   type SunDay,
 } from '@/lib/sun';
 
@@ -42,7 +42,8 @@ function buildFrames(day: Day, shots: Shot[]): Frame[] {
 
 // ── SUN ──────────────────────────────────────────────────────────────────────
 
-function useSun(lat: number | null, lng: number | null, dateISO: string | null): SunDay | null {
+function useSun(lat: number | null, lng: number | null, dateISO: string | null):
+  { sun: SunDay | null; offset: number | null } {
   const [offset, setOffset] = useState<number | null>(null);
 
   useEffect(() => {
@@ -52,10 +53,28 @@ function useSun(lat: number | null, lng: number | null, dateISO: string | null):
     return () => { alive = false; };
   }, [lat, lng, dateISO]);
 
-  return useMemo(() => {
+  const sun = useMemo(() => {
     if (lat == null || lng == null || !dateISO || offset == null) return null;
     return sunDay(dateISO, lat, lng, offset);
   }, [lat, lng, dateISO, offset]);
+
+  return { sun, offset };
+}
+
+/** Hours into the day at the destination, from a UTC instant. */
+function hoursAtLocation(now: Date, offsetSec: number): number {
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  const there = new Date(utcMs + offsetSec * 1000);
+  return there.getHours() + there.getMinutes() / 60 + there.getSeconds() / 3600;
+}
+
+/** Is the destination on the same calendar day as this trip day right now? */
+function sameDayThere(now: Date, offsetSec: number, dateISO: string | null): boolean {
+  if (!dateISO) return false;
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  const there = new Date(utcMs + offsetSec * 1000);
+  const iso = `${there.getFullYear()}-${String(there.getMonth() + 1).padStart(2, '0')}-${String(there.getDate()).padStart(2, '0')}`;
+  return iso === dateISO;
 }
 
 // ── SMALL PIECES ─────────────────────────────────────────────────────────────
@@ -253,18 +272,36 @@ function Block({ label, md, mono }: { label: string; md: string | null; mono?: b
   );
 }
 
+/** Plain-language light at a given hour, for the live clock row. */
+function bandNow(sun: SunDay, h: number): string {
+  const b = bandAt(sun, h);
+  if (b === 'golden') return 'golden now';
+  if (b === 'blue')   return 'blue hour';
+  if (b === 'night')  return 'dark';
+  const to = sun.goldenPm != null ? Math.round((sun.goldenPm - h) * 60) : null;
+  if (to != null && to > 0) return `golden in ${to > 90 ? `${Math.round(to / 60)}h` : `${to}m`}`;
+  return 'daylight';
+}
+
 // ── DAY ──────────────────────────────────────────────────────────────────────
 
 function KomaDay({
-  day, dayIndex, dayTotal, dateISO, trip, shots, isToday, nowHour, onOpen,
+  day, dayIndex, dayTotal, dateISO, trip, shots, isToday, now, onOpen,
 }: {
   day: Day; dayIndex: number; dayTotal: number; dateISO: string | null;
-  trip: Trip; shots: Shot[]; isToday: boolean; nowHour: number | null;
+  trip: Trip; shots: Shot[]; isToday: boolean; now: Date;
   onOpen: (f: Frame, frames: Frame[], sun: SunDay | null) => void;
 }) {
   const lat = day.lat ?? trip.lat;
   const lng = day.lng ?? trip.lng;
-  const sun = useSun(lat, lng, dateISO);
+  const { sun, offset } = useSun(lat, lng, dateISO);
+
+  // Times on this screen are the destination's, so the clock must be too.
+  const thereHour = offset != null ? hoursAtLocation(now, offset) : null;
+  const liveThere = offset != null && sameDayThere(now, offset, dateISO);
+  const deviceOffsetSec = -now.getTimezoneOffset() * 60;
+  const awayFrom = offset != null && offset !== deviceOffsetSec;
+  const nowHour = liveThere ? thereHour : null;
   const frames = useMemo(() => buildFrames(day, shots), [day, shots]);
 
   const stops = useMemo(
@@ -332,7 +369,7 @@ function KomaDay({
           </span>
         </div>
         {sun
-          ? <SunTrack sun={sun} frames={trackFrames} now={isToday ? nowHour : null}
+          ? <SunTrack sun={sun} frames={trackFrames} now={nowHour}
                       onPick={n => { const f = frames.find(x => x.n === n); if (f) onOpen(f, frames, sun); }} />
           : <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                  className="koma-label">
@@ -346,6 +383,23 @@ function KomaDay({
             <span>golden {fmtHour(sun.goldenPm)}</span>
             <span>set {fmtHour(sun.sunset)}</span>
             <span>blue {fmtHour(sun.blueEnd)}</span>
+          </div>
+        )}
+        {sun && thereHour != null && (
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+            fontFamily: 'var(--font-mono)', fontSize: 10.5, paddingTop: 6,
+            color: 'var(--k-ink-2)',
+          }}>
+            <span>
+              now <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{fmt24(thereHour)}</b>
+              {day.location_label ? ` ${day.location_label.toLowerCase()}` : ' there'}
+            </span>
+            <span style={{ color: 'var(--k-ink-3)' }}>
+              {awayFrom
+                ? `${fmt24(now.getHours() + now.getMinutes() / 60)} here`
+                : bandNow(sun, thereHour)}
+            </span>
           </div>
         )}
         {next && (
@@ -505,13 +559,13 @@ export function KomaView({
 }) {
   const [open, setOpen] = useState<{ frame: Frame; frames: Frame[]; sun: SunDay | null } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [nowHour, setNowHour] = useState<number | null>(null);
+  const [now, setNow] = useState<Date>(() => new Date());
 
   useEffect(() => {
-    const tick = () => { const d = new Date(); setNowHour(d.getHours() + d.getMinutes() / 60); };
-    tick();
-    const id = setInterval(tick, 60000);
-    return () => clearInterval(id);
+    const id = setInterval(() => setNow(new Date()), 30000);
+    const onVis = () => { if (!document.hidden) setNow(new Date()); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
   // Keep the open sheet pointing at the live row after a status write
@@ -556,7 +610,7 @@ export function KomaView({
           key={day.id}
           day={day} dayIndex={i} dayTotal={days.length}
           dateISO={dateForDay(i)} trip={trip} shots={shots}
-          isToday={i === todayIdx} nowHour={nowHour}
+          isToday={i === todayIdx} now={now}
           onOpen={(frame, frames, sun) => setOpen({ frame, frames, sun })}
         />
       ))}
