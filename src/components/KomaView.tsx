@@ -206,6 +206,14 @@ function FrameSheet({
             <div className="koma-label" style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', letterSpacing: '0.06em' }}>
               <span>reference</span><span>tap to enlarge</span>
             </div>
+            {s.ref_credit && (
+              <div style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9, lineHeight: 1.5,
+                color: 'var(--k-ink-3)', marginTop: 4,
+              }}>
+                {s.ref_credit}
+              </div>
+            )}
           </>
         ) : s.sketch ? (
           <>
