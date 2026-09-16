@@ -40,6 +40,7 @@ Conventions that hold everywhere:
 - **Ordering is explicit.** Every child table has `sort_order`; nothing relies on insertion order. The nested day+stop fetch orders stops via `.order('sort_order', { referencedTable: 'koji_stops' })`.
 - **Dates are derived, not stored per day.** A `Day` has no date column. The date for day *i* is `trip.date_start + i` (`dateForDay` in `TripView.tsx`). This is what keys the weather map.
 - **Coordinates cascade.** A day uses `day.lat/lng` if set, else falls back to `trip.lat/lng`. Days sharing coordinates are batched into one weather request.
+- **The home page splits trips into upcoming and past** (`splitTrips` in `page.tsx`): a trip is past once `date_end` (else `date_start`) is before today; undated trips count as upcoming. Upcoming sort soonest first, past most recent first, `sort_order` as the tie-break. `sort_order` alone no longer decides the home page order.
 - **`published` is the only visibility gate.** Public queries (`getTrips`, `getTripBySlug`) filter `.eq('published', true)`; the admin panel reads unfiltered via the service-key client and shows a "draft" badge.
 - **`tag` is free-form text, `tag_color` is a strict enum.** The pill label is whatever string you type; only the color is constrained (`TagColor`). Likewise `header_theme` is an 18-value `HeaderTheme` enum.
 

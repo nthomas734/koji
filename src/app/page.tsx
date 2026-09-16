@@ -30,7 +30,7 @@ const THEME_COLORS: Record<string, { bg: string; fg: string }> = {
 function TripCard({ trip }: { trip: Trip }) {
   const theme = THEME_COLORS[trip.header_theme] ?? THEME_COLORS.forest;
   const dateStr = trip.date_start
-    ? new Date(trip.date_start).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    ? new Date(trip.date_start + 'T00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : null;
 
   return (
@@ -89,8 +89,45 @@ function TripCard({ trip }: { trip: Trip }) {
   );
 }
 
+// A trip is past once its last day is behind us. Undated trips are still
+// being planned, so they sit with the upcoming ones. The page is ISR (60s),
+// so "today" is the server's UTC date; at day granularity that is close enough.
+function splitTrips(trips: Trip[]): { upcoming: Trip[]; past: Trip[] } {
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming: Trip[] = [];
+  const past: Trip[] = [];
+  for (const t of trips) {
+    const last = t.date_end ?? t.date_start;
+    (last && last < today ? past : upcoming).push(t);
+  }
+  // soonest first for what's ahead; most recent first for what's done
+  upcoming.sort((a, b) => (a.date_start ?? '9999').localeCompare(b.date_start ?? '9999') || a.sort_order - b.sort_order);
+  past.sort((a, b) => (b.date_start ?? '').localeCompare(a.date_start ?? '') || a.sort_order - b.sort_order);
+  return { upcoming, past };
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontFamily: 'var(--font-mono)',
+      fontSize: 9.5,
+      letterSpacing: '0.22em',
+      textTransform: 'uppercase',
+      color: 'var(--ink-4)',
+      padding: '18px 4px 10px',
+    }}>
+      {children}
+    </div>
+  );
+}
+
 export default async function HomePage() {
   const trips = await getTrips();
+  const { upcoming, past } = splitTrips(trips);
+  const counts = [
+    upcoming.length > 0 && `${upcoming.length} upcoming`,
+    past.length > 0 && `${past.length} past`,
+  ].filter(Boolean).join(' · ');
 
   return (
     <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 60px' }}>
@@ -135,7 +172,7 @@ export default async function HomePage() {
           letterSpacing: '0.1em',
           color: 'var(--ink-4)',
         }}>
-          {trips.length} {trips.length === 1 ? 'trip' : 'trips'}
+          {trips.length === 0 ? 'no trips' : counts}
         </div>
       </header>
 
@@ -152,7 +189,15 @@ export default async function HomePage() {
             no trips yet
           </div>
         ) : (
-          trips.map(trip => <TripCard key={trip.id} trip={trip} />)
+          <>
+            {upcoming.map(trip => <TripCard key={trip.id} trip={trip} />)}
+            {past.length > 0 && (
+              <>
+                <SectionLabel>past trips</SectionLabel>
+                {past.map(trip => <TripCard key={trip.id} trip={trip} />)}
+              </>
+            )}
+          </>
         )}
       </main>
 

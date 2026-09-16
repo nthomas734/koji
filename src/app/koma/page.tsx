@@ -1,18 +1,23 @@
 import Link from 'next/link';
-import { getRolls } from '@/lib/supabase';
+import { getKomaEntries } from '@/lib/supabase';
 
 export const revalidate = 60;
 
-function fmtDate(iso: string | null): string {
+function fmtDate(iso: string | null, end: string | null): string {
   if (!iso) return 'no date yet';
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric',
-  });
+  const at = (v: string) => { const [y, m, d] = v.split('-').map(Number); return new Date(y, m - 1, d); };
+  const a = at(iso);
+  if (!end || end === iso) {
+    return a.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  const b = at(end);
+  const sameMonth = a.getMonth() === b.getMonth();
+  return `${a.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}–${
+    b.toLocaleDateString('en-US', sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' })}`;
 }
 
 export default async function KomaIndex() {
-  const rolls = await getRolls();
+  const entries = await getKomaEntries();
 
   return (
     <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 60px' }}>
@@ -49,19 +54,19 @@ export default async function KomaIndex() {
       </div>
 
       <div style={{ padding: '0 var(--px)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {rolls.length === 0 && (
+        {entries.length === 0 && (
           <p style={{
             fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-4)',
             lineHeight: 1.7, padding: '20px 0',
           }}>
-            No rolls yet.
+            Nothing planned yet.
           </p>
         )}
 
-        {rolls.map((roll, i) => (
+        {entries.map((roll, i) => (
           <Link
-            key={roll.id}
-            href={`/koma/${roll.slug}`}
+            key={roll.href}
+            href={roll.href}
             className="pressable row-in"
             style={{
               animationDelay: `${Math.min(i, 8) * 40}ms`,
@@ -97,7 +102,11 @@ export default async function KomaIndex() {
               fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.06em',
               color: 'var(--ink-4)', marginTop: 7, paddingLeft: 6,
             }}>
-              {[roll.location_label, fmtDate(roll.roll_date)].filter(Boolean).join(' · ')}
+              {[
+                roll.location,
+                fmtDate(roll.date, roll.date_end),
+                roll.kind === 'trip' ? `${roll.days} days` : null,
+              ].filter(Boolean).join(' · ')}
             </div>
           </Link>
         ))}
