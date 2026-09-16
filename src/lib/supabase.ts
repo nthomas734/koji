@@ -133,6 +133,8 @@ export interface Shot {
   tech_md:     string | null;
   notes_md:    string | null;
   ref_url:     string | null;
+  /** Google Maps link for the standing position — rendered as a button. */
+  scout_url:   string | null;
   /** Composition diagram spec, drawn by KomaSketch when there is no photo. */
   sketch:      string | null;
   priority:    ShotPriority;
