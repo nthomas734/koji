@@ -263,17 +263,22 @@ function FrameSheet({
           <a
             href={s.scout_url} target="_blank" rel="noopener noreferrer"
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              marginTop: 10, padding: '11px 14px', borderRadius: 11,
-              border: 'var(--k-bw) solid var(--k-copper)',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              marginTop: 8, padding: '6px 11px 6px 9px', borderRadius: 999,
+              border: '1px solid var(--k-border-2)',
               color: 'var(--k-copper)', background: 'transparent',
-              fontFamily: 'var(--font-mono)', fontSize: 11,
-              letterSpacing: '0.07em', textTransform: 'uppercase',
+              fontFamily: 'var(--font-mono)', fontSize: 10,
+              letterSpacing: '0.06em', textTransform: 'uppercase',
             }}
           >
-            <span aria-hidden style={{ fontSize: 13 }}>◎</span> Scout it on the map
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <circle cx="6.6" cy="6.6" r="4.4" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M10 10L14 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            Scout
           </a>
         )}
+
         <Block label="Technical" md={s.tech_md} mono />
         <Block label="Notes" md={s.notes_md} />
 

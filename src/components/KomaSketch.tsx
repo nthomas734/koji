@@ -12,7 +12,8 @@
 //   ridges                      layered ridgelines separating in haze
 //   tunnel                      repeating frames receding
 //   rhythm:n|odd                repetition with one break
-//   detail:cols|rows            a fragment filling the frame
+//   detail                      a form cropped by the frame — the whole implied
+//   grid:cols|rows              tessellation, where the repetition is the subject
 //   macro                       one subject, everything else falling away
 //   subject:note                small in frame, isolated by a long lens
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,18 +109,38 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
         );
       }
       case 'detail': {
-        const cols = Number(args[0] ?? 4);
-        const rows = Number(args[1] ?? 4);
-        const cw = 340 / cols;
+        // A form larger than the frame, cropped on every side: the whole is
+        // implied and unreachable, which is the instruction.
+        return (
+          <>
+            <path d="M60 400 V150 a140 140 0 0 1 280 0 V400 Z" fill={SOFT} opacity="0.5" />
+            <path d="M60 400 V150 a140 140 0 0 1 280 0 V400" fill="none" stroke={MID} strokeWidth="3" />
+            <path d="M110 400 V165 a90 90 0 0 1 180 0 V400" fill="none" stroke={MID} strokeWidth="2" opacity="0.7" />
+            <path d="M160 400 V178 a40 40 0 0 1 80 0 V400" fill="none" stroke={INK} strokeWidth="2.4" />
+            <path d="M28 236 H372" stroke={MID} strokeWidth="2" opacity="0.45" />
+            <path d="M28 300 H372" stroke={MID} strokeWidth="2" opacity="0.45" />
+            <path d="M14 96 H386" stroke={COP} strokeWidth="1.6" strokeDasharray="6 5" opacity="0.8" />
+            <text x="200" y="86" textAnchor="middle" fontFamily={MONO} fontSize="13" fill={COP}>
+              the frame stops here
+            </text>
+          </>
+        );
+      }
+      case 'grid': {
+        const cols = Number(args[0] ?? 6);
+        const rows = Number(args[1] ?? 6);
+        const cw = 372 / cols;
         const ch = 344 / rows;
         return (
           <>
             {Array.from({ length: rows * cols }, (_, i) => {
               const r = Math.floor(i / cols);
               const c = i % cols;
+              const hot = (r * cols + c) % 7 === 3;
               return (
-                <rect key={i} x={30 + c * cw + 4} y={14 + r * ch + 4}
-                      width={cw - 8} height={ch - 8} fill="none" stroke={MID} strokeWidth="1.6" />
+                <rect key={i} x={14 + c * cw + 1.5} y={14 + r * ch + 1.5}
+                      width={cw - 3} height={ch - 3}
+                      fill={hot ? COP : MID} opacity={hot ? 0.75 : 0.28} />
               );
             })}
           </>
