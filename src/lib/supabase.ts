@@ -145,26 +145,69 @@ export interface Shot {
   sort_order:  number;
 }
 
-/** Rolls that stand on their own, newest first, undated last. */
-export async function getRolls(): Promise<Array<Roll & { frames: number; got: number }>> {
-  const { data: rolls, error } = await supabase
-    .from('koma_rolls')
-    .select('*')
-    .order('sort_order');
-  if (error) throw error;
+/**
+ * Everything koma can open, in one list: standalone rolls *and* the trips that
+ * have frames planned against them. A trip day is a roll that happens to hang
+ * off an itinerary, so /koma is the single way in to all of it.
+ */
+export interface KomaEntry {
+  kind:      'roll' | 'trip';
+  slug:      string;
+  title:     string;
+  subtitle:  string | null;
+  location:  string | null;
+  date:      string | null;
+  date_end:  string | null;
+  days:      number;
+  frames:    number;
+  got:       number;
+  href:      string;
+}
 
-  const { data: shots } = await supabase
-    .from('koma_shots')
-    .select('roll_id, status')
-    .not('roll_id', 'is', null);
+export async function getKomaEntries(): Promise<KomaEntry[]> {
+  const [rollsRes, tripsRes, shotsRes, daysRes] = await Promise.all([
+    supabase.from('koma_rolls').select('*').order('sort_order'),
+    supabase.from('koji_trips').select('id, slug, title, subtitle, location, date_start, date_end')
+      .eq('published', true),
+    supabase.from('koma_shots').select('roll_id, trip_id, status'),
+    supabase.from('koji_days').select('trip_id'),
+  ]);
+  if (rollsRes.error) throw rollsRes.error;
 
-  return (rolls ?? []).map(r => {
-    const mine = (shots ?? []).filter((s: { roll_id: number }) => s.roll_id === r.id);
-    return {
-      ...r,
-      frames: mine.length,
-      got: mine.filter((s: { status: string }) => s.status === 'got').length,
-    };
+  const shots = shotsRes.data ?? [];
+  const count = (pred: (s: { roll_id: number | null; trip_id: number | null }) => boolean) => {
+    const mine = shots.filter(pred as never);
+    return { frames: mine.length, got: mine.filter((s: { status: string }) => s.status === 'got').length };
+  };
+
+  const rolls: KomaEntry[] = (rollsRes.data ?? []).map((r: Roll) => ({
+    kind: 'roll', slug: r.slug, title: r.title, subtitle: r.subtitle,
+    location: r.location_label, date: r.roll_date, date_end: null, days: 1,
+    ...count(s => s.roll_id === r.id),
+    href: `/koma/${r.slug}`,
+  }));
+
+  const dayCounts = (daysRes.data ?? []).reduce<Record<number, number>>((acc, d: { trip_id: number }) => {
+    acc[d.trip_id] = (acc[d.trip_id] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const trips: KomaEntry[] = (tripsRes.data ?? [])
+    .map((t: { id: number; slug: string; title: string; subtitle: string | null; location: string | null; date_start: string | null; date_end: string | null }) => ({
+      kind: 'trip' as const, slug: t.slug, title: t.title, subtitle: t.subtitle,
+      location: t.location, date: t.date_start, date_end: t.date_end,
+      days: dayCounts[t.id] ?? 0,
+      ...count(s => s.trip_id === t.id),
+      href: `/trips/${t.slug}#koma`,
+    }))
+    .filter(e => e.frames > 0);
+
+  // Soonest first; anything undated sits at the end, since it is a someday.
+  return [...trips, ...rolls].sort((a, b) => {
+    if (a.date && b.date) return a.date.localeCompare(b.date);
+    if (a.date) return -1;
+    if (b.date) return 1;
+    return a.title.localeCompare(b.title);
   });
 }
 
