@@ -115,8 +115,17 @@ export function SunTrack({
       <path d={geom.line} fill="none" stroke={cop} strokeWidth={sunMode ? 2.2 : 1.8} strokeLinejoin="round" />
 
       <line x1="0" y1={geom.horizonY} x2={W} y2={geom.horizonY} stroke={ink} strokeWidth={sunMode ? 1.2 : 0.9} opacity=".55" />
-      <text x="2" y={geom.horizonY - 3} fontFamily="var(--font-mono)" fontSize="8.5" fill={ink3}>horizon</text>
-      <text x="2" y={geom.goldTopY - 3} fontFamily="var(--font-mono)" fontSize="8.5" fill={cop}>6° golden</text>
+      {/* The golden band is 0–6°, so on a high-sun day (San Diego peaks at 60°)
+          the two lines sit a few pixels apart and their labels collide. Below
+          ~16px of separation, collapse to one label for the band. */}
+      {geom.horizonY - geom.goldTopY >= 16 ? (
+        <>
+          <text x="2" y={geom.goldTopY - 3} fontFamily="var(--font-mono)" fontSize="8.5" fill={cop}>6° golden</text>
+          <text x="2" y={geom.horizonY + 9} fontFamily="var(--font-mono)" fontSize="8.5" fill={ink3}>horizon</text>
+        </>
+      ) : (
+        <text x="2" y={geom.goldTopY - 4} fontFamily="var(--font-mono)" fontSize="8.5" fill={cop}>golden 0–6°</text>
+      )}
 
       <circle cx={geom.noonX} cy={geom.noonY} r={sunMode ? 3.4 : 3} fill={cop} />
       <text x={geom.noonX + 7} y={geom.noonY + 3.4} fontFamily="var(--font-mono)" fontSize={sunMode ? 10 : 9.5} fill={ink} fontWeight="500">

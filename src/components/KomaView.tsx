@@ -133,7 +133,7 @@ function ShotRow({ frame, onOpen }: { frame: Frame; onOpen: () => void }) {
 // ── FRAME SHEET ──────────────────────────────────────────────────────────────
 
 function FrameSheet({
-  frame, total, sun, onClose, onStatus, busy,
+  frame, total, sun, onClose, onStatus, busy, onStep,
 }: {
   frame: Frame;
   total: number;
@@ -141,17 +141,24 @@ function FrameSheet({
   onClose: () => void;
   onStatus: (status: Shot['status']) => void;
   busy: boolean;
+  /** Move through the roll without going back to the list. */
+  onStep: (delta: number) => void;
 }) {
   const s = frame.shot;
   const [zoom, setZoom] = useState(false);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') (zoom ? setZoom(false) : onClose()); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { zoom ? setZoom(false) : onClose(); return; }
+      if (zoom) return;
+      if (e.key === 'ArrowLeft')  onStep(-1);
+      if (e.key === 'ArrowRight') onStep(1);
+    };
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
-  }, [onClose, zoom]);
+  }, [onClose, zoom, onStep]);
 
   const band = sun && frame.hour != null ? bandAt(sun, frame.hour) : null;
   const wantsGolden = s.light === 'golden' || s.light === 'blue';
@@ -172,10 +179,14 @@ function FrameSheet({
           background: 'none', border: 'none', font: 'inherit', fontSize: 19,
           color: 'var(--k-ink-2)', cursor: 'pointer', padding: '0 4px 0 0', lineHeight: 1,
         }}>‹</button>
-        <span className="koma-label" style={{ flex: 1 }}>
+        <span className="koma-label" style={{ flex: 1, minWidth: 0 }}>
           Frame <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{frame.n}</b> of {total}
           {frame.stop?.time_label ? ` · ${frame.stop.time_label}` : ''}
           {frame.stop ? ` · ${frame.stop.title}` : ''}
+        </span>
+        <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+          <StepBtn dir={-1} disabled={frame.n <= 1}     onStep={onStep} />
+          <StepBtn dir={1}  disabled={frame.n >= total} onStep={onStep} />
         </span>
       </div>
 
@@ -240,6 +251,15 @@ function FrameSheet({
           </div>
         )}
 
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--k-border)',
+        }}>
+          <StepBtn dir={-1} disabled={frame.n <= 1} onStep={onStep} />
+          <span className="koma-label">{frame.n} / {total}</span>
+          <StepBtn dir={1} disabled={frame.n >= total} onStep={onStep} />
+        </div>
+
         <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
           {s.status === 'got' ? (
             <button type="button" className="koma-btn sec" disabled={busy} onClick={() => onStatus('planned')}>
@@ -267,6 +287,25 @@ function FrameSheet({
         </div>
       )}
     </div>
+  );
+}
+
+function StepBtn({ dir, disabled, onStep }: { dir: -1 | 1; disabled: boolean; onStep: (d: number) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => !disabled && onStep(dir)}
+      disabled={disabled}
+      aria-label={dir === -1 ? 'Previous frame' : 'Next frame'}
+      style={{
+        width: 34, height: 34, borderRadius: 9, lineHeight: 1, fontSize: 17,
+        border: 'var(--k-bw) solid var(--k-border)',
+        background: 'var(--k-surface)',
+        color: disabled ? 'var(--k-border-2)' : 'var(--k-copper)',
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.45 : 1,
+      }}
+    >{dir === -1 ? '‹' : '›'}</button>
   );
 }
 
@@ -642,6 +681,12 @@ export function KomaView({
             busy={busy}
             onClose={() => setOpen(null)}
             onStatus={st => setStatus(open.frame.shot, st)}
+            onStep={d => setOpen(o => {
+              if (!o) return o;
+              const i = o.frames.findIndex(f => f.shot.id === o.frame.shot.id);
+              const next = o.frames[i + d];
+              return next ? { ...o, frame: next } : o;
+            })}
           />
         </div>
       )}
@@ -733,6 +778,12 @@ export function KomaRollView({
             frame={open.frame} total={open.frames.length} sun={open.sun} busy={busy}
             onClose={() => setOpen(null)}
             onStatus={st => setStatus(open.frame.shot, st)}
+            onStep={d => setOpen(o => {
+              if (!o) return o;
+              const i = o.frames.findIndex(f => f.shot.id === o.frame.shot.id);
+              const next = o.frames[i + d];
+              return next ? { ...o, frame: next } : o;
+            })}
           />
         </div>
       )}
