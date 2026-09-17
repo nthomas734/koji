@@ -81,8 +81,30 @@ export function SunTrack({
       if (!moved) break;
     }
 
+    // The four events, placed where the curve actually crosses each boundary.
+    // A dot alone could not say which way the sun was going, so the two horizon
+    // crossings are half-discs sitting on the line — rising above it, setting
+    // below — which reads at 6px where a sun with rays turns to mush.
+    const inWin = (h: number | null | undefined): h is number =>
+      h != null && isFinite(h) && h >= h0 && h <= h1;
+    const marks = {
+      rise:   inWin(sun.sunrise)  ? X(sun.sunrise)  : null,
+      golden: inWin(sun.goldenPm) ? X(sun.goldenPm) : null,
+      set:    inWin(sun.sunset)   ? X(sun.sunset)   : null,
+      blue:   inWin(sun.blueEnd)  ? X(sun.blueEnd)  : null,
+    };
+
+    // The three evening marks bunch as latitude drops: London gives 17px
+    // between golden and sunset, Balboa 9px, because the sun sets more steeply.
+    // Shrink them rather than let them overlap — the tightness is the point,
+    // a collision is just a blemish.
+    const evening = [marks.golden, marks.set, marks.blue].filter((v): v is number => v != null);
+    let gap = Infinity;
+    for (let i = 1; i < evening.length; i++) gap = Math.min(gap, evening[i] - evening[i - 1]);
+    const squeeze = gap === Infinity ? 1 : Math.max(0.62, Math.min(1, gap / 11));
+
     return {
-      line, area, X, Y, h0, h1, a0,
+      line, area, X, Y, h0, h1, a0, marks, squeeze,
       horizonY: Y(0), goldTopY: Y(6), blueBotY: Y(-6),
       noonX: X(sun.noon), noonY: Y(sun.peak),
       nowX: now != null && now >= h0 && now <= h1 ? X(now) : null,
@@ -97,6 +119,14 @@ export function SunTrack({
   const edge = sunMode ? '#5C5850' : '#C8C2B6';
   const gid  = sunMode ? 'komaSkySun' : 'komaSky';
   const plate = sunMode ? '#FFFDF8' : '#FDFAF5';
+  const sunFill = sunMode ? '#D98A14' : '#E8A33C';
+  const sunEdge = sunMode ? '#6B3F00' : '#8A5200';
+  const setFill = sunMode ? '#9C9384' : '#B4AE9F';
+  const setEdge = sunMode ? '#2A2721' : '#4A453C';
+  const blueDot = sunMode ? '#44547A' : '#5C6C8E';
+  const R0 = sunMode ? 4.4 : 4;
+  const R = R0 * geom.squeeze;
+  const dotR = (sunMode ? 3.1 : 2.8) * geom.squeeze;
 
   return (
     <svg
@@ -139,6 +169,37 @@ export function SunTrack({
           <Plate x={3} y={geom.goldTopY - 13} w={62} h={11.5} bg={plate} />
           <text x="6" y={geom.goldTopY - 4} fontFamily="var(--font-mono)" fontSize="8.5" fill={cop}>golden 0–6°</text>
         </>
+      )}
+
+      {/* sunrise — half a sun coming up out of the horizon, with three short
+          rays. The rays are the only thing here that might not survive a very
+          small render, so they are the only thing that carries no meaning. */}
+      {geom.marks.rise != null && (
+        <g>
+          <g stroke={sunEdge} strokeWidth="1.1" strokeLinecap="round" opacity="0.85">
+            <line x1={geom.marks.rise} y1={geom.horizonY - R0 - 1.5} x2={geom.marks.rise} y2={geom.horizonY - R0 - 3.1} />
+            <line x1={geom.marks.rise - 3.7} y1={geom.horizonY - 3.7} x2={geom.marks.rise - 4.9} y2={geom.horizonY - 4.9} />
+            <line x1={geom.marks.rise + 3.7} y1={geom.horizonY - 3.7} x2={geom.marks.rise + 4.9} y2={geom.horizonY - 4.9} />
+          </g>
+          <path d={`M${geom.marks.rise - R0} ${geom.horizonY} A${R0} ${R0} 0 0 1 ${geom.marks.rise + R0} ${geom.horizonY} Z`}
+                fill={sunFill} stroke={sunEdge} strokeWidth="0.8" />
+        </g>
+      )}
+
+      {/* golden — where the curve drops into the 0–6° band it is already drawing */}
+      {geom.marks.golden != null && (
+        <circle cx={geom.marks.golden} cy={geom.goldTopY} r={dotR} fill={cop} />
+      )}
+
+      {/* sunset — the same sun, gone under the line */}
+      {geom.marks.set != null && (
+        <path d={`M${geom.marks.set - R} ${geom.horizonY} A${R} ${R} 0 0 0 ${geom.marks.set + R} ${geom.horizonY} Z`}
+              fill={setFill} stroke={setEdge} strokeWidth="0.8" />
+      )}
+
+      {/* blue — the bottom of the −6–0° band, after which it is simply dark */}
+      {geom.marks.blue != null && (
+        <circle cx={geom.marks.blue} cy={geom.blueBotY} r={dotR} fill={blueDot} />
       )}
 
       <circle cx={geom.noonX} cy={geom.noonY} r={sunMode ? 3.4 : 3} fill={cop} />

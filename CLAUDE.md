@@ -165,6 +165,19 @@ transitions inside a trip right, which a single offset never can.
 This is a separate fetch from the weather code on purpose — don't couple koma
 to `TripView`'s weather effect.
 
+**Four marks sit on the curve** where it crosses each boundary: a half-sun
+rising out of the horizon line at sunrise, the same sun gone under it at sunset,
+and small filled dots in the band's own colour at the start of golden and the
+end of blue. The footer labels carry the matching mark, so the association is by
+shape — **no times are printed on the plot**, because the frame times are
+already listed underneath and that is where the overload would be.
+
+The half-discs are deliberate: a dot cannot say which way the sun was going, and
+a sun with rays is about six pixels wide at the real render size. The three
+evening marks also scale down together as they crowd (`squeeze`) — London leaves
+17px between golden and sunset, Balboa 9px, because the sun sets more steeply at
+33°N. Don't remove that; it is the difference between tight and overlapping.
+
 **Colour.** koma swaps koji's brass for a copper sampled off a Sony E-mount
 ring: `--k-copper #B83C01` (5.0:1 on parchment) with `#CF6A21` and `#FBB04F`
 for fills and tints. Brass is 2.5:1, which is decorative-only contrast — koma's

@@ -427,6 +427,37 @@ function Block({ label, md, mono }: { label: string; md: string | null; mono?: b
   );
 }
 
+// ── the footer's four marks ──────────────────────────────────────────────────
+// Drawn to match SunTrack exactly. If the marks there change, change them here
+// or the association silently breaks.
+
+function RiseGlyph() {
+  return (
+    <svg width="9" height="6" viewBox="-4.5 -5 9 6" aria-hidden
+         style={{ display: 'inline-block', verticalAlign: '-0.5px', marginRight: 1 }}>
+      <path d="M-3.4 0 A3.4 3.4 0 0 1 3.4 0 Z" fill="#E8A33C" stroke="#8A5200" strokeWidth="0.7" />
+    </svg>
+  );
+}
+
+function SetGlyph() {
+  return (
+    <svg width="9" height="6" viewBox="-4.5 -1 9 6" aria-hidden
+         style={{ display: 'inline-block', verticalAlign: '-0.5px', marginRight: 1 }}>
+      <path d="M-3.4 0 A3.4 3.4 0 0 0 3.4 0 Z" fill="#B4AE9F" stroke="#4A453C" strokeWidth="0.7" />
+    </svg>
+  );
+}
+
+function DotGlyph({ fill }: { fill: string }) {
+  return (
+    <svg width="7" height="6" viewBox="-3.5 -3 7 6" aria-hidden
+         style={{ display: 'inline-block', verticalAlign: '-0.5px', marginRight: 1 }}>
+      <circle r="2.4" cy="0" fill={fill} />
+    </svg>
+  );
+}
+
 /** Plain-language light at a given hour, for the live clock row. */
 function bandNow(sun: SunDay, h: number): string {
   const b = bandAt(sun, h);
@@ -547,10 +578,13 @@ function KomaDay({
           <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)',
                         fontSize: 9, color: 'var(--k-ink-3)', paddingTop: 4,
                         borderTop: '1px solid var(--k-border)' }}>
-            <span>rise {fmtHour(sun.sunrise)}</span>
-            <span>golden {fmtHour(sun.goldenPm)}</span>
-            <span>set {fmtHour(sun.sunset)}</span>
-            <span>blue {fmtHour(sun.blueEnd)}</span>
+            {/* Each label carries the mark it points at on the curve, so the
+                four are associated by shape rather than by a time printed on
+                the plot — which is where the information overload would be. */}
+            <span><RiseGlyph /> rise {fmtHour(sun.sunrise)}</span>
+            <span><DotGlyph fill="var(--k-copper)" /> golden {fmtHour(sun.goldenPm)}</span>
+            <span><SetGlyph /> set {fmtHour(sun.sunset)}</span>
+            <span><DotGlyph fill="#5C6C8E" /> blue {fmtHour(sun.blueEnd)}</span>
           </div>
         )}
         {/* The offset is a guess without a network, and a guess that looks like
