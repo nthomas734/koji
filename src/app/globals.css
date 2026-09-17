@@ -430,3 +430,69 @@ input, textarea, select {
    #877E70 it was 4.3:1, which is the wrong contrast for the wrong line. */
 .koma-carry-derived { color: #BDB3A2; }
 .koma.sun .koma-carry-derived { color: #E4DACA; font-size: 10.5px; }
+
+/* ── Reference notes (/koma/notes) ──────────────────────────────────────────
+   These are read at a table or on a kerb, so the type is a shade larger than
+   the carry card's and the tables have to survive a 375px screen: the numbers
+   are the whole point of them, and a table that scrolls sideways hides half
+   the answer. Long labels wrap instead. */
+
+.koma-note {
+  font-size: 14px;
+  line-height: 1.62;
+  color: var(--ink-2);
+}
+.koma-note h2 {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #B83C01;
+  margin: 18px 0 7px;
+}
+.koma-note h2:first-child { margin-top: 0; }
+.koma-note p  { margin: 0 0 9px; }
+.koma-note p:last-child { margin-bottom: 0; }
+.koma-note strong { color: var(--ink); font-weight: 600; }
+.koma-note em     { color: var(--ink-3); font-style: italic; }
+.koma-note ul, .koma-note ol { margin: 0 0 10px; padding-left: 18px; }
+.koma-note li { margin-bottom: 5px; }
+.koma-note li::marker { color: #B83C01; }
+.koma-note a {
+  color: #2D6B4A;
+  text-decoration: underline;
+  text-decoration-color: rgba(45, 107, 74, 0.25);
+  text-underline-offset: 2px;
+}
+
+.koma-note table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4px 0 12px;
+  font-size: 13px;
+}
+.koma-note th, .koma-note td {
+  text-align: left;
+  padding: 6px 9px 6px 0;
+  border-bottom: 0.5px solid var(--border);
+  vertical-align: top;
+}
+.koma-note th {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+/* First column carries the number being looked up — mono so the figures line
+   up down the column, which is how you scan one of these. */
+.koma-note td:first-child {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+  white-space: nowrap;
+  padding-right: 12px;
+}
+.koma-note tr:last-child td { border-bottom: none; }

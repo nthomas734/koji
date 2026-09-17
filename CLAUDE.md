@@ -269,6 +269,28 @@ coordinates and **validate the method against a known answer first** — the
 azimuth formula used here was inverted until it was checked against the NYC
 summer-solstice sunset (302°) and the real Manhattanhenge dates.
 
+The Balboa Park roll failed the same way a third time and it is worth the
+specifics, because the sentence read perfectly: *"the walk runs east to west, so
+the low sun is behind you for the last shot instead of in your face."* Walking
+west puts the sun **in front of you**, and the California Tower frame inherited
+the error — "sun behind you, the tile goes warm and fully lit" when the standing
+point bears 289° and the sun sits at 266°, 23° off axis, with the camera-facing
+side in shade for all of golden hour. The rule of thumb is one subtraction:
+**under 45° between your look-bearing and the sun's azimuth means you are
+shooting into it, over 135° means it is behind you.**
+
+Two things make that check trustworthy. Derive the *subject's* bearing from real
+coordinates — OSM's Overpass API gives a named feature's centre, and its way
+geometry gives a street's true bearing (El Prado is 269.6°, not "roughly
+east-west"). And **validate the azimuth formula before using it**: NOAA's
+`acos` form needs `(a + 180) mod 360` in the afternoon and `(540 - a) mod 360`
+otherwise, and without them NYC's solstice sunset comes out 237° instead of
+302° — mirrored, wrong by 65°, and still a plausible-looking westerly. Check it
+against a known answer and a known *date* (Manhattanhenge, solved for the sun's
+centre at +0.5° because the horizon there is the Jersey skyline). A method can
+be internally consistent, symmetric about the solstice, and five days wrong.
+`sql/sun-audit.md` carries the full working.
+
 ### Sketches (2026-09-16)
 
 `KomaSketch` draws a composition diagram from a short spec. The rule, learned by
@@ -304,6 +326,25 @@ lichen, a crate, a prop, a mosaic and a pair of hands. It is now `fill:texture`
 and `fill:object`, and three of those frames moved to kinds of their own —
 `flow` (shutter speed *is* the subject, so the frame is split frozen/smeared),
 `shadows` (light on a floor, the window out of frame) and `subject:hands`.
+
+### The reference shelf (2026-09-16)
+
+`koma_notes` + `/koma/notes`. Frames answer *what is the picture*; notes answer
+*how does this behave*. They hang off no trip and no roll on purpose — the
+shutter speed for a moving subject is the same in Balboa Park and in
+Bourton-on-the-Water, and pinning it to an outing means rewriting it for the
+next one. Seeded with street, food, close focus, movement and light.
+
+**Everything is on one page**, not a list that navigates to a detail. It is read
+in the field, where a second request may not resolve and where the service
+worker can only cache what has been fetched — one page is one thing to have
+cached. And it is read by scanning for a number, so the browser's own find beats
+a menu of links.
+
+`body_md` goes through **`renderBlockMd`**, so headings, lists and GFM tables
+work. This is the opposite of `koma_shots` and `koma_rolls`, which are
+`parseInline` and need literal `<br><br>` for a paragraph break — `\n\n` there
+collapses silently and looks fine in the database. Both of those bit once.
 
 ### Working offline (2026-09-16)
 

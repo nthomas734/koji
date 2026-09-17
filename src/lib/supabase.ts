@@ -365,3 +365,30 @@ export async function getRollSlugs(): Promise<string[]> {
     return [];
   }
 }
+
+// ── REFERENCE NOTES ─────────────────────────────────────────────────────────
+// Frames answer "what is the picture"; notes answer "how does this behave".
+// They belong to no trip and no roll on purpose — a shutter speed for a moving
+// subject is the same in Balboa Park and in Bourton-on-the-Water, and pinning
+// it to an outing would mean writing it out again for the next one.
+
+export interface Note {
+  id:         number;
+  slug:       string;
+  title:      string;
+  subtitle:   string | null;
+  body_md:    string;
+  sort_order: number;
+}
+
+/** Published notes in shelf order. Swallows errors so the page degrades to
+ *  empty rather than 500ing in the field, where it is least recoverable. */
+export async function getNotes(): Promise<Note[]> {
+  const { data, error } = await supabase
+    .from('koma_notes')
+    .select('id, slug, title, subtitle, body_md, sort_order')
+    .eq('published', true)
+    .order('sort_order');
+  if (error) return [];
+  return (data as Note[]) ?? [];
+}
