@@ -123,7 +123,12 @@ function ShotRow({ frame, onOpen }: { frame: Frame; onOpen: () => void }) {
   return (
     <button type="button" className={cls} onClick={onOpen}>
       {s.ref_url
-        ? <img className="koma-ref" src={s.ref_url} alt="" loading="lazy" />
+        // Deliberately not lazy. The service worker can only cache what has
+        // actually been fetched, so lazy loading meant a photograph was offline
+        // only if you had happened to scroll past its row while online. Opening
+        // koma once with signal now warms every reference in the plan; there
+        // are nine of them and they are cropped squares.
+        ? <img className="koma-ref" src={s.ref_url} alt="" />
         : s.sketch
           ? <span className="koma-ref" style={{ overflow: 'hidden', display: 'block' }}>
               <KomaSketch spec={s.sketch} rounded={0} />
