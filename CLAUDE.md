@@ -346,6 +346,33 @@ work. This is the opposite of `koma_shots` and `koma_rolls`, which are
 `parseInline` and need literal `<br><br>` for a paragraph break — `\n\n` there
 collapses silently and looks fine in the database. Both of those bit once.
 
+### The index as film (2026-09-17)
+
+`/koma` was the weakest screen in the app: plain cream cards with a copper rule,
+next to an itineraries page built from deep themed blocks. Each roll is now **a
+frame of film** — warm base (`#17150F`), perforated top and bottom, with the
+got/planned count in the corner a frame counter occupies.
+
+Film rather than borrowing the trip themes, because those colours belong to
+*trips*. A standalone roll has no `header_theme`, so half the list would have had
+to invent one, and the two screens would then have read as the same thing twice.
+
+Two details are load-bearing. **The perforations are `var(--bg)`**, so they are
+punched through to the page rather than painted cream onto the card; that is what
+makes them read as holes. And **the hole rhythm has to come from the gradient's
+own axis** — a `to bottom` ramp tiled with `background-size` fills the full width
+of every tile, which shipped a solid stripe along each edge on the first attempt.
+`repeating-linear-gradient(to right, …)` clipped to a 5px strip is the fix.
+
+The reference shelf carries the same edge turned ninety degrees, at 10px down the
+left of each note, and **deliberately stays on parchment**. That page is
+long-form reading at a table; a dark ground would cost more legibility than it
+buys character.
+
+The meta row drops the day count when the date is a range — "Oct 9-11 · 3 days"
+restated itself and was what wrapped three of four cards onto a second line. It
+stays for a single-day roll, where it is the only duration given.
+
 ### Working offline (2026-09-16)
 
 koma is used on a phone, one-handed, in places with no bars. Three things had
