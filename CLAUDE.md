@@ -202,6 +202,44 @@ will not place a now-line unless the date matches.
 Entry is the same everywhere: long-press `KomaMark`. On the itineraries list
 (`KomaHomeMark`) it routes to `/koma`; on a trip page it toggles the mode.
 
+### Working offline (2026-09-16)
+
+koma is used on a phone, one-handed, in places with no bars. Three things had
+to change before that was true rather than claimed.
+
+**`at_time` goes through `parseClock`, never `parseTimeLabel`.** The label
+parser guesses at koji's free-text stop times and pushes a bare hour under 7
+into the afternoon — right for "5:15" on a travel day, and it hung the Cuyamaca
+roll's 06:30 and 06:55 dawn frames at 18:30 and 18:55. `parseClock` is strict
+and returns null rather than a plausible number, and a check constraint on
+`koma_shots.at_time` keeps the 24-hour convention out of the realm of habit.
+
+**Status writes go through `lib/komaQueue.ts`, not straight to `fetch`.** The
+tap updates state, lands in a localStorage queue, and the queue drains on
+reconnect and on visibility change. `usePendingStatus()` renders the queued
+status *over* what the page was served with, so a reload before the queue
+drains still shows what you marked. Do not "simplify" this back to an awaited
+fetch: the old version only moved state on `res.ok`, which on the Tube meant
+the button did nothing at all.
+
+**The offset says which of three sources answered it.** Zone from Open-Meteo,
+else the phone's own zone when it is within 90 minutes of solar time for that
+longitude (right when you are standing in the place, correctly refused when you
+are not), else longitude. `OffsetSource` is returned rather than swallowed and
+the chart prints a ⚑ whenever it is a guess. The negative cache has a TTL —
+the first version cached a failure forever, so one dead spot poisoned the
+session — and the in-flight promise is shared, so eleven `KomaDay`s make one
+request.
+
+Reference photographs are cross-origin (Supabase storage) and the service
+worker skipped every cross-origin request, so the nine interiors were broken
+squares offline. `sw.js` now cache-firsts the `koma-refs` bucket, matched on
+host *and* path, and caches opaque responses explicitly — an `<img>` to another
+origin is no-cors, so `res.ok` is false even on success. The rows load their
+references eagerly for the same reason: the worker can only cache what was
+fetched, and lazy loading made a photograph's survival depend on whether you
+had scrolled past its row while online.
+
 ### The carry (2026-09-16)
 
 "Carry today" used to be read off the day's planned frames, which is backwards.
