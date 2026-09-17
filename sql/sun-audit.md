@@ -174,5 +174,70 @@ Diego barely half.
 | London | 20 Oct | 17:10–17:57 | 47 min |
 | Cotswolds | 17 Oct | 17:24–18:11 | 47 min |
 | New York | 13 Oct | 17:42–18:19 | 37 min |
-| Balboa Park | 19 Sep | 18:17–18:49 | 32 min |
+| Balboa Park | 26 Sep | 18:08–18:40 | 32 min |
 | Cuyamaca (dawn) | 10 Oct | 06:47–07:20 | 33 min |
+
+# The third failure: a direction asserted from a mental picture (2026-09-16)
+
+The Balboa Park roll told you to stand in Plaza de Panama at 6:20pm and shoot the
+California Tower "with the sun behind you: the tile goes warm and fully lit".
+The roll's own notes repeated the premise: walking east to west means "the low
+sun is behind you for the last shot instead of in your face".
+
+Both are backwards, and the geometry is not close:
+
+| | derived |
+|---|---|
+| Plaza de Panama → California Tower | bearing **289.3°** |
+| Sun, 26 Sep 18:20 PDT | azimuth **266.0°**, altitude 3.3° |
+| Separation | **23°** — the sun is nearly behind the subject |
+
+You are shooting into a low sun. The face of the tower turned toward the camera
+is in shade for the whole of golden hour, and no time of day fixes it from that
+side, because the sun is in the west and so is the tower. The front-lit version
+exists but is 345m away on the other side, from the Cabrillo Bridge looking
+east, where the sun sits 178° off the axis — i.e. directly behind the camera.
+
+This is the same shape of mistake as the golden-hour-by-eye error above: a
+plausible sentence that nobody converted into a number. "The sun sets in the
+west and we are walking west, so it is behind us" is the kind of thing that
+survives three readings.
+
+**The check is two lines of trigonometry.** Bearing from standing point to
+subject, azimuth of the sun at the frame's time, and the difference: under 45°
+means you are shooting into it, over 135° means it is behind you, and anything
+between is side light.
+
+## Validate the azimuth formula before trusting it
+
+The formula has a sign trap that produces a mirrored but entirely plausible
+answer. The NOAA form is
+
+```
+c  = (sin(lat)·cos(zenith) − sin(decl)) / (cos(lat)·sin(zenith))
+a  = degrees(acos(clamp(c)))
+az = (a + 180) mod 360        if hour_angle > 0   (afternoon)
+az = (540 − a) mod 360        otherwise
+```
+
+Dropping the last two lines gives NYC's summer-solstice sunset as **237°**
+instead of 302° — wrong by 65° and still a perfectly reasonable-looking
+westerly bearing. Two known answers catch it:
+
+- **NYC, 21 Jun 2026 sunset** → 20:31, azimuth **302.5°**. Expect ~302°.
+- **Manhattanhenge**: sunset azimuth 299° (the grid), judged against the Jersey
+  skyline rather than the true horizon, so solve for the sun's centre at
+  **+0.5°** rather than −0.833°. That returns 28–31 May and 10–14 July, which
+  brackets the real 29–30 May and 11–12 July. Solving at −0.833° returns 23–25
+  May and 16–19 July — self-consistent, symmetric about the solstice, and five
+  days wrong. A method that is internally tidy can still be wrong.
+
+## What it turned up by accident
+
+El Prado runs **269.6°** — within half a degree of due west, derived from the
+OSM way rather than eyeballed. So the sun sets exactly down the promenade at the
+equinox: **24 September 2026, 0.1° off axis**, and inside a degree from the 22nd
+to the 26th. The roll is now dated Sat 26 September for that reason.
+
+The app itself is unaffected: `lib/sun.ts` computes altitude only and has no
+azimuth function. This class of error lives entirely in the prose of the frames.

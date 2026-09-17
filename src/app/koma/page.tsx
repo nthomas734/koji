@@ -53,6 +53,37 @@ export default async function KomaIndex() {
         </p>
       </div>
 
+      {/* The shelf sits above the rolls because it is the thing you reach for
+          when there is no plan — and because it is the only page here that is
+          worth opening when you are already out. */}
+      <div style={{ padding: '0 var(--px) 18px' }}>
+        <Link href="/koma/notes" className="pressable" style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          background: 'rgba(184,60,1,0.05)', border: '0.5px solid rgba(184,60,1,0.22)',
+          borderRadius: 14, padding: '13px 16px',
+        }}>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{
+              display: 'block', fontFamily: 'var(--font-serif)', fontWeight: 500,
+              fontSize: 16, color: 'var(--ink)',
+            }}>
+              Reference
+            </span>
+            <span style={{
+              display: 'block', fontSize: 12.5, color: 'var(--ink-3)',
+              lineHeight: 1.45, marginTop: 2,
+            }}>
+              Settings and guidelines that do not belong to any one outing.
+            </span>
+          </span>
+          <span aria-hidden style={{
+            fontFamily: 'var(--font-mono)', fontSize: 15, color: '#B83C01', flexShrink: 0,
+          }}>
+            ›
+          </span>
+        </Link>
+      </div>
+
       <div style={{ padding: '0 var(--px)', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {entries.length === 0 && (
           <p style={{
