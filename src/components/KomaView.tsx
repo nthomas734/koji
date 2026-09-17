@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import type { Carry, Day, Roll, Shot, Stop, Trip } from '@/lib/supabase';
 import { renderMd, renderBlockMd } from '@/lib/markdown';
 import { SunTrack, type TrackFrame } from './SunTrack';
 import { KomaSketch } from './KomaSketch';
 import { LensMark, lensLabel, lensLength, lensWeight, fmtWeight } from './LensMark';
 import {
-  sunDay, utcOffsetFor, parseTimeLabel, fmtHour, fmt24, bandAt,
-  type SunDay,
+  sunDay, utcOffsetFor, parseTimeLabel, parseClock, fmtHour, fmt24, bandAt,
+  type SunDay, type OffsetSource,
 } from '@/lib/sun';
+import { usePendingStatus, queueStatus, flush } from '@/lib/komaQueue';
 
 // ── FRAME MODEL ──────────────────────────────────────────────────────────────
 // A "frame" is a shot placed in the day's running order. Numbering runs 1..n
@@ -28,30 +29,43 @@ function buildFrames(day: Day, shots: Shot[]): Frame[] {
   const stopPos = new Map<number, number>(stops.map((s, i) => [s.id, i] as [number, number]));
   const mine = shots.filter(s => s.day_id === day.id);
 
-  const ordered = [...mine].sort((a, b) => {
-    const pa = a.stop_id != null ? stopPos.get(a.stop_id) ?? 9e6 : 9e6;
-    const pb = b.stop_id != null ? stopPos.get(b.stop_id) ?? 9e6 : 9e6;
-    if (pa !== pb) return pa - pb;
-    return a.sort_order - b.sort_order;
+  // Resolve the time before ordering: `at_time` is a 24-hour clock and goes
+  // through the strict parser, never the label heuristic that pushes an early
+  // hour into the afternoon.
+  const placed = mine.map(shot => {
+    const stop = shot.stop_id != null ? stops.find(s => s.id === shot.stop_id) ?? null : null;
+    return { shot, stop, hour: parseClock(shot.at_time) ?? parseTimeLabel(stop?.time_label) };
   });
 
-  return ordered.map((shot, i) => {
-    const stop = shot.stop_id != null ? stops.find(s => s.id === shot.stop_id) ?? null : null;
-    const hour = parseTimeLabel(shot.at_time) ?? parseTimeLabel(stop?.time_label);
-    return { shot, n: i + 1, stop, hour };
+  const ordered = [...placed].sort((a, b) => {
+    // An unresolved stop_id sorts last and is treated as loose; see byStop.
+    const pa = a.stop ? stopPos.get(a.stop.id) ?? 9e6 : 9e6;
+    const pb = b.stop ? stopPos.get(b.stop.id) ?? 9e6 : 9e6;
+    if (pa !== pb) return pa - pb;
+    // Within one stop the clock wins over hand-set sort_order, which drifts:
+    // New York had frame 1 at 17:50 ahead of frame 2 at 17:25.
+    if (a.hour != null && b.hour != null && a.hour !== b.hour) return a.hour - b.hour;
+    return a.shot.sort_order - b.shot.sort_order;
   });
+
+  return ordered.map((f, i) => ({ ...f, n: i + 1 }));
 }
 
 // ── SUN ──────────────────────────────────────────────────────────────────────
 
 function useSun(lat: number | null, lng: number | null, dateISO: string | null):
-  { sun: SunDay | null; offset: number | null } {
+  { sun: SunDay | null; offset: number | null; source: OffsetSource | null } {
   const [offset, setOffset] = useState<number | null>(null);
+  const [source, setSource] = useState<OffsetSource | null>(null);
 
   useEffect(() => {
     let alive = true;
-    if (lat == null || lng == null || !dateISO) { setOffset(null); return; }
-    utcOffsetFor(lat, lng, dateISO).then(o => { if (alive) setOffset(o); });
+    if (lat == null || lng == null || !dateISO) { setOffset(null); setSource(null); return; }
+    utcOffsetFor(lat, lng, dateISO).then(o => {
+      if (!alive) return;
+      setOffset(o.seconds);
+      setSource(o.source);
+    });
     return () => { alive = false; };
   }, [lat, lng, dateISO]);
 
@@ -60,7 +74,7 @@ function useSun(lat: number | null, lng: number | null, dateISO: string | null):
     return sunDay(dateISO, lat, lng, offset);
   }, [lat, lng, dateISO, offset]);
 
-  return { sun, offset };
+  return { sun, offset, source };
 }
 
 /** Hours into the day at the destination, from a UTC instant. */
@@ -135,19 +149,27 @@ function ShotRow({ frame, onOpen }: { frame: Frame; onOpen: () => void }) {
 // ── FRAME SHEET ──────────────────────────────────────────────────────────────
 
 function FrameSheet({
-  frame, total, sun, onClose, onStatus, busy, onStep,
+  frame, total, sun, onClose, onStatus, pending, dated, onStep,
 }: {
   frame: Frame;
   total: number;
   sun: SunDay | null;
   onClose: () => void;
   onStatus: (status: Shot['status']) => void;
-  busy: boolean;
+  /** This frame has a status write that has not reached the server yet. */
+  pending: boolean;
+  /** False for an undated roll, whose curve is today's stand-in. */
+  dated: boolean;
   /** Move through the roll without going back to the list. */
   onStep: (delta: number) => void;
 }) {
   const s = frame.shot;
   const [zoom, setZoom] = useState(false);
+  const scroller = useRef<HTMLDivElement | null>(null);
+
+  // Stepping kept the previous scroll position, so "next" from the bottom bar
+  // landed you mid-page with the reference photograph off-screen above.
+  useEffect(() => { scroller.current?.scrollTo({ top: 0 }); }, [s.id]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -164,10 +186,14 @@ function FrameSheet({
 
   const band = sun && frame.hour != null ? bandAt(sun, frame.hour) : null;
   const wantsGolden = s.light === 'golden' || s.light === 'blue';
-  const conflict = wantsGolden && band && band !== s.light;
+  // An undated roll is drawn against *today's* sun, so a light conflict there
+  // is reporting today's weather on a plan written for some other day. Balboa's
+  // 18:20 golden frame flagged "falls in day light" purely because golden had
+  // moved four minutes since the plan was written.
+  const conflict = dated && wantsGolden && band && band !== s.light;
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={s.title} style={{
+    <div ref={scroller} role="dialog" aria-modal="true" aria-label={s.title} style={{
       position: 'fixed', inset: 0, zIndex: 60, background: 'var(--k-bg)',
       overflowY: 'auto', WebkitOverflowScrolling: 'touch',
       paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)',
@@ -183,7 +209,9 @@ function FrameSheet({
         }}>‹</button>
         <span className="koma-label" style={{ flex: 1, minWidth: 0 }}>
           Frame <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{frame.n}</b> of {total}
-          {frame.stop?.time_label ? ` · ${frame.stop.time_label}` : ''}
+          {/* the frame's own time, not the stop's — they differ by 30 min on
+              the Slaughters loop, and the frame's is the one you shoot to */}
+          {frame.hour != null ? ` · ${fmt24(frame.hour)}` : ''}
           {frame.stop ? ` · ${frame.stop.title}` : ''}
         </span>
         <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
@@ -253,7 +281,14 @@ function FrameSheet({
           <div style={{ marginTop: 12, padding: '9px 11px', borderRadius: 9, background: '#FBEFD9',
                         border: '1px solid #F0DBAE', color: '#633806',
                         fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.5 }}>
-            ⚑ Wants {s.light} light, but {frame.stop?.time_label || 'this slot'} falls in {band} light.
+            ⚑ Wants {s.light} light, but {frame.hour != null ? fmt24(frame.hour) : 'this slot'} falls in {band} light.
+          </div>
+        )}
+
+        {!dated && wantsGolden && (
+          <div style={{ marginTop: 12, fontFamily: 'var(--font-mono)', fontSize: 9.5,
+                        letterSpacing: '0.05em', color: 'var(--k-warn-ink)', lineHeight: 1.5 }}>
+            ⚑ wants {s.light} light — set a date on this roll to check it
           </div>
         )}
 
@@ -300,21 +335,29 @@ function FrameSheet({
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-          {s.status === 'got' ? (
-            <button type="button" className="koma-btn sec" disabled={busy} onClick={() => onStatus('planned')}>
-              Undo
-            </button>
-          ) : (
+          {s.status === 'planned' ? (
             <>
-              <button type="button" className="koma-btn pri" disabled={busy} onClick={() => onStatus('got')}>
-                {busy ? '…' : 'Got it'}
+              <button type="button" className="koma-btn pri" onClick={() => onStatus('got')}>
+                Got it
               </button>
-              <button type="button" className="koma-btn sec" disabled={busy} onClick={() => onStatus('missed')}>
+              <button type="button" className="koma-btn sec" onClick={() => onStatus('missed')}>
                 Missed
               </button>
             </>
+          ) : (
+            // Undo used to be offered for "got" only, so reverting a mis-tapped
+            // "missed" meant marking it got and undoing that.
+            <button type="button" className="koma-btn sec" onClick={() => onStatus('planned')}>
+              Undo {s.status}
+            </button>
           )}
         </div>
+        {pending && (
+          <div style={{ marginTop: 9, fontFamily: 'var(--font-mono)', fontSize: 9.5,
+                        letterSpacing: '0.05em', color: 'var(--k-warn-ink)', lineHeight: 1.5 }}>
+            ⦿ saved on this phone — will sync when you have signal
+          </div>
+        )}
       </div>
 
       {zoom && s.ref_url && (
@@ -337,7 +380,7 @@ function StepBtn({ dir, disabled, onStep }: { dir: -1 | 1; disabled: boolean; on
       disabled={disabled}
       aria-label={dir === -1 ? 'Previous frame' : 'Next frame'}
       style={{
-        width: 34, height: 34, borderRadius: 9, lineHeight: 1, fontSize: 17,
+        width: 44, height: 44, borderRadius: 11, lineHeight: 1, fontSize: 19,
         border: 'var(--k-bw) solid var(--k-border)',
         background: 'var(--k-surface)',
         color: disabled ? 'var(--k-border-2)' : 'var(--k-copper)',
@@ -379,15 +422,17 @@ function bandNow(sun: SunDay, h: number): string {
 // ── DAY ──────────────────────────────────────────────────────────────────────
 
 function KomaDay({
-  day, index, eyebrow, heading, lat, lng, dateISO, shots, carry, isToday, now, onOpen,
+  day, index, eyebrow, heading, lat, lng, dateISO, shots, carry, isToday, now, dated, onOpen,
 }: {
   /** A koji day, or a synthetic one (no stops) standing in for a roll. */
   day: Day; index: number; eyebrow: string; heading: string;
   lat: number | null; lng: number | null; dateISO: string | null;
   shots: Shot[]; carry: Carry | null; isToday: boolean; now: Date;
-  onOpen: (f: Frame, frames: Frame[], sun: SunDay | null) => void;
+  /** False when dateISO is a stand-in rather than a planned date. */
+  dated: boolean;
+  onOpen: (f: Frame, frames: Frame[], sun: SunDay | null, dated: boolean) => void;
 }) {
-  const { sun, offset } = useSun(lat, lng, dateISO);
+  const { sun, offset, source } = useSun(lat, lng, dateISO);
 
   // Times on this screen are the destination's, so the clock must be too.
   const thereHour = offset != null ? hoursAtLocation(now, offset) : null;
@@ -404,7 +449,10 @@ function KomaDay({
   const byStop = useMemo(() => {
     const m = new Map<number | 'loose', Frame[]>();
     for (const f of frames) {
-      const k = f.shot.stop_id ?? 'loose';
+      // Keyed on the *resolved* stop. A stop_id pointing at another day's stop
+      // used to land in a bucket nothing rendered: the frame vanished from the
+      // list while still being counted and still drawing a chart chip.
+      const k = f.stop?.id ?? 'loose';
       if (!m.has(k)) m.set(k, []);
       m.get(k)!.push(f);
     }
@@ -471,10 +519,12 @@ function KomaDay({
         </div>
         {sun
           ? <SunTrack sun={sun} frames={trackFrames} now={nowHour}
-                      onPick={n => { const f = frames.find(x => x.n === n); if (f) onOpen(f, frames, sun); }} />
+                      onPick={n => { const f = frames.find(x => x.n === n); if (f) onOpen(f, frames, sun, dated); }} />
           : <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                  className="koma-label">
-              {lat == null ? 'no coordinates for this day' : 'reading the sun…'}
+              {lat == null ? 'no coordinates for this day'
+                : !dateISO ? 'no date for this day'
+                : 'reading the sun…'}
             </div>}
         {sun && (
           <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)',
@@ -484,6 +534,16 @@ function KomaDay({
             <span>golden {fmtHour(sun.goldenPm)}</span>
             <span>set {fmtHour(sun.sunset)}</span>
             <span>blue {fmtHour(sun.blueEnd)}</span>
+          </div>
+        )}
+        {/* The offset is a guess without a network, and a guess that looks like
+            a fact is the bug this whole file keeps re-learning. */}
+        {sun && source && source !== 'zone' && (
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, lineHeight: 1.5,
+                        color: 'var(--k-warn-ink)', paddingTop: 4 }}>
+            ⚑ {source === 'device'
+              ? "estimated from this phone's time zone"
+              : 'estimated from longitude — may be an hour off'}
           </div>
         )}
         {sun && thereHour != null && (
@@ -558,10 +618,11 @@ function KomaDay({
                  dangerouslySetInnerHTML={{ __html: renderBlockMd(carry.body_md) }} />
           )}
           {!carry && frames.length > 0 && (
-            <div style={{ marginTop: 9, paddingTop: 8,
+            <div className="koma-carry-derived"
+                 style={{ marginTop: 9, paddingTop: 8,
                           borderTop: '1px solid rgba(237,230,218,0.16)',
                           fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.05em',
-                          color: '#877E70', lineHeight: 1.5 }}>
+                          lineHeight: 1.5 }}>
               derived from the {frames.length} planned frame{frames.length === 1 ? '' : 's'}, not decided
             </div>
           )}
@@ -590,7 +651,7 @@ function KomaDay({
             </div>
             {fs.length > 0 && (
               <div style={{ margin: '10px 0 0 61px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {fs.map(f => <ShotRow key={f.shot.id} frame={f} onOpen={() => onOpen(f, frames, sun)} />)}
+                {fs.map(f => <ShotRow key={f.shot.id} frame={f} onOpen={() => onOpen(f, frames, sun, dated)} />)}
               </div>
             )}
           </div>
@@ -603,7 +664,7 @@ function KomaDay({
           <div className="koma-label" style={{ marginBottom: 9 }}>Anywhere this day</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {byStop.get('loose')!.map(f => (
-              <ShotRow key={f.shot.id} frame={f} onOpen={() => onOpen(f, frames, sun)} />
+              <ShotRow key={f.shot.id} frame={f} onOpen={() => onOpen(f, frames, sun, dated)} />
             ))}
           </div>
         </div>
@@ -700,8 +761,10 @@ export function KomaView({
   sunMode: boolean;
   onShotChange: (shot: Shot) => void;
 }) {
-  const [open, setOpen] = useState<{ frame: Frame; frames: Frame[]; sun: SunDay | null } | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState<
+    { frame: Frame; frames: Frame[]; sun: SunDay | null; dated: boolean } | null
+  >(null);
+  const pending = usePendingStatus();
   const [now, setNow] = useState<Date>(() => new Date());
 
   useEffect(() => {
@@ -711,30 +774,34 @@ export function KomaView({
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
+  // A queued tap outranks the status the page was served with, so a reload
+  // before the queue drains still shows what you marked.
+  const shotsView = useMemo(() => (
+    pending.size === 0 ? shots : shots.map(sh => {
+      const p = pending.get(sh.id);
+      return p && p !== sh.status ? { ...sh, status: p as Shot['status'] } : sh;
+    })
+  ), [shots, pending]);
+
   // Keep the open sheet pointing at the live row after a status write
   useEffect(() => {
     if (!open) return;
-    const fresh = shots.find(s => s.id === open.frame.shot.id);
+    const fresh = shotsView.find(s => s.id === open.frame.shot.id);
     if (fresh && fresh !== open.frame.shot) {
       setOpen(o => (o ? { ...o, frame: { ...o.frame, shot: fresh } } : o));
     }
-  }, [shots, open]);
+  }, [shotsView, open]);
 
-  const setStatus = useCallback(async (shot: Shot, status: Shot['status']) => {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/koma/shots?id=${shot.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) onShotChange({ ...shot, status });
-    } finally {
-      setBusy(false);
-    }
+  // The tap is the truth: state moves now, the write is queued, and the queue
+  // drains whenever there is signal. Waiting on `res.ok` meant a failed write
+  // left the button looking like it had not been pressed.
+  const setStatus = useCallback((shot: Shot, status: Shot['status']) => {
+    onShotChange({ ...shot, status });
+    queueStatus(shot.id, status);
+    void flush();
   }, [onShotChange]);
 
-  const total = days.reduce((n, d) => n + shots.filter(s => s.day_id === d.id).length, 0);
+  const total = days.reduce((n, d) => n + shotsView.filter(s => s.day_id === d.id).length, 0);
 
   if (!total) {
     return (
@@ -752,13 +819,16 @@ export function KomaView({
         <KomaDay
           key={day.id}
           day={day} index={i}
-          eyebrow={`Day ${i + 1} of ${days.length}`}
+          // "Thu, Oct 15 · Day 1 of 11" — the date only existed in the rail.
+          eyebrow={[day.label.split(/\s[-–—]\s/)[0], `Day ${i + 1} of ${days.length}`]
+            .filter(Boolean).join(' · ')}
           heading={day.label.split(/\s[-–—]\s/)[1] ?? day.label}
           lat={day.lat ?? trip.lat} lng={day.lng ?? trip.lng}
-          dateISO={dateForDay(i)} shots={shots}
+          dateISO={dateForDay(i)} shots={shotsView}
+          dated={dateForDay(i) != null}
           carry={carry.find(c => c.day_id === day.id) ?? null}
           isToday={i === todayIdx} now={now}
-          onOpen={(frame, frames, sun) => setOpen({ frame, frames, sun })}
+          onOpen={(frame, frames, sun, dated) => setOpen({ frame, frames, sun, dated })}
         />
       ))}
 
@@ -768,7 +838,8 @@ export function KomaView({
             frame={open.frame}
             total={open.frames.length}
             sun={open.sun}
-            busy={busy}
+            pending={pending.has(open.frame.shot.id)} dated={open.dated}
+            dated={open.dated}
             onClose={() => setOpen(null)}
             onStatus={st => setStatus(open.frame.shot, st)}
             onStep={d => setOpen(o => {
@@ -798,8 +869,10 @@ export function KomaRollView({
   sunMode: boolean;
   onShotChange: (shot: Shot) => void;
 }) {
-  const [open, setOpen] = useState<{ frame: Frame; frames: Frame[]; sun: SunDay | null } | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState<
+    { frame: Frame; frames: Frame[]; sun: SunDay | null; dated: boolean } | null
+  >(null);
+  const pending = usePendingStatus();
   const [now, setNow] = useState<Date>(() => new Date());
 
   useEffect(() => {
@@ -809,26 +882,30 @@ export function KomaRollView({
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
+  // A queued tap outranks the status the page was served with, so a reload
+  // before the queue drains still shows what you marked.
+  const shotsView = useMemo(() => (
+    pending.size === 0 ? shots : shots.map(sh => {
+      const p = pending.get(sh.id);
+      return p && p !== sh.status ? { ...sh, status: p as Shot['status'] } : sh;
+    })
+  ), [shots, pending]);
+
   useEffect(() => {
     if (!open) return;
-    const fresh = shots.find(s => s.id === open.frame.shot.id);
+    const fresh = shotsView.find(s => s.id === open.frame.shot.id);
     if (fresh && fresh !== open.frame.shot) {
       setOpen(o => (o ? { ...o, frame: { ...o.frame, shot: fresh } } : o));
     }
-  }, [shots, open]);
+  }, [shotsView, open]);
 
-  const setStatus = useCallback(async (shot: Shot, status: Shot['status']) => {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/koma/shots?id=${shot.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) onShotChange({ ...shot, status });
-    } finally {
-      setBusy(false);
-    }
+  // The tap is the truth: state moves now, the write is queued, and the queue
+  // drains whenever there is signal. Waiting on `res.ok` meant a failed write
+  // left the button looking like it had not been pressed.
+  const setStatus = useCallback((shot: Shot, status: Shot['status']) => {
+    onShotChange({ ...shot, status });
+    queueStatus(shot.id, status);
+    void flush();
   }, [onShotChange]);
 
   // A roll with no date still gets a curve — today's, where it is. The shape of
@@ -841,7 +918,7 @@ export function KomaRollView({
     id: -roll.id, trip_id: -1, label: roll.title, sort_order: 0,
     lat: roll.lat, lng: roll.lng, location_label: roll.location_label, stops: [],
   };
-  const asDayShots = shots.map(s => ({ ...s, day_id: day.id, stop_id: null }));
+  const asDayShots = shotsView.map(s => ({ ...s, day_id: day.id, stop_id: null }));
 
   return (
     <main className={sunMode ? 'koma sun' : 'koma'} style={{ background: 'var(--k-bg)', minHeight: '60vh' }}>
@@ -852,7 +929,8 @@ export function KomaRollView({
         heading={roll.title}
         lat={roll.lat} lng={roll.lng} dateISO={dateISO}
         shots={asDayShots} carry={carry} isToday={isToday} now={now}
-        onOpen={(frame, frames, sun) => setOpen({ frame, frames, sun })}
+        dated={!!roll.roll_date}
+        onOpen={(frame, frames, sun, dated) => setOpen({ frame, frames, sun, dated })}
       />
 
       {roll.notes_md && (
@@ -866,7 +944,8 @@ export function KomaRollView({
       {open && (
         <div className={sunMode ? 'koma sun' : 'koma'}>
           <FrameSheet
-            frame={open.frame} total={open.frames.length} sun={open.sun} busy={busy}
+            frame={open.frame} total={open.frames.length} sun={open.sun}
+            pending={pending.has(open.frame.shot.id)}
             onClose={() => setOpen(null)}
             onStatus={st => setStatus(open.frame.shot, st)}
             onStep={d => setOpen(o => {
