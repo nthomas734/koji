@@ -130,6 +130,12 @@ export function fmtHour(h: number | null): string {
 }
 
 /** 15.25 → "15:15" */
+/**
+ * 24-hour, for `at_time` round-trips and debugging. **Not** for anything on
+ * screen: koma reads 12-hour throughout, because koji's own stop labels are
+ * ("4:30pm", "Noon", "9am") and a sheet that said 17:30 next to a stop that
+ * said 4pm was three formats in one screen.
+ */
 export function fmt24(h: number | null): string {
   if (h == null || !isFinite(h)) return '—';
   const total = Math.round(h * 60);
