@@ -441,7 +441,10 @@ function KomaDay({
     return cur;
   }, [isToday, nowHour, stops]);
 
-  if (!frames.length) return null;
+  // A day with no frames used to vanish. It can now still carry a written gear
+  // call — the fly-out day, the open day, departures — and those are days the
+  // advice matters on precisely because nothing is planned.
+  if (!frames.length && !carry) return null;
 
   return (
     <section id={`day-${index}`} data-day-idx={index} className="row-in"
@@ -457,6 +460,7 @@ function KomaDay({
       </div>
 
       {/* the day's light, with its frames hung beneath */}
+      {frames.length > 0 && (
       <div className="koma-card">
         <div className="koma-label" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span>The roll</span>
@@ -509,6 +513,13 @@ function KomaDay({
           </div>
         )}
       </div>
+      )}
+
+      {frames.length === 0 && (
+        <div style={{ margin: '0 12px 12px' }} className="koma-label">
+          No frames planned — the day is loose.
+        </div>
+      )}
 
       {/* gear call */}
       {lenses.length > 0 && (
