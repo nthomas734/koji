@@ -17,6 +17,38 @@ function fmtDate(iso: string | null, end: string | null): string {
 }
 
 // An open book with ruled pages — the shelf, at 44px, next to the back link.
+// ── The roll as a strip of film ─────────────────────────────────────────────
+// koma is named for a single frame, and the index was the one screen that never
+// said so — plain cards with a copper rule, next to an itineraries page of deep
+// themed blocks. Each row is now a frame: film base, perforated top and bottom,
+// with the got/planned count sitting where a frame counter does.
+const FILM = {
+  base:  '#17150F',   // exposed film base, warm rather than neutral black
+  band:  '#0D0C08',   // the edge strip, a shade deeper than the frame
+  hole:  '#EDE4D2',   // perforations read as clear film, not as white
+  ink:   '#F2ECE1',
+  ink2:  '#AFA492',
+  ink3:  '#847A6B',
+  count: '#FBB04F',
+  done:  '#8FCB9B',
+};
+
+/** One edge of perforations. A gradient rather than elements: at 8x5px the
+ *  corner rounding of a real perf is below the threshold of visibility, and
+ *  this way the strip costs nothing and tiles to any card height. */
+function Perf() {
+  return (
+    <div aria-hidden style={{
+      height: 13,
+      background: FILM.band,
+      backgroundImage: `linear-gradient(to bottom, ${FILM.hole} 0 5px, transparent 5px)`,
+      backgroundSize: '9px 13px',
+      backgroundRepeat: 'repeat-x',
+      backgroundPosition: 'center 4px',
+    }} />
+  );
+}
+
 function BookMark() {
   return (
     <svg width="21" height="21" viewBox="0 0 20 20" fill="none" aria-hidden
@@ -96,44 +128,45 @@ export default async function KomaIndex() {
             className="pressable row-in"
             style={{
               animationDelay: `${Math.min(i, 8) * 40}ms`,
-              display: 'block', background: 'var(--surface)',
-              border: '0.5px solid var(--border)', borderRadius: 14,
-              padding: '14px 16px', position: 'relative', overflow: 'hidden',
+              display: 'block', borderRadius: 14, overflow: 'hidden',
+              background: FILM.base, color: FILM.ink,
             }}
           >
-            <div style={{
-              position: 'absolute', left: 0, top: 10, bottom: 10, width: 3,
-              background: '#B83C01', borderRadius: 4,
-              opacity: roll.frames && roll.got === roll.frames ? 1 : 0.35,
-            }} />
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, paddingLeft: 6 }}>
-              <h2 style={{
-                fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 18,
-                letterSpacing: '-0.01em', color: 'var(--ink)', flex: 1,
-              }}>
-                {roll.title}
-              </h2>
+            <Perf />
+            <div style={{ padding: '14px 17px 15px', display: 'flex', alignItems: 'baseline', gap: 12 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h2 style={{
+                  fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 19,
+                  letterSpacing: '-0.01em', color: FILM.ink, lineHeight: 1.2,
+                }}>
+                  {roll.title}
+                </h2>
+                {roll.subtitle && (
+                  <p style={{ fontSize: 13, color: FILM.ink2, lineHeight: 1.45, marginTop: 4 }}>
+                    {roll.subtitle}
+                  </p>
+                )}
+                <div style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.1em',
+                  textTransform: 'uppercase', color: FILM.ink3, marginTop: 9,
+                }}>
+                  {[
+                    roll.location,
+                    fmtDate(roll.date, roll.date_end),
+                    roll.kind === 'trip' ? `${roll.days} days` : null,
+                  ].filter(Boolean).join('  ·  ')}
+                </div>
+              </div>
+              {/* Frame counter, in the corner a film counter would be. */}
               <span className="num" style={{
-                fontFamily: 'var(--font-mono)', fontSize: 11, color: '#B83C01', flexShrink: 0,
+                fontFamily: 'var(--font-mono)', fontSize: 12, flexShrink: 0,
+                color: roll.frames && roll.got === roll.frames ? FILM.done : FILM.count,
+                letterSpacing: '0.04em',
               }}>
                 {roll.got}/{roll.frames}
               </span>
             </div>
-            {roll.subtitle && (
-              <p style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5, marginTop: 4, paddingLeft: 6 }}>
-                {roll.subtitle}
-              </p>
-            )}
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.06em',
-              color: 'var(--ink-4)', marginTop: 7, paddingLeft: 6,
-            }}>
-              {[
-                roll.location,
-                fmtDate(roll.date, roll.date_end),
-                roll.kind === 'trip' ? `${roll.days} days` : null,
-              ].filter(Boolean).join(' · ')}
-            </div>
+            <Perf />
           </Link>
         ))}
       </div>
