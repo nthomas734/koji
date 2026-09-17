@@ -202,6 +202,28 @@ will not place a now-line unless the date matches.
 Entry is the same everywhere: long-press `KomaMark`. On the itineraries list
 (`KomaHomeMark`) it routes to `/koma`; on a trip page it toggles the mode.
 
+### The frame sheet (2026-09-17)
+
+**Information first.** Sketch or photograph, title, lens, where to stand, then
+the technical note. The sheet is read *before* the shot; the mark happens after,
+often much later, so the reading order is not negotiable.
+
+That put "Got it" at the foot of the content and below the fold on every frame,
+so the action bar is **pinned** (`position: sticky; bottom: 0`, the dialog is a
+flex column so it sits at the foot of a short sheet rather than floating).
+Bottom-right, where the thumb is — the header was considered and rejected, top-
+right being the hardest corner one-handed.
+
+The bar carries the stepper, which used to be drawn twice. **Missed stays down
+in the content on purpose**: it is the rarer mark and does not need to hold a
+permanent 58px of a phone screen.
+
+Rings on the list rows and a catch-up triage flow were both designed and
+rejected — the list is cleaner without a second tap target, and no frame in the
+app has ever been marked, so a triage flow would be built on no evidence. New
+York in October is the first trip that will produce any. Revisit then, not
+before.
+
 ### Sketches (2026-09-16)
 
 `KomaSketch` draws a composition diagram from a short spec. The rule, learned by
