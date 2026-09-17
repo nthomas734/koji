@@ -151,11 +151,19 @@ by an iterative relaxation pass while a tick and a slanted leader keep pointing
 at the true time. The curve's shape is the information: a low flat arc means
 raking light all day, a tall dome means an unusable middle.
 
-Sun times need the location's UTC offset, which koji does not store. It comes
-from Open-Meteo `timezone=auto` (`utcOffsetFor`, cached in module scope);
-deriving it from longitude is the fallback only, since that is an hour wrong
-anywhere on summer time. This is a separate fetch from the weather code on
-purpose — don't couple koma to `TripView`'s weather effect.
+Sun times need the location's UTC offset, which koji does not store.
+`utcOffsetFor` gets it in **two steps, and the split matters**: Open-Meteo is
+asked only for the IANA zone at the coordinate, and `zoneOffsetSec()` then
+derives the offset for the trip's date from that zone with `Intl`. Do not put
+the date back into the Open-Meteo call — it serves a rolling ~fortnight window
+and anything outside it 400s. That bug shipped: every day of a trip a month out
+fell through to the longitude fallback and rendered an hour early, golden hour
+included, and would have corrected itself silently as the window rolled
+forward. `sql/sun-audit.md` has the full account. The Intl step also gets DST
+transitions inside a trip right, which a single offset never can.
+
+This is a separate fetch from the weather code on purpose — don't couple koma
+to `TripView`'s weather effect.
 
 **Colour.** koma swaps koji's brass for a copper sampled off a Sony E-mount
 ring: `--k-copper #B83C01` (5.0:1 on parchment) with `#CF6A21` and `#FBB04F`
