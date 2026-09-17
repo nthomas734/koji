@@ -256,6 +256,20 @@ one belongs in the note:
 26 of 63 frames have a binding line; 37 are prose only. An earlier sweep put a
 settings line on about 45 and most of them were noise.
 
+**A binding line names the control, not just the number** (2026-09-17). The
+camera now runs aperture priority with Auto ISO, a 1/250 shutter floor, two
+zebra presets and focus on the thumb, so "1/500 minimum" no longer tells you
+what to touch — it could mean raise the floor or leave A mode entirely, and
+those are different actions. Frames say **"Floor to 1/500, and hold AF-ON"**.
+The mill wheel says the slow version needs manual, because aperture priority
+only gives a floor and will run faster whenever there is light.
+
+Nine frames carry a pivot: six raise the floor for a moving subject, two switch
+to the skin zebra because a face is the subject and the meter will get it wrong,
+one needs manual. The other fifty-six do not, and the rule below still governs —
+a pivot is a binding setting, so it earns a line only where the default setup
+would produce a failed frame.
+
 **Never repeat the focal length.** The lens chip above the note already reads
 "70-200mm @ 135-200". Say a focal only when you are arguing about it.
 
