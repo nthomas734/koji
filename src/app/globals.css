@@ -299,6 +299,10 @@ input, textarea, select {
   --k-copper-mid:  #CF6A21;
   --k-copper-lite: #FBB04F;
   --k-copper-tint: #FBE7D4;
+  /* 5.4:1 on parchment. The two things it marks — an estimated time and an
+     unsent write — are both "do not trust this yet", so it must not read as
+     decoration the way the brass did. */
+  --k-warn-ink: #8A5200;
   --k-bw: 1px;
   --k-fs: 0px;
 }
@@ -314,6 +318,7 @@ input, textarea, select {
   --k-copper:      #8F2F01;
   --k-copper-mid:  #8F2F01;
   --k-copper-tint: #FCE3CF;
+  --k-warn-ink: #6B3F00;   /* 8.0:1 */
   --k-bw: 2px;
   --k-fs: 1px;
   background: var(--k-bg);
@@ -419,3 +424,9 @@ input, textarea, select {
 .koma-carry-md ul     { margin: 6px 0 7px; padding-left: 16px; }
 .koma-carry-md li     { margin-bottom: 4px; }
 .koma-carry-md li::marker { color: #877E70; }
+
+/* The carry card is hard-coded dark, so nothing in it responds to sun mode.
+   This is the line that admits the gear call was never decided by anyone; at
+   #877E70 it was 4.3:1, which is the wrong contrast for the wrong line. */
+.koma-carry-derived { color: #BDB3A2; }
+.koma.sun .koma-carry-derived { color: #E4DACA; font-size: 10.5px; }

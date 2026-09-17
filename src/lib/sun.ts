@@ -140,6 +140,27 @@ export function fmt24(h: number | null): string {
  * Parse the free-text time labels koji already uses on stops.
  * "3:15pm" → 15.25 · "11:45" → 11.75 · "Noon" → 12 · "" → null
  */
+/**
+ * A 24-hour clock value, `HH:MM`, which is how koma writes `at_time`.
+ *
+ * Deliberately strict, and deliberately *not* `parseTimeLabel`. That one guesses
+ * at koji's free-text stop labels and pushes a bare hour under 7 into the
+ * afternoon — right for "5:15" on a travel day, catastrophic for a dawn frame.
+ * The Cuyamaca roll's 06:30 and 06:55 plotted at 18:30 and 18:55: the one roll
+ * that exists *because* of the dawn had both its dawn frames hung at sunset.
+ *
+ * Anything that is not a clock returns null rather than a plausible number.
+ */
+export function parseClock(t: string | null | undefined): number | null {
+  if (!t) return null;
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h + min / 60;
+}
+
 export function parseTimeLabel(label: string | null | undefined): number | null {
   if (!label) return null;
   const s = label.trim().toLowerCase();
@@ -187,83 +208,148 @@ export function interpAlt(sun: SunDay, h: number): number {
 }
 
 // ── UTC OFFSET ───────────────────────────────────────────────────────────────
-// Two steps, and the split matters.
+// Three steps, in order of how much they can be trusted, and the order matters.
 //
-// Open-Meteo is asked only for the IANA zone name at a coordinate. It is *not*
-// asked about the trip's date: the forecast endpoint serves a rolling window of
-// roughly the next fortnight, and a `start_date` outside it returns 400. Every
-// day of a trip planned a month out fell into the longitude fallback and came
-// back UTC+0 — so the whole England plan rendered an hour early, golden hour
-// included, and would have quietly corrected itself a week before departure as
-// the window rolled forward.
+// 1. Open-Meteo is asked only for the IANA zone at a coordinate. It is *not*
+//    asked about the trip's date: the forecast endpoint serves a rolling window
+//    of roughly the next fortnight, and a `start_date` outside it returns 400.
+//    That shipped — every day of a trip planned a month out came back UTC+0 and
+//    the whole plan rendered an hour early. See `sql/sun-audit.md`.
+// 2. Failing that, the phone's own zone — but only when it plausibly *is* the
+//    place. A phone in London answering for London is exactly right, DST and
+//    all; a phone in San Diego answering for London is eight hours of nonsense.
+//    Solar time from longitude is the referee.
+// 3. Failing that, solar time from longitude, which is an hour out anywhere on
+//    summer time.
 //
-// The offset for the trip's date is then computed locally with Intl, which
-// knows the zone's DST rules for any date. That also gets the 25th of October
-// right: BST ends that morning, and the last day of the trip is the 25th.
+// Which one answered is returned, not swallowed, because 2 and 3 are guesses
+// and the screen says so. The first version of this cached a failed lookup
+// forever, so one dead spot poisoned the whole session — hence the TTL.
 
-const zoneCache   = new Map<string, string>();
-const offsetCache = new Map<string, number>();
+const NEG_TTL_MS = 60_000;
+
+const zoneCache   = new Map<string, string>();                     // resolved, kept
+const zonePending = new Map<string, Promise<string | null>>();     // in flight, shared
+const zoneFailed  = new Map<string, number>();                     // when it last failed
+
+export type OffsetSource = 'zone' | 'device' | 'longitude';
+
+export interface Offset {
+  seconds: number;
+  source:  OffsetSource;
+  /** The IANA zone, when one was resolved. */
+  zone:    string | null;
+}
 
 /**
  * Seconds east of UTC in `zone` on `dateISO`. Formats noon UTC into the zone
- * and diffs — noon is chosen because DST transitions happen in the small
- * hours, so the answer is never taken from inside a fold.
+ * and diffs — noon because DST transitions happen in the small hours, so the
+ * answer is never taken from inside a fold. Returns null for a zone Intl does
+ * not know, which it throws on.
  */
-export function zoneOffsetSec(zone: string, dateISO: string): number {
+export function zoneOffsetSec(zone: string, dateISO: string): number | null {
   const at = new Date(`${dateISO}T12:00:00Z`);
-  if (isNaN(at.getTime())) return 0;
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: zone, hour12: false,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).formatToParts(at);
-  const p: Record<string, string> = {};
-  for (const { type, value } of parts) p[type] = value;
-  // Intl renders midnight as hour "24" in some engines.
-  const hour = Number(p.hour) % 24;
-  const local = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day),
-                         hour, Number(p.minute), Number(p.second));
-  return Math.round((local - at.getTime()) / 1000);
+  if (isNaN(at.getTime())) return null;
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(at);
+    const p: Record<string, string> = {};
+    for (const { type, value } of parts) p[type] = value;
+    // Intl renders midnight as hour "24" in some engines.
+    const hour = Number(p.hour) % 24;
+    const local = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day),
+                           hour, Number(p.minute), Number(p.second));
+    return Math.round((local - at.getTime()) / 1000);
+  } catch {
+    return null;
+  }
 }
 
-/** The IANA zone at a coordinate, asked once per location per session. */
+/** The IANA zone at a coordinate. One request per location, shared in flight. */
 async function zoneFor(lat: number, lng: number): Promise<string | null> {
   const key = `${lat.toFixed(2)},${lng.toFixed(2)}`;
+
   const hit = zoneCache.get(key);
-  if (hit !== undefined) return hit || null;
+  if (hit) return hit;
+
+  const failedAt = zoneFailed.get(key);
+  if (failedAt != null && Date.now() - failedAt < NEG_TTL_MS) return null;
+
+  // Eleven KomaDay instances mount at once. Without this they are eleven
+  // requests and eleven chances to hit the timeout below.
+  const inFlight = zonePending.get(key);
+  if (inFlight) return inFlight;
 
   // No date range — this is a question about the place, not the day.
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
     `&timezone=auto&forecast_days=1`;
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(t);
-    if (!res.ok) throw new Error(String(res.status));
-    const json = await res.json();
-    const zone = typeof json?.timezone === 'string' ? json.timezone : '';
-    if (!zone || zone === 'GMT') throw new Error('no zone');
-    zoneCache.set(key, zone);
-    return zone;
-  } catch {
-    zoneCache.set(key, '');
-    return null;
-  }
+
+  const p = (async () => {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!res.ok) throw new Error(String(res.status));
+      const json = await res.json();
+      const zone = typeof json?.timezone === 'string' ? json.timezone : '';
+      if (!zone || zone === 'GMT') throw new Error('no zone');
+      zoneCache.set(key, zone);
+      zoneFailed.delete(key);
+      return zone;
+    } catch {
+      zoneFailed.set(key, Date.now());
+      return null;
+    } finally {
+      zonePending.delete(key);
+    }
+  })();
+
+  zonePending.set(key, p);
+  return p;
 }
+
+/**
+ * No network. Trust the phone's zone only if it is roughly over this longitude
+ * — within 90 minutes of solar time. Standing in London that gives the real
+ * BST offset; sitting in San Diego planning London it does not, and we say so.
+ */
+function withoutNetwork(lng: number, dateISO: string): Offset {
+  const solar = Math.round(lng / 15) * 3600;
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (zone) {
+      const off = zoneOffsetSec(zone, dateISO);
+      if (off != null && Math.abs(off - solar) <= 90 * 60) {
+        return { seconds: off, source: 'device', zone };
+      }
+    }
+  } catch { /* no Intl, or no resolved zone */ }
+  return { seconds: solar, source: 'longitude', zone: null };
+}
+
+const offsetCache = new Map<string, Offset>();
 
 export async function utcOffsetFor(
   lat: number, lng: number, dateISO: string,
-): Promise<number> {
+): Promise<Offset> {
   const key = `${lat.toFixed(2)},${lng.toFixed(2)},${dateISO}`;
   const hit = offsetCache.get(key);
-  if (hit !== undefined) return hit;
+  if (hit) return hit;
 
   const zone = await zoneFor(lat, lng);
-  // Solar time from longitude. An hour out on summer time, but the curve's
-  // shape — which is what the chart is for — stays correct.
-  const off = zone ? zoneOffsetSec(zone, dateISO) : Math.round(lng / 15) * 3600;
-  offsetCache.set(key, off);
-  return off;
+  const exact = zone ? zoneOffsetSec(zone, dateISO) : null;
+
+  const out: Offset = exact != null
+    ? { seconds: exact, source: 'zone', zone }
+    : withoutNetwork(lng, dateISO);
+
+  // A guess is not cached — the next render, after the phone finds signal
+  // again, should get the real answer.
+  if (out.source === 'zone') offsetCache.set(key, out);
+  return out;
 }

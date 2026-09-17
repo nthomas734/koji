@@ -1745,7 +1745,7 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
           href={`/admin/trips/${trip.id}`}
           className="tap"
           style={{
-            marginLeft: shots !== null ? 10 : 'auto',
+            marginLeft: shots.length > 0 ? 10 : 'auto',   // an array is never null
             color: 'var(--ink-4)',
             display: 'flex',
             alignItems: 'center',
