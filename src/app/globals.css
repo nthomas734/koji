@@ -400,3 +400,22 @@ input, textarea, select {
 }
 .koma-fill { animation: koma-fill 0.5s backwards cubic-bezier(0.23, 1, 0.32, 1); }
 @media (prefers-reduced-motion: reduce) { .koma-fill { animation: none; } }
+
+/* ── koma: the carry note ────────────────────────────────────────────────────
+   Markdown inside the dark "carry today" card. The shared .body-content rules
+   assume a paper background — green links and ink-black bold both vanish here,
+   so the whole block gets its own scale off the card's cream.                */
+.koma-carry-md {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #C7BFB0;
+}
+.koma-carry-md strong { color: #F2ECE1; font-weight: 600; }
+.koma-carry-md em     { color: #A89E8D; font-style: italic; }
+.koma-carry-md a      { color: var(--k-copper-lite); text-decoration-color: rgba(232,150,90,0.45); }
+.koma-carry-md a:hover { text-decoration-color: var(--k-copper-lite); }
+.koma-carry-md p      { margin: 0 0 7px; }
+.koma-carry-md p:last-child { margin-bottom: 0; }
+.koma-carry-md ul     { margin: 6px 0 7px; padding-left: 16px; }
+.koma-carry-md li     { margin-bottom: 4px; }
+.koma-carry-md li::marker { color: #877E70; }

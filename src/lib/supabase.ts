@@ -148,6 +148,21 @@ export interface Shot {
 }
 
 /**
+ * What to put in the bag, written by hand rather than derived from the frames.
+ * The derived list only knows what was planned, so a day with one frame on it
+ * gives confident, wrong advice — and it can never know about the dinner, the
+ * museum you wander into, or the five miles of walking between them.
+ */
+export interface Carry {
+  id:      number;
+  day_id:  number | null;
+  roll_id: number | null;
+  /** In carry order, longest first. Drives the lens icons and the total weight. */
+  lenses:  string[];
+  body_md: string;
+}
+
+/**
  * Everything koma can open, in one list: standalone rolls *and* the trips that
  * have frames planned against them. A trip day is a roll that happens to hang
  * off an itinerary, so /koma is the single way in to all of it.
@@ -213,7 +228,9 @@ export async function getKomaEntries(): Promise<KomaEntry[]> {
   });
 }
 
-export async function getRollBySlug(slug: string): Promise<{ roll: Roll; shots: Shot[] } | null> {
+export async function getRollBySlug(slug: string): Promise<{
+  roll: Roll; shots: Shot[]; carry: Carry | null;
+} | null> {
   const { data: roll, error } = await supabase
     .from('koma_rolls')
     .select('*')
@@ -228,7 +245,17 @@ export async function getRollBySlug(slug: string): Promise<{ roll: Roll; shots: 
     .eq('roll_id', roll.id)
     .order('sort_order');
 
-  return { roll: roll as Roll, shots: (shots as Shot[]) ?? [] };
+  const { data: carry } = await supabase
+    .from('koma_carry')
+    .select('*')
+    .eq('roll_id', roll.id)
+    .maybeSingle();
+
+  return {
+    roll: roll as Roll,
+    shots: (shots as Shot[]) ?? [],
+    carry: (carry as Carry | null) ?? null,
+  };
 }
 
 /** koma is hidden behind a long-press, not access-controlled — see CLAUDE.md. */
@@ -259,6 +286,7 @@ export async function getTripBySlug(slug: string): Promise<{
   logistics: Logistics[];
   days: Day[];
   shots: Shot[];
+  carry: Carry[];
 } | null> {
   const { data: trip, error } = await supabase
     .from('koji_trips')
@@ -291,10 +319,16 @@ export async function getTripBySlug(slug: string): Promise<{
     .eq('trip_id', trip.id)
     .order('sort_order');
 
+  const dayIds = (days ?? []).map((d: { id: number }) => d.id);
+  const { data: carry } = dayIds.length
+    ? await supabase.from('koma_carry').select('*').in('day_id', dayIds)
+    : { data: [] };
+
   return {
     trip,
     logistics: logistics ?? [],
     days: (days as Day[]) ?? [],
     shots: (shots as Shot[]) ?? [],
+    carry: (carry as Carry[]) ?? [],
   };
 }

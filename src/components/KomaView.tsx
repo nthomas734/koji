@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import type { Day, Roll, Shot, Stop, Trip } from '@/lib/supabase';
-import { renderMd } from '@/lib/markdown';
+import type { Carry, Day, Roll, Shot, Stop, Trip } from '@/lib/supabase';
+import { renderMd, renderBlockMd } from '@/lib/markdown';
 import { SunTrack, type TrackFrame } from './SunTrack';
 import { KomaSketch } from './KomaSketch';
-import { LensMark, lensLabel, lensLength } from './LensMark';
+import { LensMark, lensLabel, lensLength, lensWeight, fmtWeight } from './LensMark';
 import {
   sunDay, utcOffsetFor, parseTimeLabel, fmtHour, fmt24, bandAt,
   type SunDay,
@@ -379,12 +379,12 @@ function bandNow(sun: SunDay, h: number): string {
 // ── DAY ──────────────────────────────────────────────────────────────────────
 
 function KomaDay({
-  day, index, eyebrow, heading, lat, lng, dateISO, shots, isToday, now, onOpen,
+  day, index, eyebrow, heading, lat, lng, dateISO, shots, carry, isToday, now, onOpen,
 }: {
   /** A koji day, or a synthetic one (no stops) standing in for a roll. */
   day: Day; index: number; eyebrow: string; heading: string;
   lat: number | null; lng: number | null; dateISO: string | null;
-  shots: Shot[]; isToday: boolean; now: Date;
+  shots: Shot[]; carry: Carry | null; isToday: boolean; now: Date;
   onOpen: (f: Frame, frames: Frame[], sun: SunDay | null) => void;
 }) {
   const { sun, offset } = useSun(lat, lng, dateISO);
@@ -414,7 +414,11 @@ function KomaDay({
   const done   = frames.filter(f => f.shot.status === 'got').length;
   const musts  = frames.filter(f => f.shot.priority === 'must');
   const mustsLeft = musts.filter(f => f.shot.status === 'planned').length;
-  const lenses = Array.from(new Set(frames.map(f => f.shot.lens).filter(Boolean))) as string[];
+  // A written carry wins. The derived list only knows the frames that got
+  // planned, so a thin day reads as "40mm" on a day that wants all three.
+  const derived = Array.from(new Set(frames.map(f => f.shot.lens).filter(Boolean))) as string[];
+  const lenses = carry?.lenses.length ? carry.lenses : derived;
+  const grams  = lenses.reduce((g, l) => g + lensWeight(l), 0);
 
   const trackFrames: TrackFrame[] = frames.map(f => ({
     n: f.n, hour: f.hour,
@@ -510,17 +514,38 @@ function KomaDay({
       {lenses.length > 0 && (
         <div style={{ margin: '0 12px 12px', background: 'var(--k-ink)', color: '#EDE6DA',
                       borderRadius: 12, padding: '11px 13px' }}>
-          <div className="koma-label" style={{ color: 'var(--k-copper-lite)', marginBottom: 5 }}>
-            Carry today
+          <div className="koma-label" style={{ color: 'var(--k-copper-lite)', marginBottom: 7,
+                                               display: 'flex', justifyContent: 'space-between' }}>
+            <span>Carry today</span>
+            {grams > 0 && <span style={{ color: '#9C9384' }}>{fmtWeight(grams)} of glass</span>}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {[...lenses].sort((a, b) => lensLength(b) - lensLength(a)).map(l => (
               <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <LensMark lens={l} color="var(--k-copper-lite)" height={15} />
-                <span style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 500 }}>{l}</span>
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 500, flex: 1 }}>{l}</span>
+                {lensWeight(l) > 0 && (
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: '#877E70' }}>
+                    {lensWeight(l)}g
+                  </span>
+                )}
               </div>
             ))}
           </div>
+          {carry?.body_md && (
+            <div className="body-content koma-carry-md"
+                 style={{ marginTop: 10, paddingTop: 9,
+                          borderTop: '1px solid rgba(237,230,218,0.16)' }}
+                 dangerouslySetInnerHTML={{ __html: renderBlockMd(carry.body_md) }} />
+          )}
+          {!carry && frames.length > 0 && (
+            <div style={{ marginTop: 9, paddingTop: 8,
+                          borderTop: '1px solid rgba(237,230,218,0.16)',
+                          fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.05em',
+                          color: '#877E70', lineHeight: 1.5 }}>
+              read off the {frames.length} planned frame{frames.length === 1 ? '' : 's'} — nobody decided this
+            </div>
+          )}
         </div>
       )}
 
@@ -645,11 +670,12 @@ function RollFinished({ frames }: { frames: Frame[] }) {
 // ── VIEW ─────────────────────────────────────────────────────────────────────
 
 export function KomaView({
-  trip, days, shots, dateForDay, todayIdx, sunMode, onShotChange,
+  trip, days, shots, carry, dateForDay, todayIdx, sunMode, onShotChange,
 }: {
   trip: Trip;
   days: Day[];
   shots: Shot[];
+  carry: Carry[];
   dateForDay: (i: number) => string | null;
   todayIdx: number;
   sunMode: boolean;
@@ -711,6 +737,7 @@ export function KomaView({
           heading={day.label.split(/\s[-–—]\s/)[1] ?? day.label}
           lat={day.lat ?? trip.lat} lng={day.lng ?? trip.lng}
           dateISO={dateForDay(i)} shots={shots}
+          carry={carry.find(c => c.day_id === day.id) ?? null}
           isToday={i === todayIdx} now={now}
           onOpen={(frame, frames, sun) => setOpen({ frame, frames, sun })}
         />
@@ -744,10 +771,11 @@ export function KomaView({
 // render loose in itinerary order.
 
 export function KomaRollView({
-  roll, shots, sunMode, onShotChange,
+  roll, shots, carry, sunMode, onShotChange,
 }: {
   roll: Roll;
   shots: Shot[];
+  carry: Carry | null;
   sunMode: boolean;
   onShotChange: (shot: Shot) => void;
 }) {
@@ -804,7 +832,7 @@ export function KomaRollView({
           .filter(Boolean).join(' · ')}
         heading={roll.title}
         lat={roll.lat} lng={roll.lng} dateISO={dateISO}
-        shots={asDayShots} isToday={isToday} now={now}
+        shots={asDayShots} carry={carry} isToday={isToday} now={now}
         onOpen={(frame, frames, sun) => setOpen({ frame, frames, sun })}
       />
 
