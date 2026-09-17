@@ -7,7 +7,7 @@ import { SunTrack, type TrackFrame } from './SunTrack';
 import { KomaSketch } from './KomaSketch';
 import { LensMark, lensLabel, lensLength, lensWeight, fmtWeight } from './LensMark';
 import {
-  sunDay, utcOffsetFor, parseTimeLabel, parseClock, fmtHour, fmt24, bandAt,
+  sunDay, utcOffsetFor, parseTimeLabel, parseClock, fmtHour, bandAt,
   type SunDay, type OffsetSource,
 } from '@/lib/sun';
 import { usePendingStatus, queueStatus, flush } from '@/lib/komaQueue';
@@ -223,7 +223,7 @@ function FrameSheet({
           Frame <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{frame.n}</b> of {total}
           {/* the frame's own time, not the stop's — they differ by 30 min on
               the Slaughters loop, and the frame's is the one you shoot to */}
-          {frame.hour != null ? ` · ${fmt24(frame.hour)}` : ''}
+          {frame.hour != null ? ` · ${fmtHour(frame.hour)}` : ''}
           {frame.stop ? ` · ${frame.stop.title}` : ''}
         </span>
       </div>
@@ -289,7 +289,7 @@ function FrameSheet({
           <div style={{ marginTop: 12, padding: '9px 11px', borderRadius: 9, background: '#FBEFD9',
                         border: '1px solid #F0DBAE', color: '#633806',
                         fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.5 }}>
-            ⚑ Wants {s.light} light, but {frame.hour != null ? fmt24(frame.hour) : 'this slot'} falls in {band} light.
+            ⚑ Wants {s.light} light, but {frame.hour != null ? fmtHour(frame.hour) : 'this slot'} falls in {band} light.
           </div>
         )}
 
@@ -570,7 +570,7 @@ function KomaDay({
             color: 'var(--k-ink-2)',
           }}>
             <span>
-              now <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{fmt24(thereHour)}</b>
+              now <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{fmtHour(thereHour)}</b>
               {day.location_label ? ` ${day.location_label.toLowerCase()}` : ' there'}
             </span>
             {/* Always the light, never "and it is 21:25 where you are". On the
