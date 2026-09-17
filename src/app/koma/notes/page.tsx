@@ -76,18 +76,23 @@ export default async function NotesPage() {
         // list whose end you cannot see.
         <nav style={{
           padding: '0 var(--px) 4px',
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))',
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
           gap: 7,
         }}>
           {notes.map(n => (
+            // Was mono, 10px, uppercase, 0.09em tracked, copper on a copper
+            // tint — 4.5:1, and every one of those choices costs legibility on
+            // top of the number. The mono-uppercase idiom belongs on labels
+            // that decorate; this is navigation and has to be read. Sentence
+            // case at 13.5px in ink is 14.5:1, and the copper stays in the
+            // border so the page still reads as koma.
             <a key={n.slug} href={`#${n.slug}`} className="tap pressable" style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10,
-              letterSpacing: '0.09em', textTransform: 'uppercase',
-              color: '#B83C01', background: 'rgba(184,60,1,0.07)',
-              border: '0.5px solid rgba(184,60,1,0.22)', borderRadius: 10,
-              padding: '10px 10px', minHeight: 42,
+              fontSize: 13.5, fontWeight: 500, letterSpacing: '-0.005em',
+              color: 'var(--ink)', background: 'var(--surface)',
+              border: '0.5px solid rgba(184,60,1,0.30)', borderRadius: 10,
+              padding: '11px 9px', minHeight: 48,
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              textAlign: 'center', lineHeight: 1.25,
+              textAlign: 'center', lineHeight: 1.3,
             }}>
               {n.title}
             </a>
