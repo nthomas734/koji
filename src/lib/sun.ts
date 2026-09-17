@@ -335,8 +335,16 @@ function withoutNetwork(lng: number, dateISO: string): Offset {
 const offsetCache = new Map<string, Offset>();
 
 export async function utcOffsetFor(
-  lat: number, lng: number, dateISO: string,
+  lat: number, lng: number, dateISO: string, known?: string | null,
 ): Promise<Offset> {
+  // A stored zone is the whole answer: no request, right offline, right on a
+  // phone that is nowhere near the place, right across a DST boundary inside
+  // the trip. The two fallbacks below exist for rows that have none.
+  if (known) {
+    const off = zoneOffsetSec(known, dateISO);
+    if (off != null) return { seconds: off, source: 'zone', zone: known };
+  }
+
   const key = `${lat.toFixed(2)},${lng.toFixed(2)},${dateISO}`;
   const hit = offsetCache.get(key);
   if (hit) return hit;

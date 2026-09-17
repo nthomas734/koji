@@ -42,6 +42,8 @@ export interface Trip {
   date_start:   string | null;
   date_end:     string | null;
   location:     string | null;
+  /** IANA zone, stored so the sun works offline and away from the place. */
+  tz:           string | null;
   lat:          number | null;
   lng:          number | null;
   published:    boolean;
@@ -67,6 +69,7 @@ export interface Day {
   sort_order:     number;
   lat:            number | null;
   lng:            number | null;
+  tz:             string | null;
   location_label: string | null;
   stops?:         Stop[];
 }
@@ -110,6 +113,7 @@ export interface Roll {
   roll_date:      string | null;
   lat:            number | null;
   lng:            number | null;
+  tz:             string | null;
   location_label: string | null;
   notes_md:       string | null;
   sort_order:     number;
@@ -295,7 +299,9 @@ export async function getTripBySlug(slug: string): Promise<{
     .eq('published', true)
     .maybeSingle();
   // A network/RLS error is not "no such trip". Throwing keeps the last good
-  // ISR copy in place instead of replacing it with a 404 for the next minute.
+  // prerendered copy in place instead of replacing it with a 404. That was
+  // wishful until `generateStaticParams` landed below — without it the route
+  // had no prerendered copy to keep.
   if (error) throw error;
   if (!trip) return null;
 
@@ -331,4 +337,33 @@ export async function getTripBySlug(slug: string): Promise<{
     shots: (shots as Shot[]) ?? [],
     carry: (carry as Carry[]) ?? [],
   };
+}
+
+// ── PRERENDERING ────────────────────────────────────────────────────────────
+// A dynamic segment with no `generateStaticParams` cannot be prerendered, so
+// `export const revalidate` had nothing to attach to and every trip page ran
+// five sequential queries at request time with no cached fallback. These give
+// Next the slugs to build.
+//
+// Both swallow errors: a Supabase blip during a build should degrade to
+// on-demand rendering, which is what we had before, not fail the deploy.
+// `dynamicParams` stays at its default, so a slug added after the build still
+// renders on request.
+
+export async function getTripSlugs(): Promise<string[]> {
+  try {
+    const { data } = await supabase.from('koji_trips').select('slug').eq('published', true);
+    return (data ?? []).map((t: { slug: string }) => t.slug);
+  } catch {
+    return [];
+  }
+}
+
+export async function getRollSlugs(): Promise<string[]> {
+  try {
+    const { data } = await supabase.from('koma_rolls').select('slug');
+    return (data ?? []).map((r: { slug: string }) => r.slug);
+  } catch {
+    return [];
+  }
 }

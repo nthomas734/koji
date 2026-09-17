@@ -1,8 +1,12 @@
 import { notFound } from 'next/navigation';
-import { getRollBySlug } from '@/lib/supabase';
+import { getRollBySlug, getRollSlugs } from '@/lib/supabase';
 import { RollView } from './RollView';
 
 export const revalidate = 60;
+
+export async function generateStaticParams() {
+  return (await getRollSlugs()).map(slug => ({ slug }));
+}
 
 export default async function RollPage({
   params,
