@@ -452,6 +452,17 @@ input, textarea, select {
   margin: 18px 0 7px;
 }
 .koma-note h2:first-child { margin-top: 0; }
+/* The Groups section needed a level below the copper rule — sub-headings that
+   group bullets without competing with the section label above them. Sans and
+   inked rather than mono and copper, so the hierarchy reads at a glance. */
+.koma-note h3 {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  margin: 14px 0 5px;
+}
+.koma-note h2 + h3 { margin-top: 8px; }
 .koma-note p  { margin: 0 0 9px; }
 .koma-note p:last-child { margin-bottom: 0; }
 .koma-note strong { color: var(--ink); font-weight: 600; }
