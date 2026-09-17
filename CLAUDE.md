@@ -237,6 +237,38 @@ app has ever been marked, so a triage flow would be built on no evidence. New
 York in October is the first trip that will produce any. Revisit then, not
 before.
 
+### Writing a frame (2026-09-17)
+
+**`tech_md` carries a setting only when it binds.** Three kinds exist and only
+one belongs in the note:
+
+- *Binding* — get it wrong and the frame is gone. Subject motion (1/500 on a
+  walking figure; stabilisation does nothing for it), minimum focus (0.26m),
+  a venue rule (no tripod at St Paul's, the Abbey, Warner Bros), a focal the
+  space forces (40mm in the Great Hall), or an exposure the meter reliably gets
+  wrong in a known direction (+1 EV on pale stone). **Bold, first, and stated
+  as its consequence** — "1/500 minimum. Anything slower and the head blurs."
+- *A starting point* — f/5.6, ISO 3200. You would have landed there anyway and
+  will move off it the moment you see a histogram. **Leave it out.**
+- *The choice is the picture* — 1/500 versus 1/15 at the mill wheel. That is not
+  a setting, it is which photograph you are taking. It goes in the sentence.
+
+26 of 63 frames have a binding line; 37 are prose only. An earlier sweep put a
+settings line on about 45 and most of them were noise.
+
+**Never repeat the focal length.** The lens chip above the note already reads
+"70-200mm @ 135-200". Say a focal only when you are arguing about it.
+
+**Directional claims get derived, not asserted.** "Port side heading west" was
+wrong — St Paul's is on the north bank and the boat runs west, so it is
+starboard at every point of the run. The Shard only stacks behind Tower Bridge
+from downriver (15° apart west of Southwark, 3–5° at Limehouse). A New York stop
+claimed the sun goes down the cross-streets at 5pm; it is 40–50° off, and that
+alignment is Manhattanhenge in late May and mid-July. Compute the bearing from
+coordinates and **validate the method against a known answer first** — the
+azimuth formula used here was inverted until it was checked against the NYC
+summer-solstice sunset (302°) and the real Manhattanhenge dates.
+
 ### Sketches (2026-09-16)
 
 `KomaSketch` draws a composition diagram from a short spec. The rule, learned by
