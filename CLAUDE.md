@@ -202,6 +202,30 @@ will not place a now-line unless the date matches.
 Entry is the same everywhere: long-press `KomaMark`. On the itineraries list
 (`KomaHomeMark`) it routes to `/koma`; on a trip page it toggles the mode.
 
+### Sketches (2026-09-16)
+
+`KomaSketch` draws a composition diagram from a short spec. The rule, learned by
+breaking it: **two different pictures must never get the same drawing.** The
+first version had one `macro` bullseye standing in for a rose, a pair of hands,
+a seam of rivets and moving water, and one `subject` person-glyph standing in
+for cattle, a deer, a tree and a plume of steam. Nathan's report was that it was
+"not always clear the shot I want to get", and he was right: the diagram said
+"round thing, centred" or "a person", neither of which was true.
+
+The archetype set is now grouped by what the picture *is*, and `subject` takes a
+typed glyph (`person|group|animal|bird|tree|plume`) plus an optional `near` for
+a subject that fills the frame rather than sits small in it — a raven at 200mm
+and a figure three blocks away are opposite instructions.
+
+Every archetype annotates itself in-frame; the caption underneath is a reminder,
+not the explanation. The caption gets its own band at y=362 because text printed
+over the drawing is unreadable, which is half of what "unclear" meant.
+
+If a frame does not fit an archetype, **add one** rather than borrowing the
+nearest. `fill` is the deliberate exception: it is used for eight frames that
+genuinely share one instruction (fill the frame, no edge inside), and there the
+title and caption carry the subject.
+
 ### Working offline (2026-09-16)
 
 koma is used on a phone, one-handed, in places with no bars. Three things had
