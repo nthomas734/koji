@@ -514,16 +514,24 @@ function KomaDay({
       {lenses.length > 0 && (
         <div style={{ margin: '0 12px 12px', background: 'var(--k-ink)', color: '#EDE6DA',
                       borderRadius: 12, padding: '11px 13px' }}>
-          <div className="koma-label" style={{ color: 'var(--k-copper-lite)', marginBottom: 7,
-                                               display: 'flex', justifyContent: 'space-between' }}>
-            <span>Carry today</span>
-            {grams > 0 && <span style={{ color: '#9C9384' }}>{fmtWeight(grams)} of glass</span>}
+          <div className="koma-label" style={{ color: 'var(--k-copper-lite)', marginBottom: 7 }}>
+            Carry today
+            {grams > 0 && (
+              // Not uppercased: "967G OF GLASS" reads as a part number.
+              <span style={{ color: '#9C9384', textTransform: 'none', letterSpacing: 0 }}>
+                {'  ·  '}{fmtWeight(grams)} of glass
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {[...lenses].sort((a, b) => lensLength(b) - lensLength(a)).map(l => (
-              <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <LensMark lens={l} color="var(--k-copper-lite)" height={15} />
-                <span style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 500, flex: 1 }}>{l}</span>
+              // Weights sit left of the lens name — the card's right edge is
+              // under the floating glass bar, which clips anything put there.
+              <div key={l} style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                <span style={{ alignSelf: 'center' }}>
+                  <LensMark lens={l} color="var(--k-copper-lite)" height={15} />
+                </span>
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 500 }}>{l}</span>
                 {lensWeight(l) > 0 && (
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: '#877E70' }}>
                     {lensWeight(l)}g
@@ -543,7 +551,7 @@ function KomaDay({
                           borderTop: '1px solid rgba(237,230,218,0.16)',
                           fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.05em',
                           color: '#877E70', lineHeight: 1.5 }}>
-              read off the {frames.length} planned frame{frames.length === 1 ? '' : 's'} — nobody decided this
+              derived from the {frames.length} planned frame{frames.length === 1 ? '' : 's'}, not decided
             </div>
           )}
         </div>

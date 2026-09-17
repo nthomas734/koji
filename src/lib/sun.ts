@@ -187,10 +187,71 @@ export function interpAlt(sun: SunDay, h: number): number {
 }
 
 // ── UTC OFFSET ───────────────────────────────────────────────────────────────
-// Open-Meteo resolves the IANA zone and its DST state for a coordinate. One
-// call per location per session; the result is cached in module scope.
+// Two steps, and the split matters.
+//
+// Open-Meteo is asked only for the IANA zone name at a coordinate. It is *not*
+// asked about the trip's date: the forecast endpoint serves a rolling window of
+// roughly the next fortnight, and a `start_date` outside it returns 400. Every
+// day of a trip planned a month out fell into the longitude fallback and came
+// back UTC+0 — so the whole England plan rendered an hour early, golden hour
+// included, and would have quietly corrected itself a week before departure as
+// the window rolled forward.
+//
+// The offset for the trip's date is then computed locally with Intl, which
+// knows the zone's DST rules for any date. That also gets the 25th of October
+// right: BST ends that morning, and the last day of the trip is the 25th.
 
+const zoneCache   = new Map<string, string>();
 const offsetCache = new Map<string, number>();
+
+/**
+ * Seconds east of UTC in `zone` on `dateISO`. Formats noon UTC into the zone
+ * and diffs — noon is chosen because DST transitions happen in the small
+ * hours, so the answer is never taken from inside a fold.
+ */
+export function zoneOffsetSec(zone: string, dateISO: string): number {
+  const at = new Date(`${dateISO}T12:00:00Z`);
+  if (isNaN(at.getTime())) return 0;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(at);
+  const p: Record<string, string> = {};
+  for (const { type, value } of parts) p[type] = value;
+  // Intl renders midnight as hour "24" in some engines.
+  const hour = Number(p.hour) % 24;
+  const local = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day),
+                         hour, Number(p.minute), Number(p.second));
+  return Math.round((local - at.getTime()) / 1000);
+}
+
+/** The IANA zone at a coordinate, asked once per location per session. */
+async function zoneFor(lat: number, lng: number): Promise<string | null> {
+  const key = `${lat.toFixed(2)},${lng.toFixed(2)}`;
+  const hit = zoneCache.get(key);
+  if (hit !== undefined) return hit || null;
+
+  // No date range — this is a question about the place, not the day.
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
+    `&timezone=auto&forecast_days=1`;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!res.ok) throw new Error(String(res.status));
+    const json = await res.json();
+    const zone = typeof json?.timezone === 'string' ? json.timezone : '';
+    if (!zone || zone === 'GMT') throw new Error('no zone');
+    zoneCache.set(key, zone);
+    return zone;
+  } catch {
+    zoneCache.set(key, '');
+    return null;
+  }
+}
 
 export async function utcOffsetFor(
   lat: number, lng: number, dateISO: string,
@@ -199,26 +260,10 @@ export async function utcOffsetFor(
   const hit = offsetCache.get(key);
   if (hit !== undefined) return hit;
 
-  const url =
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
-    `&daily=sunrise&timezone=auto&start_date=${dateISO}&end_date=${dateISO}`;
-
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(t);
-    if (!res.ok) throw new Error(String(res.status));
-    const json = await res.json();
-    const off = Number(json?.utc_offset_seconds);
-    if (!isFinite(off)) throw new Error('no offset');
-    offsetCache.set(key, off);
-    return off;
-  } catch {
-    // Fall back to solar time from longitude. An hour out on summer time, but
-    // the curve's shape — which is what the chart is for — stays correct.
-    const approx = Math.round(lng / 15) * 3600;
-    offsetCache.set(key, approx);
-    return approx;
-  }
+  const zone = await zoneFor(lat, lng);
+  // Solar time from longitude. An hour out on summer time, but the curve's
+  // shape — which is what the chart is for — stays correct.
+  const off = zone ? zoneOffsetSec(zone, dateISO) : Math.round(lng / 15) * 3600;
+  offsetCache.set(key, off);
+  return off;
 }

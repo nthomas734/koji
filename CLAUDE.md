@@ -194,6 +194,32 @@ will not place a now-line unless the date matches.
 Entry is the same everywhere: long-press `KomaMark`. On the itineraries list
 (`KomaHomeMark`) it routes to `/koma`; on a trip page it toggles the mode.
 
+### The carry (2026-09-16)
+
+"Carry today" used to be read off the day's planned frames, which is backwards.
+The frame list is what got written down, not what the day is: the Warner Bros
+day had one frame on it and the card said `40mm`, on a day that wants all three
+lenses; the Tower/Borough day's five frames are all 70-200, so it said to bring
+only the zoom on a day that includes St Paul's interior.
+
+`koma_carry` holds a written call — `lenses[]` in carry order plus `body_md`
+arguing it — one row per `day_id` *or* `roll_id`, same check constraint as
+`koma_shots`. When a row exists it wins; otherwise the derived list still shows
+and **labels itself as derived**, so a day nobody has thought about cannot pass
+for a decision.
+
+Total weight comes from `lensWeight()` in `LensMark`, never from the database —
+it cannot drift from the list that way. `fmtWeight` switches to kilos at 1000g,
+which is the point: "all three" and "leave the zoom at the flat" read
+identically until you see 1.34kg against 544g.
+
+The notes are the one place in koji that uses `renderBlockMd`. `renderMd` is
+`parseInline` on purpose — koji's bodies are single paragraphs that space
+themselves with `<br><br>` — and a carry note run through it comes out as one
+line with literal `- ` in it. They also need `.koma-carry-md`: `.body-content`
+assumes paper, and its green links and ink-black bold both vanish on the dark
+card.
+
 ## Trip page shell (2026-09-16)
 
 Nothing floats over the trip page. A fixed glass top bar and a floating tab
