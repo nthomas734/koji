@@ -543,7 +543,7 @@ function KomaDay({
                   <LensMark lens={l} color="var(--k-copper-lite)" height={15} />
                 </span>
                 <span style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 500 }}>{l}</span>
-                {lensWeight(l) > 0 && (
+                {lensWeight(l) > 0 && lenses.length > 1 && (
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: '#877E70' }}>
                     {lensWeight(l)}g
                   </span>
