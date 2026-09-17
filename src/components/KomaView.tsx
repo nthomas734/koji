@@ -201,7 +201,8 @@ function FrameSheet({
     <div ref={scroller} role="dialog" aria-modal="true" aria-label={s.title} style={{
       position: 'fixed', inset: 0, zIndex: 60, background: 'var(--k-bg)',
       overflowY: 'auto', WebkitOverflowScrolling: 'touch',
-      paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      display: 'flex', flexDirection: 'column',
+      paddingTop: 'env(safe-area-inset-top, 0px)',
     }}>
       <div style={{
         position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 10,
@@ -212,22 +213,24 @@ function FrameSheet({
           background: 'none', border: 'none', font: 'inherit', fontSize: 19,
           color: 'var(--k-ink-2)', cursor: 'pointer', padding: '0 4px 0 0', lineHeight: 1,
         }}>‹</button>
-        <span className="koma-label" style={{ flex: 1, minWidth: 0 }}>
+        {/* One line. "Bourton → Lower Slaughter → Upper Slaughter loop" wrapped
+            this to three lines and pushed the whole sheet down; the stop name is
+            one tap behind anyway. The stepper moved to the pinned bar below, so
+            the header is only ever "where am I". */}
+        <span className="koma-label" style={{
+          flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
           Frame <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{frame.n}</b> of {total}
           {/* the frame's own time, not the stop's — they differ by 30 min on
               the Slaughters loop, and the frame's is the one you shoot to */}
           {frame.hour != null ? ` · ${fmt24(frame.hour)}` : ''}
           {frame.stop ? ` · ${frame.stop.title}` : ''}
         </span>
-        <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-          <StepBtn dir={-1} disabled={frame.n <= 1}     onStep={onStep} />
-          <StepBtn dir={1}  disabled={frame.n >= total} onStep={onStep} />
-        </span>
       </div>
 
       <div style={{
-        maxWidth: 'var(--max-w)', margin: '0 auto',
-        padding: '14px 16px calc(env(safe-area-inset-bottom, 0px) + 52px)',
+        maxWidth: 'var(--max-w)', width: '100%', margin: '0 auto', flex: '1 0 auto',
+        padding: '14px 16px 20px',
       }}>
         {s.ref_url ? (
           <>
@@ -330,38 +333,49 @@ function FrameSheet({
           </div>
         )}
 
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--k-border)',
-        }}>
-          <StepBtn dir={-1} disabled={frame.n <= 1} onStep={onStep} />
-          <span className="koma-label">{frame.n} / {total}</span>
-          <StepBtn dir={1} disabled={frame.n >= total} onStep={onStep} />
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-          {s.status === 'planned' ? (
-            <>
-              <button type="button" className="koma-btn pri" onClick={() => onStatus('got')}>
-                Got it
-              </button>
-              <button type="button" className="koma-btn sec" onClick={() => onStatus('missed')}>
-                Missed
-              </button>
-            </>
-          ) : (
-            // Undo used to be offered for "got" only, so reverting a mis-tapped
-            // "missed" meant marking it got and undoing that.
-            <button type="button" className="koma-btn sec" onClick={() => onStatus('planned')}>
-              Undo {s.status}
+        {/* "Got it" lives in the pinned bar; Missed stays down here on purpose.
+            It is the rarer mark and does not need to hold a permanent 58px of a
+            phone screen. */}
+        {s.status === 'planned' && (
+          <div style={{ marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--k-border)' }}>
+            <button type="button" className="koma-btn sec" onClick={() => onStatus('missed')}>
+              Missed it
             </button>
-          )}
-        </div>
+          </div>
+        )}
         {pending && (
-          <div style={{ marginTop: 9, fontFamily: 'var(--font-mono)', fontSize: 9.5,
+          <div style={{ marginTop: 12, fontFamily: 'var(--font-mono)', fontSize: 9.5,
                         letterSpacing: '0.05em', color: 'var(--k-warn-ink)', lineHeight: 1.5 }}>
             ⦿ saved on this phone — will sync when you have signal
           </div>
+        )}
+      </div>
+
+      {/* ── the pinned bar ─────────────────────────────────────────────────
+          The sheet is information first — sketch, title, lens, where to stand —
+          so the mark was at the foot of the content and below the fold on every
+          frame. Pinning it keeps the reading order and puts the one action you
+          reach for at the bottom right, where the thumb already is. It carries
+          the stepper too, which used to be drawn twice. */}
+      <div style={{
+        position: 'sticky', bottom: 0, zIndex: 3, flex: '0 0 auto',
+        display: 'flex', alignItems: 'center', gap: 9,
+        padding: '9px 16px calc(env(safe-area-inset-bottom, 0px) + 11px)',
+        background: 'var(--k-bg)', borderTop: 'var(--k-bw) solid var(--k-border)',
+      }}>
+        <StepBtn dir={-1} disabled={frame.n <= 1} onStep={onStep} />
+        <span className="koma-label" style={{ flexShrink: 0 }}>{frame.n} / {total}</span>
+        <StepBtn dir={1} disabled={frame.n >= total} onStep={onStep} />
+        {s.status === 'planned' ? (
+          <button type="button" className="koma-btn pri" style={{ flex: 1, marginLeft: 2, padding: '15px 12px' }}
+                  onClick={() => onStatus('got')}>
+            Got it
+          </button>
+        ) : (
+          <button type="button" className="koma-btn sec" style={{ flex: 1, marginLeft: 2, padding: '15px 12px' }}
+                  onClick={() => onStatus('planned')}>
+            Undo {s.status}
+          </button>
         )}
       </div>
 
@@ -442,8 +456,6 @@ function KomaDay({
   // Times on this screen are the destination's, so the clock must be too.
   const thereHour = offset != null ? hoursAtLocation(now, offset) : null;
   const liveThere = offset != null && sameDayThere(now, offset, dateISO);
-  const deviceOffsetSec = -now.getTimezoneOffset() * 60;
-  const awayFrom = offset != null && offset !== deviceOffsetSec;
   const nowHour = liveThere ? thereHour : null;
   const frames = useMemo(() => buildFrames(day, shots), [day, shots]);
 
@@ -561,11 +573,10 @@ function KomaDay({
               now <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{fmt24(thereHour)}</b>
               {day.location_label ? ` ${day.location_label.toLowerCase()}` : ' there'}
             </span>
-            <span style={{ color: 'var(--k-ink-3)' }}>
-              {awayFrom
-                ? `${fmt24(now.getHours() + now.getMinutes() / 60)} here`
-                : bandNow(sun, thereHour)}
-            </span>
+            {/* Always the light, never "and it is 21:25 where you are". On the
+                trip the local clock is the only one that matters, and before it
+                the home time is the one you are already looking at. */}
+            <span style={{ color: 'var(--k-ink-3)' }}>{bandNow(sun, thereHour)}</span>
           </div>
         )}
         {next && (
