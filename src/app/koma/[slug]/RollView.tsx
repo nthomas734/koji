@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { Roll, Shot } from '@/lib/supabase';
+import type { Carry, Roll, Shot } from '@/lib/supabase';
 import { KomaRollView } from '@/components/KomaView';
 import { KomaMark } from '@/components/KomaMark';
 
-export function RollView({ roll, shots: initial }: { roll: Roll; shots: Shot[] }) {
+export function RollView({ roll, shots: initial, carry }: { roll: Roll; shots: Shot[]; carry: Carry | null }) {
   const [shots, setShots] = useState<Shot[]>(initial);
   const [sunMode, setSunMode] = useState(false);
 
@@ -55,7 +55,7 @@ export function RollView({ roll, shots: initial }: { roll: Roll; shots: Shot[] }
         </span>
       </header>
 
-      <KomaRollView roll={roll} shots={shots} sunMode={sunMode} onShotChange={applyShot} />
+      <KomaRollView roll={roll} shots={shots} carry={carry} sunMode={sunMode} onShotChange={applyShot} />
     </div>
   );
 }

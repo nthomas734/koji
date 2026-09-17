@@ -13,5 +13,5 @@ export default async function RollPage({
   const data = await getRollBySlug(slug);
   if (!data) notFound();
 
-  return <RollView roll={data.roll} shots={data.shots} />;
+  return <RollView roll={data.roll} shots={data.shots} carry={data.carry} />;
 }

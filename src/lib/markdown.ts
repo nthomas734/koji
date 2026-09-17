@@ -14,3 +14,18 @@ export function renderMd(md: string): string {
   html = html.replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href=');
   return html;
 }
+
+/**
+ * Block-level markdown — paragraphs, lists, headings.
+ *
+ * `renderMd` is deliberately inline-only: koji's bodies are single paragraphs
+ * that use `<br><br>` for spacing, and wrapping them in <p> would double it.
+ * koma's carry notes are the exception — they argue a case in several
+ * paragraphs and a bullet list, so they get a real block parse.
+ */
+export function renderBlockMd(md: string): string {
+  if (!md) return '';
+  let html = marked.parse(escapeLoneTildes(md), { async: false }) as string;
+  html = html.replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href=');
+  return html;
+}

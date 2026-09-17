@@ -62,3 +62,28 @@ export function lensLabel(lens: string, focal: string | null): string {
   const trimmed = focal.trim().replace(/mm$/i, '');
   return `${lens} @ ${trimmed}`;
 }
+
+/**
+ * Body weight in grams, by lens label. The carry card totals these, because
+ * "all three" and "leave the zoom" are the same sentence until you see 1,338g
+ * against 544g.
+ */
+const WEIGHT_G: Record<string, number> = {
+  '24mm': 162,     // FE 24mm F2.8 G
+  '40mm': 173,     // FE 40mm F2.5 G
+  '50mm': 174,     // FE 50mm F2.5 G
+  '85mm': 371,     // FE 85mm F1.8
+  '35mm': 524,     // FE 35mm F1.4 GM
+  '70-200mm': 794, // FE 70-200mm F4 Macro G OSS II, collar off
+  '24-50mm': 440,
+  '24-70mm': 695,
+};
+
+export function lensWeight(lens: string): number {
+  return WEIGHT_G[lens.trim()] ?? 0;
+}
+
+/** Grams for a pocketable lens, kilos once it stops being one. */
+export function fmtWeight(grams: number): string {
+  return grams >= 1000 ? `${(grams / 1000).toFixed(2)}kg` : `${grams}g`;
+}

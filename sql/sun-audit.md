@@ -59,6 +59,37 @@ Golden-hour windows that week, for reference:
 The window is about 47 minutes and drifts ~3 minutes earlier per day. The
 Cotswolds run ~15 minutes later than London, being further west.
 
+## The offset bug, 2026-09-16
+
+Worth recording, because the audit script and the app disagreed and the app was
+wrong — which is the failure this doc exists to catch, seen from the other side.
+
+`utcOffsetFor` asked Open-Meteo for the offset **on the trip's date**, passing
+it as `start_date`. The forecast endpoint only serves a rolling window of about
+a fortnight; on 16 September it ended 2026-10-02. Every day of the England trip
+returned
+
+```
+400 {"error":true,"reason":"Parameter 'start_date' is out of allowed range
+     from 2026-06-16 to 2026-10-02"}
+```
+
+fell into the longitude fallback, and came back UTC+0. The app rendered the
+whole trip an hour early — Friday's sunset as 5:13pm rather than 18:13, and both
+that day's frames on the wrong side of golden hour.
+
+The tags in the database were right the whole time; only the display lied. And
+it would have **fixed itself silently in early October**, as the forecast window
+rolled forward past the trip — the bug had a week left to live and nobody would
+have seen it go.
+
+Open-Meteo is now asked only for the IANA zone at the coordinate, which it can
+answer for any date. `zoneOffsetSec()` derives the offset for the trip's date
+from that zone with `Intl`. This also handles 25 October, when BST ends — and
+the last day of this trip is the 25th.
+
+If the app and this audit ever disagree again, check the offset first.
+
 ---
 
 # Orphan check

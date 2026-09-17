@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Day, Logistics, Shot, Stop, Trip } from '@/lib/supabase';
+import type { Carry, Day, Logistics, Shot, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { KojiMark } from '@/components/KojiMark';
 import { KomaView } from '@/components/KomaView';
@@ -1440,11 +1440,12 @@ interface TripViewProps {
   logistics: Logistics[];
   days: Day[];
   shots: Shot[];
+  carry: Carry[];
 }
 
 const TAB_HASHES: Record<string, Tab> = { logistics: 'logistics', weather: 'weather', itinerary: 'itinerary' };
 
-export function TripView({ trip, logistics, days, shots: initialShots }: TripViewProps) {
+export function TripView({ trip, logistics, days, shots: initialShots, carry }: TripViewProps) {
   const router = useRouter();
   const [activeTab, setActiveTabState] = useState<Tab>('itinerary');
 
@@ -1816,6 +1817,7 @@ export function TripView({ trip, logistics, days, shots: initialShots }: TripVie
           trip={trip}
           days={days}
           shots={shots}
+          carry={carry}
           dateForDay={(i) => (trip.date_start ? dateForDay(trip.date_start, i) : null)}
           todayIdx={todayIdx}
           sunMode={sunMode}
