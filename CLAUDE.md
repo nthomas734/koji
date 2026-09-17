@@ -256,10 +256,22 @@ Every archetype annotates itself in-frame; the caption underneath is a reminder,
 not the explanation. The caption gets its own band at y=362 because text printed
 over the drawing is unreadable, which is half of what "unclear" meant.
 
+Orientation is the **last argument**, `v` or `h` — not a `;v` flag, because
+everything after the first semicolon is the caption and a flag there is
+swallowed by it. A portrait frame draws at 2:3 and the body scales uniformly
+inside it. Five frames say "vertical" in their notes and used to draw square.
+
+The archetype's own advice only shows when a frame has **no caption**. A tree
+frame was carrying a generic slogan, a frame-specific note and a caption —
+three lines of text over one drawing. `Slogan` is suppressed; `Note` (a
+structural label: a band name, "sky", "dark") always draws.
+
 If a frame does not fit an archetype, **add one** rather than borrowing the
-nearest. `fill` is the deliberate exception: it is used for eight frames that
-genuinely share one instruction (fill the frame, no edge inside), and there the
-title and caption carry the subject.
+nearest. `fill` was an eight-way share and did not survive scrutiny: it stood for
+lichen, a crate, a prop, a mosaic and a pair of hands. It is now `fill:texture`
+and `fill:object`, and three of those frames moved to kinds of their own —
+`flow` (shutter speed *is* the subject, so the frame is split frozen/smeared),
+`shadows` (light on a floor, the window out of frame) and `subject:hands`.
 
 ### Working offline (2026-09-16)
 

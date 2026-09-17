@@ -51,21 +51,46 @@ const SOFT = '#C9CFD6';
 const MID = '#6B7280';
 const MONO = 'ui-monospace, Menlo, monospace';
 
-export function parseSketch(spec: string): { kind: string; args: string[]; caption: string } {
+export function parseSketch(spec: string): {
+  kind: string; args: string[]; caption: string; portrait: boolean;
+} {
   const [head, ...capParts] = spec.split(';');
   const caption = capParts.join(';').trim();
   const [kind, argStr] = head.split(':');
-  return {
-    kind: kind.trim(),
-    args: argStr ? argStr.split('|').map(a => a.trim()) : [],
-    caption,
-  };
+  const args = argStr ? argStr.split('|').map(a => a.trim()) : [];
+
+  // Orientation is the LAST argument, not a `;v` flag — everything after the
+  // first semicolon is the caption, so a flag there would be swallowed by it.
+  // No archetype takes 'v' or 'h' as a meaningful value, so this is safe.
+  const last = args[args.length - 1];
+  const portrait = last === 'v';
+  if (last === 'v' || last === 'h') args.pop();
+
+  return { kind: kind.trim(), args, caption, portrait };
 }
 
-/** Small in-frame annotation — the diagram states its own instruction. */
+/**
+ * A structural label — a band name, "sky", a depth. Always drawn: it names a
+ * part of the picture rather than giving advice about it.
+ */
 function Note({ x, y, children, fill = COP }: {
   x: number; y: number; children: string; fill?: string;
 }) {
+  return (
+    <text x={x} y={y} textAnchor="middle" fontFamily={MONO} fontSize="13" fill={fill}>{children}</text>
+  );
+}
+
+/**
+ * The archetype's generic advice — "small in frame, and it still reads". Worth
+ * saying when the frame has nothing of its own, and noise when it does: a tree
+ * frame was carrying a slogan, a frame-specific note and a caption, three lines
+ * of text over one drawing. The caption is the specific one, so it wins.
+ */
+function Slogan({ x, y, show, children, fill = COP }: {
+  x: number; y: number; show: boolean; children: string; fill?: string;
+}) {
+  if (!show) return null;
   return (
     <text x={x} y={y} textAnchor="middle" fontFamily={MONO} fontSize="13" fill={fill}>{children}</text>
   );
@@ -112,6 +137,15 @@ function Glyph({ kind }: { kind: string }) {
           <path d="M8 28 C 2 8 16 4 10 -12 C 6 -22 14 -26 14 -36" />
         </g>
       );
+    case 'hands': // across a table — hands, a glass, no faces
+      return (
+        <g fill={INK}>
+          <path d="M-46 22 C -46 -2 -30 -12 -18 -12 L -18 -30 a5 5 0 0 1 10 0 L -8 -12
+                   a5 5 0 0 1 10 0 L 2 -30 a5 5 0 0 1 10 0 L 12 22 Z" />
+          <rect x="24" y="-18" width="22" height="30" rx="3" opacity="0.55" />
+          <rect x="-56" y="24" width="112" height="4" rx="2" opacity="0.4" />
+        </g>
+      );
     case 'group':
       return (
         <g fill={INK}>
@@ -134,7 +168,10 @@ function Glyph({ kind }: { kind: string }) {
 }
 
 export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: number }) {
-  const { kind, args, caption } = parseSketch(spec);
+  const { kind, args, caption, portrait } = parseSketch(spec);
+  // Five frames say "vertical" in their notes and every sketch was square. The
+  // shape of the frame is the first thing the eye reads, before any word in it.
+  const adv = !caption;   // show the archetype's own advice only when nothing else will
 
   const body = (() => {
     switch (kind) {
@@ -160,7 +197,7 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
             {/* the long lens is what shuts the gaps between them */}
             <path d="M360 56 L360 344" stroke={COP} strokeWidth="2" />
             <path d="M353 56 L367 56 M353 344 L367 344" stroke={COP} strokeWidth="2" />
-            <Note x={200} y={40}>they overlap — no sky between</Note>
+            <Slogan x={200} y={40} show={adv}>they overlap — no sky between</Slogan>
           </>
         );
       }
@@ -174,7 +211,7 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
             <rect x="150" y="152" width="46" height="144" fill={INK} opacity="0.8" />
             <rect x="206" y="170" width="40" height="126" fill={INK} opacity="0.65" />
             <rect x="186" y="300" width="30" height="18" rx="4" fill={COP} />
-            <Note x={200} y={42}>stand in the street, not beside it</Note>
+            <Slogan x={200} y={42} show={adv}>stand in the street, not beside it</Slogan>
           </>
         );
       case 'ridges':
@@ -184,7 +221,7 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
               <path key={i} fill={MID} opacity={op}
                 d={`M30 ${y + 70} L100 ${y} L170 ${y + 34} L240 ${y - 8} L310 ${y + 40} L370 ${y + 12} L370 350 L30 350 Z`} />
             ))}
-            <Note x={200} y={72}>haze separates them — each paler than the last</Note>
+            <Slogan x={200} y={72} show={adv}>haze separates them — each paler than the last</Slogan>
           </>
         );
       case 'wall':
@@ -199,8 +236,8 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
             {[[70, 250], [142, 216], [216, 184], [292, 158]].map(([x, y], i) => (
               <path key={i} d={`M${x} ${y} l32 -26`} stroke={COP} strokeWidth="2" opacity="0.8" />
             ))}
-            <Note x={200} y={64}>low sun raking across the stone</Note>
-            <Note x={200} y={92} fill={MID}>enters low, leaves at the far edge</Note>
+            <Slogan x={200} y={64} show={adv}>low sun raking across the stone</Slogan>
+            <Slogan x={200} y={92} show={adv} fill={MID}>enters low, leaves at the far edge</Slogan>
           </>
         );
 
@@ -224,7 +261,7 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
             })}
             <path d="M52 348 L200 216 M348 348 L200 216" stroke={MID} strokeWidth="1.2"
                   strokeDasharray="5 6" opacity="0.8" />
-            <Note x={200} y={46}>stand at one end, on the centre line</Note>
+            <Slogan x={200} y={46} show={adv}>stand at one end, on the centre line</Slogan>
           </>
         );
       }
@@ -242,7 +279,7 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
             ))}
             <circle cx="200" cy="200" r="22" fill={SOFT} opacity="0.9" />
             <Note x={200} y={205} fill={MID}>sky</Note>
-            <Note x={200} y={344}>flat on your back, dead centre</Note>
+            <Slogan x={200} y={344} show={adv}>flat on your back, dead centre</Slogan>
           </>
         );
       case 'radial': {
@@ -263,7 +300,7 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
             <circle cx="200" cy="186" r="22" fill={COP} />
             <path d="M200 40 L200 332 M56 186 L344 186" stroke={COP} strokeWidth="1"
                   strokeDasharray="4 7" opacity="0.55" />
-            <Note x={200} y={344}>off centre and it reads as a mistake</Note>
+            <Slogan x={200} y={344} show={adv}>off centre and it reads as a mistake</Slogan>
           </>
         );
       }
@@ -283,8 +320,8 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
                       strokeWidth={isOdd ? 2.4 : 1.8} />
               );
             })}
-            <Note x={200} y={46} fill={MID}>run them past both edges</Note>
-            <Note x={200} y={336}>one break carries the picture</Note>
+            <Slogan x={200} y={46} show={adv} fill={MID}>run them past both edges</Slogan>
+            <Slogan x={200} y={336} show={adv}>one break carries the picture</Slogan>
           </>
         );
       }
@@ -305,15 +342,32 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
                       fill={hot ? COP : MID} opacity={hot ? 0.75 : 0.28} />
               );
             })}
-            <Note x={200} y={344} fill={MID}>the repeat is the subject, square on</Note>
+            <Slogan x={200} y={344} show={adv} fill={MID}>the repeat is the subject, square on</Slogan>
           </>
         );
       }
 
       // ── filling the frame ─────────────────────────────────────────────────
-      case 'fill':
-        // A form with no edge inside the frame. Says "fill it" without
-        // implying the subject is round, which the old bullseye did.
+      case 'fill': {
+        // One wavy band stood in for lichen, a crate, a prop, a mosaic and a
+        // pair of hands — the same failure the bullseye had. `object` gets a
+        // form with corners; `texture` keeps the band.
+        if (args[0] === 'object') {
+          return (
+            <>
+              <path d="M-20 92 L120 64 L250 96 L420 70 L420 314 L250 292 L120 320 L-20 296 Z"
+                    fill={MID} opacity="0.34" />
+              <path d="M-20 92 L120 64 L250 96 L420 70" fill="none" stroke={INK} strokeWidth="3" />
+              <path d="M-20 296 L120 320 L250 292 L420 314" fill="none" stroke={INK} strokeWidth="3" />
+              <path d="M120 64 L120 320 M250 96 L250 292" stroke={INK} strokeWidth="1.6" opacity="0.5" />
+              <path d="M14 160 L14 240 M386 160 L386 240" stroke={COP} strokeWidth="3.5" />
+              <Note x={200} y={204}>one object, no edge in frame</Note>
+              <Slogan x={200} y={344} show={adv} fill={MID}>the shelf it came off is not the subject</Slogan>
+            </>
+          );
+        }
+        // A surface: a form with no edge inside the frame. Says "fill it"
+        // without implying the subject is round, which the old bullseye did.
         return (
           <>
             <path d="M-20 72 C 90 32 150 156 230 98 C 300 48 360 126 420 90 L420 300
@@ -325,17 +379,73 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
                   fill="none" stroke={INK} strokeWidth="3" />
             <path d="M14 168 L14 232 M386 168 L386 232" stroke={COP} strokeWidth="3.5" />
             <Note x={200} y={204}>no edge inside the frame</Note>
-            <Note x={200} y={344} fill={MID}>the whole is implied, not shown</Note>
+            <Slogan x={200} y={344} show={adv} fill={MID}>the whole is implied, not shown</Slogan>
+          </>
+        );
+      }
+
+      // ── two kinds that earn their own drawing ───────────────────────────
+      case 'flow':
+        // Shutter speed *is* the subject here, so the frame is split: the same
+        // water frozen on one side and smeared on the other.
+        return (
+          <>
+            <rect x="14" y="14" width="186" height="344" fill={SOFT} opacity="0.45" />
+            {Array.from({ length: 22 }, (_, i) => (
+              <circle key={i} cx={30 + (i % 6) * 28} cy={60 + Math.floor(i / 6) * 68} r="6"
+                      fill={INK} opacity="0.7" />
+            ))}
+            <rect x="200" y="14" width="186" height="344" fill={SOFT} opacity="0.25" />
+            {Array.from({ length: 5 }, (_, i) => (
+              <path key={i} d={`M214 ${52 + i * 62} C 268 ${40 + i * 62}, 318 ${76 + i * 62}, 372 ${58 + i * 62}`}
+                    stroke={MID} strokeWidth="9" fill="none" opacity="0.5" strokeLinecap="round" />
+            ))}
+            <path d="M200 14 L200 358" stroke={COP} strokeWidth="2" strokeDasharray="6 5" />
+            <Note x={107} y={340}>1/500</Note>
+            <Note x={293} y={340} fill={MID}>1/15</Note>
+            <Slogan x={200} y={40} show={adv}>pick one; do not land between them</Slogan>
+          </>
+        );
+
+      case 'shadows':
+        // Light thrown across a floor. The window that made it is out of frame,
+        // which is the instruction — so it is not drawn.
+        return (
+          <>
+            <rect x="14" y="14" width="372" height="344" fill={MID} opacity="0.3" />
+            {[0, 1, 2].map(i => (
+              <g key={i}>
+                <path d={`M${60 + i * 118} 358 L${140 + i * 118} 14 L${196 + i * 118} 14 L${116 + i * 118} 358 Z`}
+                      fill={BG} opacity="0.82" />
+                <path d={`M${88 + i * 118} 358 L${168 + i * 118} 14`} stroke={COP} strokeWidth="1"
+                      opacity="0.4" strokeDasharray="5 6" />
+              </g>
+            ))}
+            <Note x={200} y={196}>the floor only</Note>
+            <Slogan x={200} y={344} show={adv} fill={MID}>underexpose — the dark has to stay dark</Slogan>
           </>
         );
       case 'round':
+        if (args[0] === 'rim') {
+          // Backlit. The subject is dark and the edge is the only bright thing,
+          // which is the opposite exposure from a front-lit round subject.
+          return (
+            <>
+              <circle cx="200" cy="182" r="136" fill={INK} opacity="0.1" />
+              <circle cx="200" cy="182" r="96" fill="none" stroke={COP} strokeWidth="7" opacity="0.85" />
+              <circle cx="200" cy="182" r="88" fill={INK} />
+              <Note x={200} y={186} fill={BG}>dark</Note>
+              <Slogan x={200} y={344} show={adv} fill={MID}>expose for the rim, lose the rest</Slogan>
+            </>
+          );
+        }
         return (
           <>
             <circle cx="200" cy="182" r="142" fill={SOFT} opacity="0.5" />
             <circle cx="200" cy="182" r="92" fill={MID} opacity="0.35" />
             <circle cx="200" cy="182" r="50" fill={INK} />
             <path d="M42 182 h38 M320 182 h38" stroke={COP} strokeWidth="2.4" />
-            <Note x={200} y={348} fill={MID}>one plane sharp, everything else gone</Note>
+            <Slogan x={200} y={348} show={adv} fill={MID}>one plane sharp, everything else gone</Slogan>
           </>
         );
       case 'seam':
@@ -349,25 +459,39 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
               <circle key={i} cx={2 + i * 48} cy="200" r="14" fill={INK} opacity="0.85" />
             ))}
             <path d="M14 162 L14 238 M386 162 L386 238" stroke={COP} strokeWidth="3.5" />
-            <Note x={200} y={116}>running out of frame both ways</Note>
-            <Note x={200} y={300} fill={MID}>square on, or it stops being a pattern</Note>
+            <Slogan x={200} y={116} show={adv}>running out of frame both ways</Slogan>
+            <Slogan x={200} y={300} show={adv} fill={MID}>square on, or it stops being a pattern</Slogan>
           </>
         );
-      case 'crop':
+      case 'crop': {
+        // An arch for everything meant a corner turret and a flower basket both
+        // came out as a doorway. The shape is the point of a crop.
+        const shape = args[0] ?? 'arch';
+        const outer =
+          shape === 'rect'  ? 'M60 358 V150 H340 V358 Z'
+        : shape === 'round' ? 'M60 358 V230 a140 140 0 0 1 280 0 V358 Z'
+        : shape === 'tower' ? 'M84 358 V196 L110 150 H290 L316 196 V358 Z'
+        :                     'M60 358 V150 a140 140 0 0 1 280 0 V358 Z';
+        const inner =
+          shape === 'rect'  ? 'M160 358 V196 H240 V358'
+        : shape === 'round' ? 'M160 358 V246 a40 40 0 0 1 80 0 V358'
+        : shape === 'tower' ? 'M164 358 V214 L182 184 H218 L236 214 V358'
+        :                     'M160 358 V178 a40 40 0 0 1 80 0 V358';
         return (
           <>
-            <path d="M60 358 V150 a140 140 0 0 1 280 0 V358 Z" fill={SOFT} opacity="0.5" />
-            <path d="M60 358 V150 a140 140 0 0 1 280 0 V358" fill="none" stroke={MID} strokeWidth="3" />
-            <path d="M160 358 V178 a40 40 0 0 1 80 0 V358" fill="none" stroke={INK} strokeWidth="2.4" />
+            <path d={outer} fill={SOFT} opacity="0.5" />
+            <path d={outer} fill="none" stroke={MID} strokeWidth="3" />
+            <path d={inner} fill="none" stroke={INK} strokeWidth="2.4" />
             <path d="M14 100 H386" stroke={COP} strokeWidth="2" strokeDasharray="6 5" />
             <Note x={200} y={88}>the frame stops here</Note>
-            <Note x={200} y={330} fill={MID}>one part, standing for the whole</Note>
+            <Slogan x={200} y={330} show={adv} fill={MID}>one part, standing for the whole</Slogan>
           </>
         );
+      }
 
       // ── a subject in a space ──────────────────────────────────────────────
       case 'subject': {
-        const kinds = ['person', 'group', 'animal', 'bird', 'tree', 'plume'];
+        const kinds = ['person', 'group', 'animal', 'bird', 'tree', 'plume', 'hands'];
         const glyphKind = kinds.includes(args[0]) ? args[0] : 'person';
         // `near` is the opposite instruction: the subject fills the frame. A
         // raven at 200mm and a figure three blocks away are not the same
@@ -385,10 +509,11 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
               <circle cx="200" cy="186" r="58" fill="none" stroke={COP} strokeWidth="2" strokeDasharray="5 5" />
             )}
             {near && <path d="M14 168 L14 232 M386 168 L386 232" stroke={COP} strokeWidth="3.5" />}
-            <Note x={200} y={42} fill={MID}>
+            <Slogan x={200} y={42} show={adv} fill={MID}>
               {near ? 'it fills the frame — crop the setting out' : 'small in frame, and it still reads'}
-            </Note>
-            {note && <Note x={200} y={336}>{note}</Note>}
+            </Slogan>
+            {/* the note arg and the caption were saying the same thing twice */}
+            {note && !caption && <Note x={200} y={336}>{note}</Note>}
           </>
         );
       }
@@ -399,18 +524,29 @@ export function KomaSketch({ spec, rounded = 9 }: { spec: string; rounded?: numb
 
   if (!body) return null;
 
+  // A portrait frame is 220x330 (2:3) centred; the body is drawn for the
+  // 372-wide landscape one, so it scales uniformly to fit rather than squashing.
+  const fr = portrait
+    ? { x: 90, y: 14, w: 220, h: 330 }
+    : { x: 14, y: 14, w: 372, h: 344 };
+  const k = portrait ? 220 / 372 : 1;
+
   return (
     <svg viewBox="0 0 400 400" width="100%" height="100%" role="img"
-         aria-label={caption || `${kind} composition sketch`}
+         aria-label={`${caption || kind + ' composition sketch'}, ${portrait ? 'vertical' : 'horizontal'} frame`}
          style={{ display: 'block', borderRadius: rounded, background: BG }}>
       <rect width="400" height="400" fill={BG} />
-      <rect x="14" y="14" width="372" height="344" fill="none" stroke={COP} strokeWidth="2.5" />
-      {body}
+      <rect x={fr.x} y={fr.y} width={fr.w} height={fr.h} fill="none" stroke={COP} strokeWidth="2.5" />
+      <g transform={portrait
+        ? `translate(200 ${fr.y + fr.h / 2}) scale(${k}) translate(-200 -186)`
+        : undefined}>
+        {body}
+      </g>
       {caption && (
         <>
           {/* its own band — a caption printed over the drawing is unreadable,
               which is the failure this whole pass exists to fix */}
-          <rect x="0" y="362" width="400" height="38" fill={BG} />
+          <rect x="0" y="356" width="400" height="44" fill={BG} />
           <text x="200" y="384" textAnchor="middle" fontFamily={MONO} fontSize="14" fill={INK}>
             {caption.length > 44 ? caption.slice(0, 43) + '…' : caption}
           </text>
