@@ -51,23 +51,18 @@ export default async function NotesPage() {
         </Link>
       </header>
 
-      <div style={{ padding: '26px var(--px) 16px' }}>
-        <div style={{
-          fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.2em',
-          textTransform: 'uppercase', color: '#B83C01', marginBottom: 8,
-        }}>
-          reference
-        </div>
+      <div style={{ padding: '24px var(--px) 14px' }}>
+        {/* Was an eyebrow reading "reference", a title reading "How it
+            behaves", and a sentence explaining both — three restatements of
+            something you already knew, because you arrived by tapping a button
+            marked Reference. One plain title, and the tiles start 120px
+            further up the phone screen. */}
         <h1 style={{
           fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 30,
           letterSpacing: '-0.02em', color: 'var(--ink)', lineHeight: 1.1,
         }}>
-          How it behaves
+          Reference
         </h1>
-        <p style={{ fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 8, maxWidth: '38ch' }}>
-          Not a plan. The numbers that are the same everywhere, for checking at
-          the table rather than reading at home.
-        </p>
       </div>
 
       {notes.length > 1 && (
@@ -80,16 +75,18 @@ export default async function NotesPage() {
           gap: 7,
         }}>
           {notes.map(n => (
-            // Was mono, 10px, uppercase, 0.09em tracked, copper on a copper
-            // tint — 4.5:1, and every one of those choices costs legibility on
-            // top of the number. The mono-uppercase idiom belongs on labels
-            // that decorate; this is navigation and has to be read. Sentence
-            // case at 13.5px in ink is 14.5:1, and the copper stays in the
-            // border so the page still reads as koma.
+            // Started as mono, 10px, uppercase, tracked to 0.09em, copper on a
+            // copper tint — 4.5:1, with four compounding penalties on top of
+            // borderline contrast. Mono uppercase is koma's idiom for labels
+            // that decorate; this is navigation and has to be read at a glance.
             <a key={n.slug} href={`#${n.slug}`} className="tap pressable" style={{
               fontSize: 13.5, fontWeight: 500, letterSpacing: '-0.005em',
-              color: 'var(--ink)', background: 'var(--surface)',
-              border: '0.5px solid rgba(184,60,1,0.30)', borderRadius: 10,
+              // The first fix went to ink on plain surface and came out
+              // colourless. The tint was never the problem — copper *text* on
+              // a copper tint was. A warm near-black on the tint is 11.6:1,
+              // which is legible and still looks like koma.
+              color: '#3B2312', background: 'rgba(184,60,1,0.09)',
+              border: '0.5px solid rgba(184,60,1,0.34)', borderRadius: 10,
               padding: '11px 9px', minHeight: 48,
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               textAlign: 'center', lineHeight: 1.3,
