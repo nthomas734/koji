@@ -8,11 +8,22 @@ function escapeLoneTildes(md: string): string {
   return md.replace(/(^|[^~\\])~(?!~)/g, '$1\\~');
 }
 
+/**
+ * Every link opens in a new tab — except an in-page anchor, which must not.
+ * The reference shelf cross-links its own sections (`#close-focus`), and
+ * `target="_blank"` on those opened a second copy of the page instead of
+ * scrolling.
+ */
+function externalise(html: string): string {
+  return html.replace(/<a href="([^"]*)"/g, (whole, href: string) =>
+    href.startsWith('#')
+      ? whole
+      : `<a target="_blank" rel="noopener noreferrer" href="${href}"`);
+}
+
 export function renderMd(md: string): string {
   if (!md) return '';
-  let html = marked.parseInline(escapeLoneTildes(md)) as string;
-  html = html.replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href=');
-  return html;
+  return externalise(marked.parseInline(escapeLoneTildes(md)) as string);
 }
 
 /**
@@ -25,7 +36,5 @@ export function renderMd(md: string): string {
  */
 export function renderBlockMd(md: string): string {
   if (!md) return '';
-  let html = marked.parse(escapeLoneTildes(md), { async: false }) as string;
-  html = html.replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href=');
-  return html;
+  return externalise(marked.parse(escapeLoneTildes(md), { async: false }) as string);
 }

@@ -16,6 +16,22 @@ function fmtDate(iso: string | null, end: string | null): string {
     b.toLocaleDateString('en-US', sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' })}`;
 }
 
+// An open book with ruled pages — the shelf, at 44px, next to the back link.
+function BookMark() {
+  return (
+    <svg width="21" height="21" viewBox="0 0 20 20" fill="none" aria-hidden
+         style={{ display: 'block' }}>
+      <path d="M10 5.3V16" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M10 5.3C8.4 4.1 6.4 3.7 3.6 3.7V14c2.8 0 4.8.4 6.4 1.6"
+            stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" />
+      <path d="M10 5.3c1.6-1.2 3.6-1.6 6.4-1.6V14c-2.8 0-4.8.4-6.4 1.6"
+            stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" />
+      <path d="M12.4 6.9h2.6M12.4 9.1h2.6M5 6.9h2.6M5 9.1h2.6"
+            stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" opacity="0.5" />
+    </svg>
+  );
+}
+
 export default async function KomaIndex() {
   const entries = await getKomaEntries();
 
@@ -24,6 +40,7 @@ export default async function KomaIndex() {
       <header style={{
         padding: 'calc(env(safe-area-inset-top, 0px) + 12px) var(--px) 8px',
         borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between',
       }}>
         <Link href="/" className="tap" style={{
           display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44,
@@ -31,6 +48,15 @@ export default async function KomaIndex() {
           textTransform: 'uppercase', color: 'var(--brass)',
         }}>
           ← koji
+        </Link>
+        {/* The shelf is a button, not a row. It is reached for rather than
+            browsed, and a full-width card above the rolls made it read as the
+            most important thing on the page, which it is not. */}
+        <Link href="/koma/notes" className="tap" aria-label="Reference" title="Reference" style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: 44, height: 44, marginRight: -10, color: '#B83C01',
+        }}>
+          <BookMark />
         </Link>
       </header>
 
@@ -51,37 +77,6 @@ export default async function KomaIndex() {
           One outing&rsquo;s worth of frames. Trip days live on their trip;
           everything else lives here.
         </p>
-      </div>
-
-      {/* The shelf sits above the rolls because it is the thing you reach for
-          when there is no plan — and because it is the only page here that is
-          worth opening when you are already out. */}
-      <div style={{ padding: '0 var(--px) 18px' }}>
-        <Link href="/koma/notes" className="pressable" style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          background: 'rgba(184,60,1,0.05)', border: '0.5px solid rgba(184,60,1,0.22)',
-          borderRadius: 14, padding: '13px 16px',
-        }}>
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <span style={{
-              display: 'block', fontFamily: 'var(--font-serif)', fontWeight: 500,
-              fontSize: 16, color: 'var(--ink)',
-            }}>
-              Reference
-            </span>
-            <span style={{
-              display: 'block', fontSize: 12.5, color: 'var(--ink-3)',
-              lineHeight: 1.45, marginTop: 2,
-            }}>
-              Settings and guidelines that do not belong to any one outing.
-            </span>
-          </span>
-          <span aria-hidden style={{
-            fontFamily: 'var(--font-mono)', fontSize: 15, color: '#B83C01', flexShrink: 0,
-          }}>
-            ›
-          </span>
-        </Link>
       </div>
 
       <div style={{ padding: '0 var(--px)', display: 'flex', flexDirection: 'column', gap: 10 }}>

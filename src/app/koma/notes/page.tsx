@@ -53,21 +53,23 @@ export default async function NotesPage() {
       </div>
 
       {notes.length > 1 && (
-        // Sticky so it survives the scroll: on a phone the whole shelf is
-        // several screens and the jump row is the only way back up.
+        // A grid, not a scrolling row. The row clipped the last subject at
+        // 375px, which is the one case that matters: you cannot pick from a
+        // list whose end you cannot see.
         <nav style={{
-          position: 'sticky', top: 0, zIndex: 5,
-          background: 'var(--bg)', borderBottom: '1px solid var(--border)',
-          padding: '9px var(--px)', display: 'flex', gap: 7,
-          overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+          padding: '0 var(--px) 4px',
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))',
+          gap: 7,
         }}>
           {notes.map(n => (
-            <a key={n.slug} href={`#${n.slug}`} className="tap" style={{
-              flex: '0 0 auto', fontFamily: 'var(--font-mono)', fontSize: 10,
-              letterSpacing: '0.1em', textTransform: 'uppercase',
+            <a key={n.slug} href={`#${n.slug}`} className="tap pressable" style={{
+              fontFamily: 'var(--font-mono)', fontSize: 10,
+              letterSpacing: '0.09em', textTransform: 'uppercase',
               color: '#B83C01', background: 'rgba(184,60,1,0.07)',
-              border: '0.5px solid rgba(184,60,1,0.22)', borderRadius: 999,
-              padding: '7px 12px', minHeight: 32, display: 'inline-flex', alignItems: 'center',
+              border: '0.5px solid rgba(184,60,1,0.22)', borderRadius: 10,
+              padding: '10px 10px', minHeight: 42,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              textAlign: 'center', lineHeight: 1.25,
             }}>
               {n.title}
             </a>
@@ -93,8 +95,7 @@ export default async function NotesPage() {
               background: 'var(--surface)', border: '0.5px solid var(--border)',
               borderRadius: 14, padding: '16px 18px 18px', position: 'relative',
               overflow: 'hidden',
-              // Clears the sticky jump row when an anchor lands.
-              scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 58px)',
+              scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 14px)',
             }}
           >
             <div style={{
