@@ -15,6 +15,24 @@ export const revalidate = 60;
 // better index than a menu of links.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// A film edge down the left of each note, echoing the rolls index without
+// taking the page dark — this is long-form reading, and a dark ground would
+// cost more in legibility than the reference gains in character. The holes are
+// the page colour, so they read as punched rather than painted.
+function FilmEdge() {
+  return (
+    <div aria-hidden style={{
+      position: 'absolute', left: 0, top: 0, bottom: 0, width: 10,
+      background: '#17150F',
+      backgroundImage:
+        'repeating-linear-gradient(to bottom, var(--bg) 0 6px, transparent 6px 12px)',
+      backgroundSize: '4px 100%',
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'center 7px',
+    }} />
+  );
+}
+
 export default async function NotesPage() {
   const notes = await getNotes();
 
@@ -98,27 +116,24 @@ export default async function NotesPage() {
               scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 14px)',
             }}
           >
-            <div style={{
-              position: 'absolute', left: 0, top: 12, bottom: 12, width: 3,
-              background: '#B83C01', borderRadius: 4, opacity: 0.35,
-            }} />
+            <FilmEdge />
             <h2 style={{
               fontFamily: 'var(--font-serif)', fontWeight: 500, fontSize: 21,
-              letterSpacing: '-0.01em', color: 'var(--ink)', paddingLeft: 6,
+              letterSpacing: '-0.01em', color: 'var(--ink)', paddingLeft: 12,
             }}>
               {n.title}
             </h2>
             {n.subtitle && (
               <p style={{
                 fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5,
-                marginTop: 3, paddingLeft: 6,
+                marginTop: 3, paddingLeft: 12,
               }}>
                 {n.subtitle}
               </p>
             )}
             <div
               className="koma-note"
-              style={{ marginTop: 12, paddingLeft: 6 }}
+              style={{ marginTop: 12, paddingLeft: 12 }}
               dangerouslySetInnerHTML={{ __html: renderBlockMd(n.body_md) }}
             />
           </section>
