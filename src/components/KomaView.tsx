@@ -843,7 +843,7 @@ export function KomaView({
             frame={open.frame}
             total={open.frames.length}
             sun={open.sun}
-            pending={pending.has(open.frame.shot.id)} dated={open.dated}
+            pending={pending.has(open.frame.shot.id)}
             dated={open.dated}
             onClose={() => setOpen(null)}
             onStatus={st => setStatus(open.frame.shot, st)}
@@ -951,6 +951,7 @@ export function KomaRollView({
           <FrameSheet
             frame={open.frame} total={open.frames.length} sun={open.sun}
             pending={pending.has(open.frame.shot.id)}
+            dated={open.dated}
             onClose={() => setOpen(null)}
             onStatus={st => setStatus(open.frame.shot, st)}
             onStep={d => setOpen(o => {
