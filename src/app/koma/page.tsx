@@ -25,10 +25,10 @@ function fmtDate(iso: string | null, end: string | null): string {
 const FILM = {
   base:  '#17150F',   // exposed film base, warm rather than neutral black
   band:  '#0D0C08',   // the edge strip, a shade deeper than the frame
-  hole:  '#EDE4D2',   // perforations read as clear film, not as white
+  hole:  'var(--bg)',  // punched through to the page, which is what sells them
   ink:   '#F2ECE1',
   ink2:  '#AFA492',
-  ink3:  '#847A6B',
+  ink3:  '#978C7B',   // 5.6:1 on the film base; the old value sat at 4.5
   count: '#FBB04F',
   done:  '#8FCB9B',
 };
@@ -46,10 +46,10 @@ function Perf() {
       height: 13,
       background: FILM.band,
       backgroundImage:
-        `repeating-linear-gradient(to right, ${FILM.hole} 0 7px, transparent 7px 14px)`,
+        `repeating-linear-gradient(to right, ${FILM.hole} 0 6px, transparent 6px 11px)`,
       backgroundSize: '100% 5px',
       backgroundRepeat: 'no-repeat',
-      backgroundPosition: '6px 4px',
+      backgroundPosition: '0 4px',
     }} />
   );
 }
@@ -158,7 +158,9 @@ export default async function KomaIndex() {
                   {[
                     roll.location,
                     fmtDate(roll.date, roll.date_end),
-                    roll.kind === 'trip' ? `${roll.days} days` : null,
+                    // Only when the date is a single day — with a range on the
+                    // line, "3 days" restates it and wraps the row.
+                    roll.kind === 'trip' && !roll.date_end ? `${roll.days} days` : null,
                   ].filter(Boolean).join('  ·  ')}
                 </div>
               </div>
