@@ -222,10 +222,13 @@ drains still shows what you marked. Do not "simplify" this back to an awaited
 fetch: the old version only moved state on `res.ok`, which on the Tube meant
 the button did nothing at all.
 
-**The offset says which of three sources answered it.** Zone from Open-Meteo,
-else the phone's own zone when it is within 90 minutes of solar time for that
-longitude (right when you are standing in the place, correctly refused when you
-are not), else longitude. `OffsetSource` is returned rather than swallowed and
+**The offset says which of three sources answered it.** First the stored `tz`
+on the day, trip or roll — the zone at a coordinate never changes, so it lives
+in the database and ships in the page HTML: no request, right offline, right
+from six thousand miles away, right across the BST boundary inside the trip.
+Failing that, Open-Meteo. Failing that, the phone's own zone when it is within
+90 minutes of solar time for that longitude (right when you are standing in the
+place, correctly refused when you are not). Failing that, longitude. `OffsetSource` is returned rather than swallowed and
 the chart prints a ⚑ whenever it is a guess. The negative cache has a TTL —
 the first version cached a failure forever, so one dead spot poisoned the
 session — and the in-flight promise is shared, so eleven `KomaDay`s make one
@@ -265,6 +268,20 @@ themselves with `<br><br>` — and a carry note run through it comes out as one
 line with literal `- ` in it. They also need `.koma-carry-md`: `.body-content`
 assumes paper, and its green links and ink-black bold both vanish on the dark
 card.
+
+### Prerendering (2026-09-16)
+
+`/trips/[slug]` and `/koma/[slug]` need `generateStaticParams` or they are not
+prerendered at all — a dynamic segment without it cannot be, so the
+`export const revalidate = 60` sitting above them did nothing and every load
+ran five sequential Supabase queries with `no-store` and no cached fallback.
+Both slug lists swallow errors and return `[]`: a Supabase blip during a build
+should degrade to on-demand rendering, not fail the deploy. `dynamicParams`
+stays default so a slug added after a build still renders on request.
+
+60 seconds was chosen, not inherited: on the trip a static page from the edge
+on a bad connection beats second-fresh data, and a SQL edit during planning can
+wait a minute.
 
 ## Trip page shell (2026-09-16)
 
