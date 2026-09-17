@@ -124,6 +124,14 @@ export function SunTrack({
   const setFill = sunMode ? '#9C9384' : '#B4AE9F';
   const setEdge = sunMode ? '#2A2721' : '#4A453C';
   const blueDot = sunMode ? '#44547A' : '#5C6C8E';
+  // Three tiers. London in October peaks at 28° and never gets harsh; Balboa
+  // in September hits 59°, where the middle of the day is unusable. That is the
+  // difference the curve's shape already shows, said out loud.
+  const noonLabel =
+    sun.peak >= 55 ? 'harsh at noon' :
+    sun.peak >= 30 ? 'hard at noon'  :
+                     'low all day';
+
   const R0 = sunMode ? 4.4 : 4;
   const R = R0 * geom.squeeze;
   const dotR = (sunMode ? 3.1 : 2.8) * geom.squeeze;
@@ -131,7 +139,7 @@ export function SunTrack({
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`} width="100%" role="img"
-      aria-label={`Sun altitude through the day, peaking at ${Math.round(sun.peak)} degrees, with ${geom.chips.length} planned frames`}
+      aria-label={`Sun altitude through the day, peaking at ${Math.round(sun.peak)} degrees (${noonLabel}), with ${geom.chips.length} planned frames`}
       style={{ display: 'block', margin: '0 -2px 2px' }}
     >
       <defs>
@@ -151,25 +159,6 @@ export function SunTrack({
       <path d={geom.line} fill="none" stroke={cop} strokeWidth={sunMode ? 2.2 : 1.8} strokeLinejoin="round" />
 
       <line x1="0" y1={geom.horizonY} x2={W} y2={geom.horizonY} stroke={ink} strokeWidth={sunMode ? 1.2 : 0.9} opacity=".55" />
-
-      {/* Every label sits over the gradient, the bands or the curve, so each
-          gets a backing plate in the page colour. The golden band is only 0–6°,
-          so on a high-sun day (San Diego peaks at 60° against London's 28°) the
-          two lines are a few pixels apart — under 18px of separation they
-          collapse into one label for the band. */}
-      {geom.horizonY - geom.goldTopY >= 18 ? (
-        <>
-          <Plate x={3} y={geom.goldTopY - 11} w={52} h={11} bg={plate} />
-          <text x="6" y={geom.goldTopY - 2.5} fontFamily="var(--font-mono)" fontSize="8.5" fill={cop}>6° golden</text>
-          <Plate x={3} y={geom.horizonY + 1.5} w={42} h={11} bg={plate} />
-          <text x="6" y={geom.horizonY + 10} fontFamily="var(--font-mono)" fontSize="8.5" fill={ink3}>horizon</text>
-        </>
-      ) : (
-        <>
-          <Plate x={3} y={geom.goldTopY - 13} w={62} h={11.5} bg={plate} />
-          <text x="6" y={geom.goldTopY - 4} fontFamily="var(--font-mono)" fontSize="8.5" fill={cop}>golden 0–6°</text>
-        </>
-      )}
 
       {/* sunrise — half a sun coming up out of the horizon, with three short
           rays. The rays are the only thing here that might not survive a very
@@ -202,10 +191,17 @@ export function SunTrack({
         <circle cx={geom.marks.blue} cy={geom.blueBotY} r={dotR} fill={blueDot} />
       )}
 
+      {/* Peak altitude in degrees is a number you have to convert before it
+          means anything — 28° is "shadows twice your height", 59° is "0.6x".
+          The conversion is the useful part, so the label does it. Kept short
+          because the plate sits left of the golden dot and a long one reaches
+          it: 13 characters is the ceiling at this font size. */}
       <circle cx={geom.noonX} cy={geom.noonY} r={sunMode ? 3.4 : 3} fill={cop} />
-      <Plate x={geom.noonX + 5} y={geom.noonY - 5.5} w={sunMode ? 46 : 43} h={11.5} bg={plate} />
-      <text x={geom.noonX + 8} y={geom.noonY + 3.4} fontFamily="var(--font-mono)" fontSize={sunMode ? 10 : 9.5} fill={ink} fontWeight="500">
-        {Math.round(sun.peak)}° max
+      <Plate x={geom.noonX + 5} y={geom.noonY - 5.5}
+             w={noonLabel.length * (sunMode ? 6 : 5.7) + 6} h={11.5} bg={plate} />
+      <text x={geom.noonX + 8} y={geom.noonY + 3.4} fontFamily="var(--font-mono)"
+            fontSize={sunMode ? 10 : 9.5} fill={ink} fontWeight="500">
+        {noonLabel}
       </text>
 
       {geom.nowX != null && (
