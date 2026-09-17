@@ -90,6 +90,37 @@ the last day of this trip is the 25th.
 
 If the app and this audit ever disagree again, check the offset first.
 
+## Run: 2026-09-16, after the eight new frames
+
+46 England frames checked against an independent NOAA implementation (not
+`src/lib/sun.ts` — the point is to disagree with it if it is wrong). All the
+golden and blue tags hold: the tree at 17:30 is 5.5°, the Cotswold wall at
+17:25 is 5.6°, Portobello at 17:10 is 5.7°, the Churchill Arms at 18:10 is
+−3.1°. Orphan check clean, and the new `at_time` constraint means the
+"not HH:MM" arm can no longer fire.
+
+One mis-tag, worth keeping because of what kind of mistake it was: the Hogwarts
+model was `night` at 13:30 with the sun 26° up. Nothing was wrong about the
+shot — that room is blacked out — but `light` means *what the sun has to be
+doing*, and the audit reads it as a claim about the sky. Set dressing belongs in
+`tech_md`. Now `any`.
+
+Two facts checked against the venues rather than assumed, both of which would
+have wasted a frame:
+
+- **St Paul's** dropped its photography ban in 2019. Handheld, no flash, no
+  tripod, and **none at all on the Whispering Gallery** — so the dome frame is
+  shot from the crossing floor, not from the climb.
+- **Gloucester Cathedral opens at noon on Sundays.** The three cloister frames
+  on the 18th are timed from 12:40 for that reason; a morning plan there would
+  have found a locked door.
+
+Also confirmed: Westminster Abbey allows handheld photography but not in the
+Shrine of St Edward, St Faith's Chapel or the Jubilee Galleries, and never
+during a service — which is Monday's 5pm Evensong. Warner Bros allows handheld
+everywhere except the pre-show cinema and the green screen, and **no tripods
+anywhere on site, including the car park.**
+
 ---
 
 # Orphan check

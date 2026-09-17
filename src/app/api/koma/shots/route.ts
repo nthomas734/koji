@@ -30,13 +30,21 @@ async function authed() {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const trip = searchParams.get('trip');
-  if (!trip) return NextResponse.json({ error: 'trip required' }, { status: 400 });
+  const roll = searchParams.get('roll');
 
-  const { data, error } = await supabaseAdmin()
-    .from('koma_shots')
-    .select('*')
-    .eq('trip_id', Number(trip))
-    .order('sort_order');
+  // A frame belongs to exactly one of the two, so the route should answer for
+  // either. It took `trip` only, which left rolls reachable through the page
+  // but not through the API that exists to serve them.
+  if (!trip === !roll) {
+    return NextResponse.json({ error: 'exactly one of trip or roll required' }, { status: 400 });
+  }
+
+  const q = supabaseAdmin().from('koma_shots').select('*');
+  const { data, error } = await (trip
+    ? q.eq('trip_id', Number(trip))
+    : q.eq('roll_id', Number(roll))
+  ).order('sort_order');
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ shots: data ?? [] });
 }

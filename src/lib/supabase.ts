@@ -146,8 +146,6 @@ export interface Shot {
   priority:    ShotPriority;
   status:      ShotStatus;
   status_note: string | null;
-  lat:         number | null;
-  lng:         number | null;
   sort_order:  number;
 }
 
