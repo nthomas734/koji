@@ -33,18 +33,23 @@ const FILM = {
   done:  '#8FCB9B',
 };
 
-/** One edge of perforations. A gradient rather than elements: at 8x5px the
- *  corner rounding of a real perf is below the threshold of visibility, and
- *  this way the strip costs nothing and tiles to any card height. */
+/** One edge of perforations.
+ *
+ *  The horizontal gap has to come from the gradient itself. A `to bottom` ramp
+ *  tiled with `background-size` fills the whole width of every tile, so the
+ *  first version drew two solid cream bands rather than holes — correct code,
+ *  no perforations. `repeating-linear-gradient(to right, ...)` makes the
+ *  hole/gap rhythm, and a 5px-tall no-repeat strip positions it in the band. */
 function Perf() {
   return (
     <div aria-hidden style={{
       height: 13,
       background: FILM.band,
-      backgroundImage: `linear-gradient(to bottom, ${FILM.hole} 0 5px, transparent 5px)`,
-      backgroundSize: '9px 13px',
-      backgroundRepeat: 'repeat-x',
-      backgroundPosition: 'center 4px',
+      backgroundImage:
+        `repeating-linear-gradient(to right, ${FILM.hole} 0 7px, transparent 7px 14px)`,
+      backgroundSize: '100% 5px',
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: '6px 4px',
     }} />
   );
 }
