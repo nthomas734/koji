@@ -94,8 +94,17 @@ export function SunTrack({
       blue:   inWin(sun.blueEnd)  ? X(sun.blueEnd)  : null,
     };
 
+    // The three evening marks bunch as latitude drops: London gives 17px
+    // between golden and sunset, Balboa 9px, because the sun sets more steeply.
+    // Shrink them rather than let them overlap — the tightness is the point,
+    // a collision is just a blemish.
+    const evening = [marks.golden, marks.set, marks.blue].filter((v): v is number => v != null);
+    let gap = Infinity;
+    for (let i = 1; i < evening.length; i++) gap = Math.min(gap, evening[i] - evening[i - 1]);
+    const squeeze = gap === Infinity ? 1 : Math.max(0.62, Math.min(1, gap / 11));
+
     return {
-      line, area, X, Y, h0, h1, a0, marks,
+      line, area, X, Y, h0, h1, a0, marks, squeeze,
       horizonY: Y(0), goldTopY: Y(6), blueBotY: Y(-6),
       noonX: X(sun.noon), noonY: Y(sun.peak),
       nowX: now != null && now >= h0 && now <= h1 ? X(now) : null,
@@ -115,7 +124,9 @@ export function SunTrack({
   const setFill = sunMode ? '#9C9384' : '#B4AE9F';
   const setEdge = sunMode ? '#2A2721' : '#4A453C';
   const blueDot = sunMode ? '#44547A' : '#5C6C8E';
-  const R = sunMode ? 4.4 : 4;
+  const R0 = sunMode ? 4.4 : 4;
+  const R = R0 * geom.squeeze;
+  const dotR = (sunMode ? 3.1 : 2.8) * geom.squeeze;
 
   return (
     <svg
@@ -166,18 +177,18 @@ export function SunTrack({
       {geom.marks.rise != null && (
         <g>
           <g stroke={sunEdge} strokeWidth="1.1" strokeLinecap="round" opacity="0.85">
-            <line x1={geom.marks.rise} y1={geom.horizonY - R - 1.5} x2={geom.marks.rise} y2={geom.horizonY - R - 3.1} />
+            <line x1={geom.marks.rise} y1={geom.horizonY - R0 - 1.5} x2={geom.marks.rise} y2={geom.horizonY - R0 - 3.1} />
             <line x1={geom.marks.rise - 3.7} y1={geom.horizonY - 3.7} x2={geom.marks.rise - 4.9} y2={geom.horizonY - 4.9} />
             <line x1={geom.marks.rise + 3.7} y1={geom.horizonY - 3.7} x2={geom.marks.rise + 4.9} y2={geom.horizonY - 4.9} />
           </g>
-          <path d={`M${geom.marks.rise - R} ${geom.horizonY} A${R} ${R} 0 0 1 ${geom.marks.rise + R} ${geom.horizonY} Z`}
+          <path d={`M${geom.marks.rise - R0} ${geom.horizonY} A${R0} ${R0} 0 0 1 ${geom.marks.rise + R0} ${geom.horizonY} Z`}
                 fill={sunFill} stroke={sunEdge} strokeWidth="0.8" />
         </g>
       )}
 
       {/* golden — where the curve drops into the 0–6° band it is already drawing */}
       {geom.marks.golden != null && (
-        <circle cx={geom.marks.golden} cy={geom.goldTopY} r={sunMode ? 3.1 : 2.8} fill={cop} />
+        <circle cx={geom.marks.golden} cy={geom.goldTopY} r={dotR} fill={cop} />
       )}
 
       {/* sunset — the same sun, gone under the line */}
@@ -188,7 +199,7 @@ export function SunTrack({
 
       {/* blue — the bottom of the −6–0° band, after which it is simply dark */}
       {geom.marks.blue != null && (
-        <circle cx={geom.marks.blue} cy={geom.blueBotY} r={sunMode ? 3.1 : 2.8} fill={blueDot} />
+        <circle cx={geom.marks.blue} cy={geom.blueBotY} r={dotR} fill={blueDot} />
       )}
 
       <circle cx={geom.noonX} cy={geom.noonY} r={sunMode ? 3.4 : 3} fill={cop} />
