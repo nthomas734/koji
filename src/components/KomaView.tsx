@@ -53,7 +53,7 @@ function buildFrames(day: Day, shots: Shot[]): Frame[] {
 
 // ── SUN ──────────────────────────────────────────────────────────────────────
 
-function useSun(lat: number | null, lng: number | null, dateISO: string | null):
+function useSun(lat: number | null, lng: number | null, dateISO: string | null, tz: string | null):
   { sun: SunDay | null; offset: number | null; source: OffsetSource | null } {
   const [offset, setOffset] = useState<number | null>(null);
   const [source, setSource] = useState<OffsetSource | null>(null);
@@ -61,13 +61,13 @@ function useSun(lat: number | null, lng: number | null, dateISO: string | null):
   useEffect(() => {
     let alive = true;
     if (lat == null || lng == null || !dateISO) { setOffset(null); setSource(null); return; }
-    utcOffsetFor(lat, lng, dateISO).then(o => {
+    utcOffsetFor(lat, lng, dateISO, tz).then(o => {
       if (!alive) return;
       setOffset(o.seconds);
       setSource(o.source);
     });
     return () => { alive = false; };
-  }, [lat, lng, dateISO]);
+  }, [lat, lng, dateISO, tz]);
 
   const sun = useMemo(() => {
     if (lat == null || lng == null || !dateISO || offset == null) return null;
@@ -427,17 +427,17 @@ function bandNow(sun: SunDay, h: number): string {
 // ── DAY ──────────────────────────────────────────────────────────────────────
 
 function KomaDay({
-  day, index, eyebrow, heading, lat, lng, dateISO, shots, carry, isToday, now, dated, onOpen,
+  day, index, eyebrow, heading, lat, lng, dateISO, tz, shots, carry, isToday, now, dated, onOpen,
 }: {
   /** A koji day, or a synthetic one (no stops) standing in for a roll. */
   day: Day; index: number; eyebrow: string; heading: string;
-  lat: number | null; lng: number | null; dateISO: string | null;
+  lat: number | null; lng: number | null; dateISO: string | null; tz: string | null;
   shots: Shot[]; carry: Carry | null; isToday: boolean; now: Date;
   /** False when dateISO is a stand-in rather than a planned date. */
   dated: boolean;
   onOpen: (f: Frame, frames: Frame[], sun: SunDay | null, dated: boolean) => void;
 }) {
-  const { sun, offset, source } = useSun(lat, lng, dateISO);
+  const { sun, offset, source } = useSun(lat, lng, dateISO, tz);
 
   // Times on this screen are the destination's, so the clock must be too.
   const thereHour = offset != null ? hoursAtLocation(now, offset) : null;
@@ -828,7 +828,7 @@ export function KomaView({
           eyebrow={[day.label.split(/\s[-–—]\s/)[0], `Day ${i + 1} of ${days.length}`]
             .filter(Boolean).join(' · ')}
           heading={day.label.split(/\s[-–—]\s/)[1] ?? day.label}
-          lat={day.lat ?? trip.lat} lng={day.lng ?? trip.lng}
+          lat={day.lat ?? trip.lat} lng={day.lng ?? trip.lng} tz={day.tz ?? trip.tz}
           dateISO={dateForDay(i)} shots={shotsView}
           dated={dateForDay(i) != null}
           carry={carry.find(c => c.day_id === day.id) ?? null}
@@ -921,7 +921,8 @@ export function KomaRollView({
   // Synthetic day: same shape KomaDay expects, no stops.
   const day: Day = {
     id: -roll.id, trip_id: -1, label: roll.title, sort_order: 0,
-    lat: roll.lat, lng: roll.lng, location_label: roll.location_label, stops: [],
+    lat: roll.lat, lng: roll.lng, tz: roll.tz,
+    location_label: roll.location_label, stops: [],
   };
   const asDayShots = shotsView.map(s => ({ ...s, day_id: day.id, stop_id: null }));
 
@@ -932,7 +933,7 @@ export function KomaRollView({
         eyebrow={[roll.location_label, roll.roll_date ? fmtRollDate(roll.roll_date) : 'no date set']
           .filter(Boolean).join(' · ')}
         heading={roll.title}
-        lat={roll.lat} lng={roll.lng} dateISO={dateISO}
+        lat={roll.lat} lng={roll.lng} tz={roll.tz} dateISO={dateISO}
         shots={asDayShots} carry={carry} isToday={isToday} now={now}
         dated={!!roll.roll_date}
         onOpen={(frame, frames, sun, dated) => setOpen({ frame, frames, sun, dated })}

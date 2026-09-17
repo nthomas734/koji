@@ -1,8 +1,15 @@
 import { notFound } from 'next/navigation';
-import { getTripBySlug } from '@/lib/supabase';
+import { getTripBySlug, getTripSlugs } from '@/lib/supabase';
 import { TripView } from '@/components/TripView';
 
 export const revalidate = 60;
+
+// Without this the segment cannot be prerendered and `revalidate` does nothing:
+// every load ran five sequential Supabase queries and an outage gave an error
+// page rather than the last good copy.
+export async function generateStaticParams() {
+  return (await getTripSlugs()).map(slug => ({ slug }));
+}
 
 export default async function TripPage({
   params,
