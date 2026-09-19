@@ -209,9 +209,14 @@ function FrameSheet({
         padding: '13px 16px 10px', background: 'var(--k-bg)',
         borderBottom: 'var(--k-bw) solid var(--k-border)',
       }}>
+        {/* 44px of target, pulled left by its own padding so the chevron still
+            sits flush with the header text. It was 16x19. */}
         <button type="button" onClick={onClose} aria-label="Back" style={{
           background: 'none', border: 'none', font: 'inherit', fontSize: 19,
-          color: 'var(--k-ink-2)', cursor: 'pointer', padding: '0 4px 0 0', lineHeight: 1,
+          color: 'var(--k-ink-2)', cursor: 'pointer', lineHeight: 1,
+          width: 44, height: 44, marginLeft: -14, marginTop: -6, marginBottom: -6,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          flex: '0 0 auto',
         }}>‹</button>
         {/* One line. "Bourton → Lower Slaughter → Upper Slaughter loop" wrapped
             this to three lines and pushed the whole sheet down; the stop name is
@@ -307,7 +312,10 @@ function FrameSheet({
             href={s.scout_url} target="_blank" rel="noopener noreferrer"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
-              marginTop: 8, padding: '6px 11px 6px 9px', borderRadius: 999,
+              // 27px tall, and it is the one control that sends you out of the
+              // app while you are standing in the street looking for the spot.
+              minHeight: 44, boxSizing: 'border-box',
+              marginTop: 8, padding: '0 14px 0 12px', borderRadius: 999,
               border: '1px solid var(--k-border-2)',
               color: 'var(--k-copper)', background: 'transparent',
               fontFamily: 'var(--font-mono)', fontSize: 10,
@@ -523,8 +531,19 @@ function KomaDay({
     missed: f.shot.status === 'missed' || f.shot.status === 'skipped',
   }));
 
-  // Next unshot frame, for the line under the chart
-  const next = frames.find(f => f.shot.status === 'planned');
+  // Next unshot frame, for the line under the chart.
+  //
+  // It used to take the first planned frame outright, so at 5pm it still named
+  // the 4pm one and every day of the trip opened on "Next — frame 1". A "next"
+  // only means anything on the day itself, looking forward: frames whose hour
+  // has passed by more than half an hour are behind you, and an untimed frame
+  // is available whenever you reach it.
+  const next = useMemo(() => {
+    if (!isToday || nowHour == null) return null;
+    return frames.find(f =>
+      f.shot.status === 'planned' && (f.hour == null || f.hour >= nowHour - 0.5),
+    ) ?? null;
+  }, [frames, isToday, nowHour]);
   const minsAway = next?.hour != null && nowHour != null ? Math.round((next.hour - nowHour) * 60) : null;
 
   const nowStopId = useMemo(() => {

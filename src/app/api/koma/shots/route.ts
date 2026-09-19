@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -21,6 +22,40 @@ export const dynamic = 'force-dynamic';
 
 /** Fields the field UI is allowed to write without being logged in. */
 const FIELD_WRITABLE = new Set(['status', 'status_note']);
+
+/** The route is open, so the two open fields get checked rather than trusted.
+ *  Neither was validated: `status` took any string, and `status_note` took a
+ *  document. Nothing writes the note yet, which is the moment to cap it. */
+const STATUSES = new Set(['planned', 'got', 'missed', 'skipped']);
+const NOTE_MAX = 280;
+
+function rejectBadValues(body: Record<string, unknown>): string | null {
+  if ('status' in body && !STATUSES.has(String(body.status))) {
+    return `status must be one of ${[...STATUSES].join(', ')}`;
+  }
+  const note = body.status_note;
+  if (note != null && (typeof note !== 'string' || note.length > NOTE_MAX)) {
+    return `status_note must be a string of at most ${NOTE_MAX} characters`;
+  }
+  return null;
+}
+
+/**
+ * Marking a frame writes to the database, but the trip page is prerendered
+ * with `revalidate = 60` — so the next request inside that window is served
+ * the *old* payload, `setShots(initialShots)` applies it, and the mark the
+ * person just made visibly reverts. It comes back a minute later, which is
+ * worse than never showing it: the app appears to have lost the work.
+ *
+ * Every koma surface is invalidated rather than looked up by slug. There are
+ * a handful of trips and two rolls; a query to be precise costs more than the
+ * regeneration it would save.
+ */
+function revalidateKoma() {
+  revalidatePath('/trips/[slug]', 'page');
+  revalidatePath('/koma/[slug]', 'page');
+  revalidatePath('/koma');
+}
 
 async function authed() {
   const store = await cookies();
@@ -59,8 +94,13 @@ export async function PATCH(req: Request) {
   if (!keys.length) return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
 
   // Anything beyond a status change is authoring, and needs the cookie.
-  if (!keys.every(k => FIELD_WRITABLE.has(k)) && !await authed()) {
+  const fieldOnly = keys.every(k => FIELD_WRITABLE.has(k));
+  if (!fieldOnly && !await authed()) {
     return new NextResponse('Unauthorized', { status: 401 });
+  }
+  if (fieldOnly) {
+    const bad = rejectBadValues(body);
+    if (bad) return NextResponse.json({ error: bad }, { status: 400 });
   }
 
   const { error } = await supabaseAdmin()
@@ -68,6 +108,7 @@ export async function PATCH(req: Request) {
     .update(body)
     .eq('id', Number(id));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  revalidateKoma();
   return NextResponse.json({ ok: true });
 }
 
@@ -80,6 +121,7 @@ export async function POST(req: Request) {
     .select()
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  revalidateKoma();
   return NextResponse.json({ shot: data });
 }
 
@@ -93,5 +135,6 @@ export async function DELETE(req: Request) {
     .delete()
     .eq('id', Number(id));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  revalidateKoma();
   return NextResponse.json({ ok: true });
 }

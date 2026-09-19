@@ -7,6 +7,7 @@ import { renderMd } from '@/lib/markdown';
 import { KojiMark } from '@/components/KojiMark';
 import { KomaView } from '@/components/KomaView';
 import { KomaMark } from '@/components/KomaMark';
+import { useQueueDrain } from '@/lib/komaQueue';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
 const THEMES: Record<string, { bg: string; fg: string }> = {
@@ -1447,6 +1448,9 @@ const TAB_HASHES: Record<string, Tab> = { logistics: 'logistics', weather: 'weat
 
 export function TripView({ trip, logistics, days, shots: initialShots, carry }: TripViewProps) {
   const router = useRouter();
+  // Above koma on purpose: a frame marked underground has to keep trying once
+  // there is signal, whether or not the mode is still open. See komaQueue.
+  useQueueDrain();
   const [activeTab, setActiveTabState] = useState<Tab>('itinerary');
 
   // ── koma ──────────────────────────────────────────────────────────────────
@@ -1459,13 +1463,30 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
 
   useEffect(() => { setShots(initialShots); }, [initialShots]);
 
+  // ── koma survives a reload ───────────────────────────────────────────────
+  // The mode was component state only, so an iOS PWA resume — which happens
+  // freely, and will over ten days — dropped you back into the itinerary. It
+  // lives in the hash now. Reading it already worked — /trips/<slug>#koma is
+  // how the admin list links through — but nothing ever *wrote* it, so the
+  // deep link was the only way in and toggling in the app left no trace.
+  useEffect(() => {
+    if (window.location.hash === '#koma') setKomaOn(true);
+  }, []);
+
+  const toggleKoma = useCallback(() => {
+    setKomaOn(v => {
+      const next = !v;
+      try {
+        history.replaceState(null, '', next ? '#koma' : window.location.pathname);
+      } catch { /* history is unavailable in some embedded views */ }
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     try {
       if (localStorage.getItem('koma:sun') === '1') setSunMode(true);
     } catch { /* private mode */ }
-    // /trips/<slug>#koma opens straight into the shooting plan, which is how
-    // the admin list links through to it.
-    if (window.location.hash === '#koma') setKomaOn(true);
   }, []);
 
   const toggleSun = useCallback(() => {
@@ -1590,9 +1611,16 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
   // ── tabs ─────────────────────────────────────────────────────────────────
   const setActiveTab = useCallback((t: Tab) => {
     setActiveTabState(t);
-    try { history.replaceState(null, '', t === 'itinerary' ? window.location.pathname : `#${t}`); } catch {}
+    try {
+      // Returning to the itinerary used to drop the hash unconditionally, so a
+      // trip to the weather tab and back lost the mode on the next resume.
+      const target = t !== 'itinerary' ? `#${t}`
+        : komaOn ? '#koma'
+        : window.location.pathname;
+      history.replaceState(null, '', target);
+    } catch { /* see above */ }
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-  }, []);
+  }, [komaOn]);
 
   const goToday = useCallback(() => {
     if (todayIdx < 0) return;
@@ -1731,14 +1759,23 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
                 type="button" onClick={toggleSun}
                 aria-label="Sun mode" aria-pressed={sunMode}
                 style={{
-                  width: 30, height: 30, borderRadius: 8, cursor: 'pointer', lineHeight: 1,
-                  border: `1px solid ${sunMode ? '#B83C01' : 'var(--border-mid)'}`,
-                  background: sunMode ? '#B83C01' : 'transparent',
+                  // 44px of target around a 30px face: the box is the tap
+                  // area, the border draws the smaller square inside it.
+                  width: 44, height: 44, padding: 0, borderRadius: 8, cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  lineHeight: 1, background: 'transparent', border: 'none',
                   color: sunMode ? '#FBE7D4' : 'var(--ink-3)', fontSize: 14,
                 }}
-              >☀</button>
+              >
+                <span style={{
+                  width: 30, height: 30, borderRadius: 8,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  border: `1px solid ${sunMode ? '#B83C01' : 'var(--border-mid)'}`,
+                  background: sunMode ? '#B83C01' : 'transparent',
+                }}>☀</span>
+              </button>
             )}
-            <KomaMark on={komaOn} onToggle={() => setKomaOn(v => !v)} />
+            <KomaMark on={komaOn} onToggle={toggleKoma} />
           </span>
         )}
         <a

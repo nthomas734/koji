@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Carry, Roll, Shot } from '@/lib/supabase';
 import { KomaRollView } from '@/components/KomaView';
 import { KomaMark } from '@/components/KomaMark';
+import { useQueueDrain } from '@/lib/komaQueue';
 
 export function RollView({ roll, shots: initial, carry }: { roll: Roll; shots: Shot[]; carry: Carry | null }) {
+  useQueueDrain();
   const [shots, setShots] = useState<Shot[]>(initial);
   const [sunMode, setSunMode] = useState(false);
 
@@ -45,12 +47,19 @@ export function RollView({ roll, shots: initial, carry }: { roll: Roll; shots: S
             type="button" onClick={toggleSun}
             aria-label="Sun mode" aria-pressed={sunMode}
             style={{
-              width: 30, height: 30, borderRadius: 8, cursor: 'pointer', lineHeight: 1,
-              border: `1px solid ${sunMode ? '#B83C01' : 'var(--border-mid)'}`,
-              background: sunMode ? '#B83C01' : 'transparent',
+              width: 44, height: 44, padding: 0, borderRadius: 8, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              lineHeight: 1, background: 'transparent', border: 'none',
               color: sunMode ? '#FBE7D4' : 'var(--ink-3)', fontSize: 14,
             }}
-          >☀</button>
+          >
+            <span style={{
+              width: 30, height: 30, borderRadius: 8,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              border: `1px solid ${sunMode ? '#B83C01' : 'var(--border-mid)'}`,
+              background: sunMode ? '#B83C01' : 'transparent',
+            }}>☀</span>
+          </button>
           <KomaMark on onToggle={() => { window.location.href = '/koma'; }} />
         </span>
       </header>
