@@ -14,15 +14,22 @@ function julianDay(y: number, m: number, d: number, dayFrac: number): number {
   return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + B - 1524.5 + dayFrac;
 }
 
+export interface SolarPosition {
+  /** Degrees above the horizon. Negative below it. */
+  altitude: number;
+  /** Degrees clockwise from true north. */
+  azimuth:  number;
+}
+
 /**
- * Sun altitude in degrees above the horizon.
+ * Sun altitude and azimuth.
  * @param dateISO  YYYY-MM-DD, the local calendar date
  * @param localHours  hours into that local day (13.5 = 13:30 local)
  * @param utcOffsetSec  the location's offset from UTC, in seconds
  */
-export function solarAltitude(
+export function solarPosition(
   dateISO: string, localHours: number, lat: number, lon: number, utcOffsetSec: number,
-): number {
+): SolarPosition {
   const [y, m, d] = dateISO.split('-').map(Number);
   const utcHours = localHours - utcOffsetSec / 3600;
   const JD = julianDay(y, m, d, utcHours / 24);
@@ -62,7 +69,68 @@ export function solarAltitude(
   const latR = lat * RAD;
   const cosZ =
     Math.sin(latR) * Math.sin(decl) + Math.cos(latR) * Math.cos(decl) * Math.cos(ha);
-  return 90 - Math.acos(Math.max(-1, Math.min(1, cosZ))) * DEG;
+  const zen = Math.acos(Math.max(-1, Math.min(1, cosZ)));
+  const altitude = 90 - zen * DEG;
+
+  // Azimuth, clockwise from true north.
+  //
+  // The last line is the whole formula. Without the quadrant correction the
+  // result is mirrored about the meridian — New York's summer-solstice sunset
+  // comes out 237° instead of 302°, which is wrong by 65° and still looks like
+  // a perfectly plausible westerly. Validated against that, and against
+  // Manhattanhenge falling in late May and mid-July. See sql/sun-audit.md.
+  const denom = Math.cos(latR) * Math.sin(zen);
+  let azimuth = 180;
+  if (Math.abs(denom) > 1e-9) {
+    const c = (Math.sin(latR) * Math.cos(zen) - Math.sin(decl)) / denom;
+    const a = Math.acos(Math.max(-1, Math.min(1, c))) * DEG;
+    azimuth = ha > 0 ? (a + 180) % 360 : (540 - a) % 360;
+  }
+
+  return { altitude, azimuth };
+}
+
+/** Altitude only, which is all the curve needs. */
+export function solarAltitude(
+  dateISO: string, localHours: number, lat: number, lon: number, utcOffsetSec: number,
+): number {
+  return solarPosition(dateISO, localHours, lat, lon, utcOffsetSec).altitude;
+}
+
+/**
+ * Where the sun is relative to the way you are looking.
+ *
+ * Every content error two review passes found was a direction, not a time —
+ * port versus starboard, Manhattanhenge in October, a tower said to be
+ * front-lit when the sun was behind it. Prose gets this wrong because it is
+ * easy to picture wrongly; a subtraction does not.
+ *
+ * @param bearing  the compass direction you are looking, degrees from north
+ * @param azimuth  the sun's azimuth at the time of the frame
+ */
+export function sunRelation(bearing: number, azimuth: number): {
+  /** Signed degrees from your line of sight to the sun; positive is to your right. */
+  off: number;
+  kind: 'into' | 'side' | 'behind';
+  text: string;
+} {
+  const off = ((azimuth - bearing + 540) % 360) - 180;
+  const mag = Math.round(Math.abs(off));
+  const side = off >= 0 ? 'right' : 'left';
+
+  if (mag <= 15) {
+    return { off, kind: 'into', text: 'Straight into the sun — the face turned toward you is in shade.' };
+  }
+  if (mag < 45) {
+    return { off, kind: 'into', text: `Into the sun, ${mag}° to your ${side} — the face turned toward you is in shade.` };
+  }
+  if (mag <= 135) {
+    return { off, kind: 'side', text: `Side light from your ${side}, ${mag}° off your line — it rakes across.` };
+  }
+  if (mag >= 170) {
+    return { off, kind: 'behind', text: 'Sun directly behind you — the subject is lit square on.' };
+  }
+  return { off, kind: 'behind', text: `Sun behind your ${side} shoulder — the subject is lit square on.` };
 }
 
 export interface SunDay {

@@ -143,6 +143,9 @@ export interface Shot {
   scout_url:   string | null;
   /** Composition diagram spec, drawn by KomaSketch when there is no photo. */
   sketch:      string | null;
+  /** Direction of view, degrees from true north. Null unless derived from
+   *  real coordinates — a guessed bearing prints a confident wrong sentence. */
+  bearing:     number | null;
   priority:    ShotPriority;
   status:      ShotStatus;
   status_note: string | null;

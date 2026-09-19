@@ -11,6 +11,7 @@ import {
   type SunDay, type OffsetSource,
 } from '@/lib/sun';
 import { usePendingStatus, queueStatus, flush } from '@/lib/komaQueue';
+import { solarPosition, sunRelation } from '@/lib/sun';
 
 // ── FRAME MODEL ──────────────────────────────────────────────────────────────
 // A "frame" is a shot placed in the day's running order. Numbering runs 1..n
@@ -153,12 +154,17 @@ function ShotRow({ frame, onOpen }: { frame: Frame; onOpen: () => void }) {
 
 // ── FRAME SHEET ──────────────────────────────────────────────────────────────
 
+/** Everything the sheet needs to place the sun, or null when it cannot. */
+export type SheetGeo = { lat: number; lng: number; dateISO: string; offset: number } | null;
+
 function FrameSheet({
-  frame, total, sun, onClose, onStatus, pending, dated, onStep,
+  frame, total, sun, geo, onClose, onStatus, pending, dated, onStep,
 }: {
   frame: Frame;
   total: number;
   sun: SunDay | null;
+  /** Coordinates, date and offset — for the sun-direction line. */
+  geo: SheetGeo;
   onClose: () => void;
   onStatus: (status: Shot['status']) => void;
   /** This frame has a status write that has not reached the server yet. */
@@ -196,6 +202,18 @@ function FrameSheet({
   // 18:20 golden frame flagged "falls in day light" purely because golden had
   // moved four minutes since the plan was written.
   const conflict = dated && wantsGolden && band && band !== s.light;
+
+  // Where the sun is relative to the way you are looking. Only for frames with
+  // an authored bearing — most have none, deliberately — and only while the
+  // sun is actually up, since "behind you" means nothing at midnight.
+  const facing = useMemo(() => {
+    if (s.bearing == null || !geo || frame.hour == null) return null;
+    const { altitude, azimuth } = solarPosition(
+      geo.dateISO, frame.hour, geo.lat, geo.lng, geo.offset,
+    );
+    if (altitude <= -0.5) return null;
+    return sunRelation(s.bearing, azimuth);
+  }, [s.bearing, geo, frame.hour]);
 
   return (
     <div ref={scroller} role="dialog" aria-modal="true" aria-label={s.title} style={{
@@ -306,6 +324,17 @@ function FrameSheet({
         )}
 
         <Block label="Where to stand" md={s.position_md} />
+
+        {facing && (
+          <div style={{
+            marginTop: 8, padding: '8px 11px', borderRadius: 10,
+            background: 'var(--k-subtle)', border: 'var(--k-bw) solid var(--k-border)',
+            fontSize: 12.5, lineHeight: 1.5, color: 'var(--k-ink-2)',
+          }}>
+            <span style={{ color: 'var(--k-copper)' }}>☀</span>{' '}
+            {facing.text}
+          </div>
+        )}
 
         {s.scout_url && (
           <a
@@ -488,9 +517,18 @@ function KomaDay({
   shots: Shot[]; carry: Carry | null; isToday: boolean; now: Date;
   /** False when dateISO is a stand-in rather than a planned date. */
   dated: boolean;
-  onOpen: (f: Frame, frames: Frame[], sun: SunDay | null, dated: boolean) => void;
+  onOpen: (f: Frame, frames: Frame[], sun: SunDay | null, dated: boolean, geo: SheetGeo) => void;
 }) {
   const { sun, offset, source } = useSun(lat, lng, dateISO, tz);
+
+  // Null unless every part is present — a bearing rendered against a guessed
+  // offset would be exactly the confidently-wrong sentence this is here to stop.
+  const geo: SheetGeo = useMemo(
+    () => (lat != null && lng != null && dateISO && offset != null
+      ? { lat, lng, dateISO, offset }
+      : null),
+    [lat, lng, dateISO, offset],
+  );
 
   // Times on this screen are the destination's, so the clock must be too.
   const thereHour = offset != null ? hoursAtLocation(now, offset) : null;
@@ -586,7 +624,7 @@ function KomaDay({
         </div>
         {sun
           ? <SunTrack sun={sun} frames={trackFrames} now={nowHour}
-                      onPick={n => { const f = frames.find(x => x.n === n); if (f) onOpen(f, frames, sun, dated); }} />
+                      onPick={n => { const f = frames.find(x => x.n === n); if (f) onOpen(f, frames, sun, dated, geo); }} />
           : <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                  className="koma-label">
               {lat == null ? 'no coordinates for this day'
@@ -720,7 +758,7 @@ function KomaDay({
             </div>
             {fs.length > 0 && (
               <div style={{ margin: '10px 0 0 61px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {fs.map(f => <ShotRow key={f.shot.id} frame={f} onOpen={() => onOpen(f, frames, sun, dated)} />)}
+                {fs.map(f => <ShotRow key={f.shot.id} frame={f} onOpen={() => onOpen(f, frames, sun, dated, geo)} />)}
               </div>
             )}
           </div>
@@ -733,7 +771,7 @@ function KomaDay({
           <div className="koma-label" style={{ marginBottom: 9 }}>Anywhere this day</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {byStop.get('loose')!.map(f => (
-              <ShotRow key={f.shot.id} frame={f} onOpen={() => onOpen(f, frames, sun, dated)} />
+              <ShotRow key={f.shot.id} frame={f} onOpen={() => onOpen(f, frames, sun, dated, geo)} />
             ))}
           </div>
         </div>
@@ -831,7 +869,7 @@ export function KomaView({
   onShotChange: (shot: Shot) => void;
 }) {
   const [open, setOpen] = useState<
-    { frame: Frame; frames: Frame[]; sun: SunDay | null; dated: boolean } | null
+    { frame: Frame; frames: Frame[]; sun: SunDay | null; dated: boolean; geo: SheetGeo } | null
   >(null);
   const pending = usePendingStatus();
   const [now, setNow] = useState<Date>(() => new Date());
@@ -897,7 +935,7 @@ export function KomaView({
           dated={dateForDay(i) != null}
           carry={carry.find(c => c.day_id === day.id) ?? null}
           isToday={i === todayIdx} now={now}
-          onOpen={(frame, frames, sun, dated) => setOpen({ frame, frames, sun, dated })}
+          onOpen={(frame, frames, sun, dated, geo) => setOpen({ frame, frames, sun, dated, geo })}
         />
       ))}
 
@@ -907,6 +945,7 @@ export function KomaView({
             frame={open.frame}
             total={open.frames.length}
             sun={open.sun}
+            geo={open.geo}
             pending={pending.has(open.frame.shot.id)}
             dated={open.dated}
             onClose={() => setOpen(null)}
@@ -939,7 +978,7 @@ export function KomaRollView({
   onShotChange: (shot: Shot) => void;
 }) {
   const [open, setOpen] = useState<
-    { frame: Frame; frames: Frame[]; sun: SunDay | null; dated: boolean } | null
+    { frame: Frame; frames: Frame[]; sun: SunDay | null; dated: boolean; geo: SheetGeo } | null
   >(null);
   const pending = usePendingStatus();
   const [now, setNow] = useState<Date>(() => new Date());
@@ -1000,7 +1039,7 @@ export function KomaRollView({
         lat={roll.lat} lng={roll.lng} tz={roll.tz} dateISO={dateISO}
         shots={asDayShots} carry={carry} isToday={isToday} now={now}
         dated={!!roll.roll_date}
-        onOpen={(frame, frames, sun, dated) => setOpen({ frame, frames, sun, dated })}
+        onOpen={(frame, frames, sun, dated, geo) => setOpen({ frame, frames, sun, dated, geo })}
       />
 
       {roll.notes_md && (
@@ -1015,6 +1054,7 @@ export function KomaRollView({
         <div className={sunMode ? 'koma sun' : 'koma'}>
           <FrameSheet
             frame={open.frame} total={open.frames.length} sun={open.sun}
+            geo={open.geo}
             pending={pending.has(open.frame.shot.id)}
             dated={open.dated}
             onClose={() => setOpen(null)}
