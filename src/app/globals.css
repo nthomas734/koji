@@ -498,12 +498,19 @@ input, textarea, select {
   color: var(--ink-4);
 }
 /* First column carries the number being looked up — mono so the figures line
-   up down the column, which is how you scan one of these. */
+   up down the column, which is how you scan one of these.
+   `white-space: nowrap` was here and had to go: it is harmless for "0.5x" or
+   "1/15", and catastrophic the moment a sentence lands in column one, which
+   pushed one table to 838px inside a 349px card with `overflow: hidden` — the
+   right-hand columns were cut off and unreachable. Short values are single
+   tokens and will not wrap anyway, so nothing is lost. */
 .koma-note td:first-child {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--ink);
-  white-space: nowrap;
   padding-right: 12px;
 }
+/* A table that still cannot fit scrolls rather than hiding its own columns. */
+.koma-note table { display: block; overflow-x: auto; }
+.koma-note tbody, .koma-note thead { display: table; width: 100%; }
 .koma-note tr:last-child td { border-bottom: none; }
