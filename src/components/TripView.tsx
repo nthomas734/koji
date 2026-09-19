@@ -1858,6 +1858,12 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
           dateForDay={(i) => (trip.date_start ? dateForDay(trip.date_start, i) : null)}
           todayIdx={todayIdx}
           sunMode={sunMode}
+          // Only the dates the forecast actually covers. A trip beyond the
+          // ~16-day window contributes nothing here, and koma draws nothing —
+          // a missing forecast must never render as "clear".
+          cloudByDate={Object.fromEntries(
+            Object.entries(weatherMap).map(([d, w]) => [d, w.wmoCode]),
+          )}
           onShotChange={applyShot}
         />
       )}

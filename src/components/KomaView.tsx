@@ -155,6 +155,31 @@ function ShotRow({ frame, onOpen }: { frame: Frame; onOpen: () => void }) {
 // ── FRAME SHEET ──────────────────────────────────────────────────────────────
 
 /** Everything the sheet needs to place the sun, or null when it cannot. */
+/**
+ * Cloud, as a flag rather than a forecast.
+ *
+ * Light is the whole mode and cloud is the one thing that overrides the sun: a
+ * golden frame under full overcast is not a golden frame, and the texture
+ * frames become the ones to chase instead. The trip page already fetches a
+ * daily WMO code for the weather tab, so this costs no request.
+ *
+ * **Absent means absent.** Open-Meteo's forecast window is about sixteen days,
+ * so a trip further out returns nothing — and nothing must render as nothing,
+ * never as "clear". Silently turning a missing forecast into good news is the
+ * same failure as the UTC offset falling back to +0, which shipped once
+ * already. See sql/sun-audit.md.
+ */
+export type DayCloud = { code: number } | null;
+
+/** WMO 3 is overcast; 45+ is fog, drizzle, rain, snow, storms. */
+function cloudFlag(c: DayCloud): string | null {
+  if (!c) return null;
+  if (c.code === 3)  return 'Overcast forecast — golden may not arrive.';
+  if (c.code >= 45)  return 'Wet or foggy forecast — plan for flat light.';
+  if (c.code === 2)  return 'Partly cloudy forecast — golden is a maybe.';
+  return null;
+}
+
 export type SheetGeo = { lat: number; lng: number; dateISO: string; offset: number } | null;
 
 function FrameSheet({
@@ -509,12 +534,14 @@ function bandNow(sun: SunDay, h: number): string {
 // ── DAY ──────────────────────────────────────────────────────────────────────
 
 function KomaDay({
-  day, index, eyebrow, heading, lat, lng, dateISO, tz, shots, carry, isToday, now, dated, onOpen,
+  day, index, eyebrow, heading, lat, lng, dateISO, tz, shots, carry, isToday, now, dated, cloud, onOpen,
 }: {
   /** A koji day, or a synthetic one (no stops) standing in for a roll. */
   day: Day; index: number; eyebrow: string; heading: string;
   lat: number | null; lng: number | null; dateISO: string | null; tz: string | null;
   shots: Shot[]; carry: Carry | null; isToday: boolean; now: Date;
+  /** Daily forecast code, or null when there is no forecast for this date. */
+  cloud: DayCloud;
   /** False when dateISO is a stand-in rather than a planned date. */
   dated: boolean;
   onOpen: (f: Frame, frames: Frame[], sun: SunDay | null, dated: boolean, geo: SheetGeo) => void;
@@ -668,6 +695,12 @@ function KomaDay({
                 trip the local clock is the only one that matters, and before it
                 the home time is the one you are already looking at. */}
             <span style={{ color: 'var(--k-ink-3)' }}>{bandNow(sun, thereHour)}</span>
+          </div>
+        )}
+        {cloudFlag(cloud) && (
+          <div style={{ marginTop: 9, paddingTop: 8, borderTop: '1px solid var(--k-border)',
+                        fontSize: 12.5, color: 'var(--k-warn-ink)', lineHeight: 1.45 }}>
+            ⛅ {cloudFlag(cloud)}
           </div>
         )}
         {next && (
@@ -857,7 +890,7 @@ function RollFinished({ frames }: { frames: Frame[] }) {
 // ── VIEW ─────────────────────────────────────────────────────────────────────
 
 export function KomaView({
-  trip, days, shots, carry, dateForDay, todayIdx, sunMode, onShotChange,
+  trip, days, shots, carry, dateForDay, todayIdx, sunMode, cloudByDate, onShotChange,
 }: {
   trip: Trip;
   days: Day[];
@@ -866,6 +899,8 @@ export function KomaView({
   dateForDay: (i: number) => string | null;
   todayIdx: number;
   sunMode: boolean;
+  /** date → WMO code, for the dates the forecast actually covers. */
+  cloudByDate: Record<string, number>;
   onShotChange: (shot: Shot) => void;
 }) {
   const [open, setOpen] = useState<
@@ -935,6 +970,8 @@ export function KomaView({
           dated={dateForDay(i) != null}
           carry={carry.find(c => c.day_id === day.id) ?? null}
           isToday={i === todayIdx} now={now}
+          cloud={(() => { const d = dateForDay(i); const c = d ? cloudByDate[d] : undefined;
+                          return c == null ? null : { code: c }; })()}
           onOpen={(frame, frames, sun, dated, geo) => setOpen({ frame, frames, sun, dated, geo })}
         />
       ))}
@@ -1036,7 +1073,7 @@ export function KomaRollView({
         eyebrow={[roll.location_label, roll.roll_date ? fmtRollDate(roll.roll_date) : 'no date set']
           .filter(Boolean).join(' · ')}
         heading={roll.title}
-        lat={roll.lat} lng={roll.lng} tz={roll.tz} dateISO={dateISO}
+        lat={roll.lat} lng={roll.lng} tz={roll.tz} dateISO={dateISO} cloud={null}
         shots={asDayShots} carry={carry} isToday={isToday} now={now}
         dated={!!roll.roll_date}
         onOpen={(frame, frames, sun, dated, geo) => setOpen({ frame, frames, sun, dated, geo })}
