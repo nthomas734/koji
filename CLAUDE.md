@@ -305,6 +305,47 @@ centre at +0.5° because the horizon there is the Jersey skyline). A method can
 be internally consistent, symmetric about the solstice, and five days wrong.
 `sql/sun-audit.md` carries the full working.
 
+### Sun direction, and the bearing column (2026-09-19)
+
+Every content error two review passes found was a **direction, not a time**:
+port versus starboard on the Thames, Manhattanhenge in October, the California
+Tower called front-lit with the sun behind it. Prose keeps getting this wrong
+because it is easy to picture wrongly. A subtraction does not.
+
+`solarPosition` returns azimuth beside altitude and `solarAltitude` calls
+through it, so there is one copy of the NOAA maths. **The quadrant correction
+is the whole formula** — `(a + 180) % 360` in the afternoon, `(540 - a) % 360`
+otherwise. Without it the answer is mirrored about the meridian: New York's
+solstice sunset comes out 237° instead of 302°, wrong by 65° and still a
+plausible-looking westerly. Verified in production against a hand calculation:
+Plaza de Panama at 6:20pm prints "22° to your left", matching 267.4° − 289°.
+
+`sunRelation(bearing, azimuth)` gives the sentence — into the sun, side light
+from a named side, behind a named shoulder — with the consequence attached. The
+sheet prints it only while the sun is above the horizon.
+
+**`koma_shots.bearing` is nullable and mostly null: six of 65.** A bearing is
+authored only where the standing point and the subject are both real places
+with real coordinates — four at Balboa from OSM feature centres and the El
+Prado way geometry, one at Cuyamaca, one on the Thames. London is not
+authorable: nobody has stood in those places, and a guessed bearing prints a
+confident wrong sentence, which is the failure the column exists to prevent.
+The review asked for twenty; twenty would have meant fourteen guesses.
+
+### Cloud, and absent meaning absent (2026-09-19)
+
+The day card carries a forecast flag off the daily WMO code the trip page
+already fetches. The hourly strip along the curve was scoped and deferred: it
+needs a new `hourly=cloud_cover` parameter and a new data path, and the claim
+that "the fetch already exists" was only half true — the existing hourly field
+is humidity, averaged into a daily mean.
+
+**A missing forecast renders as nothing, never as "clear".** Open-Meteo's
+window is about sixteen days; England at twenty-six days out returns an empty
+set. Rendering that as good weather would be the UTC-offset bug again — a
+plausible number nobody checked, self-correcting silently as the window rolls
+forward.
+
 ### Sketches (2026-09-16)
 
 `KomaSketch` draws a composition diagram from a short spec. The rule, learned by
