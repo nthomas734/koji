@@ -240,6 +240,14 @@ function FrameSheet({
     return sunRelation(s.bearing, azimuth);
   }, [s.bearing, geo, frame.hour]);
 
+  // PostgREST serialises `numeric` as a JSON string, so these arrive as
+  // "51.714901" and not 51.714901 — .toFixed on that throws and takes the
+  // whole sheet down. Confirmed against the live rows; do not drop the Number().
+  const lat = s.lat == null ? null : Number(s.lat);
+  const lng = s.lng == null ? null : Number(s.lng);
+  const spot = lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)
+    ? { lat, lng } : null;
+
   return (
     <div ref={scroller} role="dialog" aria-modal="true" aria-label={s.title} style={{
       position: 'fixed', inset: 0, zIndex: 60, background: 'var(--k-bg)',
@@ -361,28 +369,71 @@ function FrameSheet({
           </div>
         )}
 
-        {s.scout_url && (
-          <a
-            href={s.scout_url} target="_blank" rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              // 27px tall, and it is the one control that sends you out of the
-              // app while you are standing in the street looking for the spot.
-              minHeight: 44, boxSizing: 'border-box',
-              marginTop: 8, padding: '0 14px 0 12px', borderRadius: 999,
-              border: '1px solid var(--k-border-2)',
-              color: 'var(--k-copper)', background: 'transparent',
-              fontFamily: 'var(--font-mono)', fontSize: 10,
-              letterSpacing: '0.06em', textTransform: 'uppercase',
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <circle cx="6.6" cy="6.6" r="4.4" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M10 10L14 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-            Scout
-          </a>
+        {/* The standing point, when the frame has one. A coordinate beats the
+            prose only because it cannot be vague — so print it, rather than
+            hiding it behind the button. */}
+        {spot && (
+          <div style={{
+            marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+            fontFamily: 'var(--font-mono)', fontSize: 10.5,
+            letterSpacing: '0.03em', color: 'var(--k-ink-3)',
+          }}>
+            <span>{spot.lat.toFixed(4)}, {spot.lng.toFixed(4)}</span>
+            {s.bearing != null && (
+              <>
+                <span style={{ opacity: 0.45 }}>·</span>
+                <span style={{ color: 'var(--k-copper)' }}>look {s.bearing}°</span>
+              </>
+            )}
+          </div>
         )}
+
+        <div>
+          {/* A pin on the point if we have one, otherwise the hand-written
+              venue link — which names a building, and several frames share one. */}
+          {spot ? (
+            <SpotPill
+              href={`https://www.google.com/maps/search/?api=1&query=${spot.lat},${spot.lng}`}
+              filled
+              label="Stand here"
+              icon={
+                <>
+                  <path d="M8 1.6c-2.3 0-4.1 1.8-4.1 4.1 0 3 4.1 8.7 4.1 8.7s4.1-5.7 4.1-8.7c0-2.3-1.8-4.1-4.1-4.1z"
+                        stroke="currentColor" strokeWidth="1.4" />
+                  <circle cx="8" cy="5.7" r="1.5" fill="currentColor" />
+                </>
+              }
+            />
+          ) : s.scout_url ? (
+            <SpotPill
+              href={s.scout_url}
+              label="Scout"
+              icon={
+                <>
+                  <circle cx="6.6" cy="6.6" r="4.4" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M10 10L14 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </>
+              }
+            />
+          ) : null}
+
+          {/* Needs all three. A pano facing the wrong way looks authoritative,
+              and an uncovered coordinate is worse still — Google answers it
+              with the nearest user photosphere rather than nothing, which for
+              the Tower Bridge span was The O2. pano_ok is a hand check. */}
+          {spot && s.bearing != null && s.pano_ok === true && (
+            <SpotPill
+              href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${spot.lat},${spot.lng}&heading=${s.bearing}&pitch=0`}
+              label={`Street view · ${s.bearing}°`}
+              icon={
+                <>
+                  <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M8 2.6l2.4 5.6L8 7.1 5.6 8.2z" fill="currentColor" />
+                </>
+              }
+            />
+          )}
+        </div>
 
         <Block label="Technical" md={s.tech_md} mono />
         <Block label="Notes" md={s.notes_md} />
@@ -469,6 +520,32 @@ function StepBtn({ dir, disabled, onStep }: { dir: -1 | 1; disabled: boolean; on
         opacity: disabled ? 0.45 : 1,
       }}
     >{dir === -1 ? '‹' : '›'}</button>
+  );
+}
+
+// The one control that sends you out of the app while you are standing in the
+// street looking for the spot, so it keeps the 44px target even though the
+// visible chrome is 27px tall.
+function SpotPill({ href, label, icon, filled }: {
+  href: string; label: string; icon: React.ReactNode; filled?: boolean;
+}) {
+  return (
+    <a
+      href={href} target="_blank" rel="noopener noreferrer"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        minHeight: 44, boxSizing: 'border-box',
+        marginTop: 8, marginRight: 7, padding: '0 14px 0 12px', borderRadius: 999,
+        border: `1px solid var(${filled ? '--k-copper' : '--k-border-2'})`,
+        color: 'var(--k-copper)',
+        background: filled ? 'var(--k-copper-tint)' : 'transparent',
+        fontFamily: 'var(--font-mono)', fontSize: 10,
+        letterSpacing: '0.06em', textTransform: 'uppercase',
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>{icon}</svg>
+      {label}
+    </a>
   );
 }
 
