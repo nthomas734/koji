@@ -21,18 +21,43 @@ export const revalidate = 60;
 // Markdown is rendered here rather than in the client component so `marked`
 // never reaches the browser bundle, and the filter matches a lowercased
 // haystack built alongside it.
+//
+// Each note is two layers of the same row, because the shelf is read two ways.
+// On a kerb you scan for a number; on a plane you read an argument end to end.
+// `field_md` is the kerb layer and is what the page shows by default;
+// `body_md` is the reading layer, shown under it only in read mode, where the
+// sections also re-order from `sort_order` (the shelf) to `read_order` (a
+// course). A number lives in the field layer and an argument in the reading
+// layer, never both, so there is no second place a number can be wrong — the
+// same discipline as the lens weights living in LensMark.
+//
+// Deliberately not a third summary document: that is a second copy of every
+// number, and it would drift the way the frame notes drifted from the carries.
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** 220 wpm is a reading pace for prose you are thinking about, not skimming. */
+const WPM = 220;
+const words = (md: string | null) => (md ? md.trim().split(/\s+/).length : 0);
 
 export default async function NotesPage() {
   const notes = await getNotes();
 
   const cards: NoteCard[] = notes.map(n => ({
-    slug:     n.slug,
-    title:    n.title,
-    subtitle: n.subtitle,
-    html:     renderBlockMd(n.body_md),
-    search:   `${n.title} ${n.subtitle ?? ''} ${n.body_md}`.toLowerCase(),
+    slug:      n.slug,
+    title:     n.title,
+    subtitle:  n.subtitle,
+    // Falls back to the reading layer so a note that has not been split yet
+    // still renders everything it has rather than rendering blank.
+    fieldHtml: renderBlockMd(n.field_md ?? n.body_md),
+    readHtml:  n.field_md ? renderBlockMd(n.body_md) : null,
+    readOrder: n.read_order,
+    search:    `${n.title} ${n.subtitle ?? ''} ${n.field_md ?? ''} ${n.body_md}`.toLowerCase(),
   }));
+
+  const readMinutes = Math.max(
+    1,
+    Math.round(notes.reduce((t, n) => t + words(n.field_md) + words(n.body_md), 0) / WPM),
+  );
 
   return (
     <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 72px' }}>
@@ -66,7 +91,7 @@ export default async function NotesPage() {
           Nothing on the shelf yet.
         </p>
       ) : (
-        <NotesView notes={cards} />
+        <NotesView notes={cards} readMinutes={readMinutes} />
       )}
     </div>
   );

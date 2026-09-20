@@ -1,15 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export interface NoteCard {
-  slug:     string;
-  title:    string;
-  subtitle: string | null;
-  /** Rendered on the server so `marked` stays out of the client bundle. */
-  html:     string;
-  /** Lowercased title + subtitle + body, for the filter. */
-  search:   string;
+  slug:      string;
+  title:     string;
+  subtitle:  string | null;
+  /** The kerb layer, rendered on the server so `marked` stays out of the bundle. */
+  fieldHtml: string;
+  /** The reading layer. Null when the note has not been split yet. */
+  readHtml:  string | null;
+  /** Position in the plane read; null sorts to the end. */
+  readOrder: number | null;
+  /** Lowercased title + subtitle + both layers, for the filter. */
+  search:    string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,19 +26,81 @@ export interface NoteCard {
 // So the page carries its own find. It hides whole sections rather than
 // highlighting matches inside them, because the question being asked is "which
 // note covers this", not "where does this word appear".
+//
+// It also carries the two-layer toggle. Off — the default — is the shelf: the
+// field layer only, in shelf order, which is the version read standing up. On
+// is the plane read: both layers, re-ordered into a course. It stays one page
+// either way, because the service worker can only cache what has been fetched
+// and one page is one fetch.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function NotesView({ notes }: { notes: NoteCard[] }) {
+const READ_KEY = 'koma:notes-read';
+
+export function NotesView({ notes, readMinutes }: { notes: NoteCard[]; readMinutes: number }) {
   const [q, setQ] = useState('');
+  // Starts false so the server and first client render agree; the stored
+  // preference is applied on mount. A plane read is one long session and a
+  // reload halfway through should not drop back to the shelf.
+  const [read, setRead] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(READ_KEY) === '1') setRead(true);
+    } catch { /* private window, blocked storage — the shelf is the safe default */ }
+  }, []);
+
+  const toggle = () => {
+    setRead(prev => {
+      const next = !prev;
+      try { localStorage.setItem(READ_KEY, next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   const needle = q.trim().toLowerCase();
 
-  const shown = useMemo(
-    () => (needle ? notes.filter(n => n.search.includes(needle)) : notes),
-    [notes, needle],
-  );
+  const shown = useMemo(() => {
+    const matched = needle ? notes.filter(n => n.search.includes(needle)) : notes;
+    if (!read) return matched;
+    // Course order. Anything without a read_order falls to the end rather than
+    // to the front, so an unplaced note cannot open the read.
+    return [...matched].sort(
+      (a, b) => (a.readOrder ?? Infinity) - (b.readOrder ?? Infinity),
+    );
+  }, [notes, needle, read]);
 
   return (
     <>
+      <div style={{ padding: '0 var(--px) 14px' }}>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-pressed={read}
+          className="tap pressable"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 9,
+            minHeight: 44, padding: '0 15px 0 13px', borderRadius: 999,
+            border: '0.5px solid rgba(184,60,1,0.34)',
+            background: read ? 'rgba(184,60,1,0.12)' : 'var(--surface)',
+            color: '#B83C01', font: 'inherit',
+            fontFamily: 'var(--font-mono)', fontSize: 10,
+            letterSpacing: '0.12em', textTransform: 'uppercase',
+            cursor: 'pointer', WebkitAppearance: 'none',
+          }}
+        >
+          <Glyph open={read} />
+          {read ? 'Back to the shelf' : 'Read the whole thing'}
+        </button>
+        <p style={{
+          fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.04em',
+          color: 'var(--ink-4)', lineHeight: 1.6, margin: '9px 0 0',
+        }}>
+          {read
+            ? `In order, about ${readMinutes} minutes.`
+            : `Settings and tables. The full read is about ${readMinutes} minutes.`}
+        </p>
+      </div>
+
       <div style={{ padding: '0 var(--px) 12px', position: 'relative' }}>
         <input
           type="search"
@@ -116,12 +182,35 @@ export function NotesView({ notes }: { notes: NoteCard[] }) {
             <div
               className="koma-note"
               style={{ marginTop: 12, paddingLeft: 12 }}
-              dangerouslySetInnerHTML={{ __html: n.html }}
+              dangerouslySetInnerHTML={{ __html: n.fieldHtml }}
             />
+            {read && n.readHtml && (
+              <div
+                className="koma-note koma-read"
+                style={{ marginTop: 16, paddingLeft: 12 }}
+                dangerouslySetInnerHTML={{ __html: n.readHtml }}
+              />
+            )}
           </section>
         ))}
       </div>
     </>
+  );
+}
+
+/** Open book when the read is on, closed when it is not. Two strokes rather
+ *  than an icon set, to match the film marks elsewhere in koma. */
+function Glyph({ open }: { open: boolean }) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d={open
+          ? 'M8 4.2C6.6 3.2 4.9 2.9 3 3.2v9.1c1.9-.3 3.6 0 5 1 1.4-1 3.1-1.3 5-1V3.2c-1.9-.3-3.6 0-5 1z'
+          : 'M4.4 2.8h7.2v10.4H4.4z'}
+        stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"
+      />
+      <path d="M8 4.2v9.1" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
   );
 }
 
