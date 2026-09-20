@@ -332,6 +332,45 @@ authorable: nobody has stood in those places, and a guessed bearing prints a
 confident wrong sentence, which is the failure the column exists to prevent.
 The review asked for twenty; twenty would have meant fourteen guesses.
 
+### The standing point, and why panos are gated (2026-09-19)
+
+`koma_shots` carries `lat`/`lng` for the **standing point, not the venue**. The
+scout link used to be a hand-written Maps search for a place name, and several
+frames shared one — five pointed at Warner Bros, three at Tower Bridge. On a
+frame whose content is *which corner of a 3km common*, that is two kilometres
+of slop sitting on top of prose that already knew the answer. The link is now
+derived from the coordinate, so it cannot drift from the prose the way 46
+hand-written URLs did.
+
+**Derive distances from the relation polygon, never a bounding box.** A
+Nominatim bbox put Minchinhampton Common's nearest edge 1.09km from the hotel;
+the actual boundary geometry puts it at 388m, and a frame note had already
+shipped telling him to leave fifteen minutes early for a six-minute walk. That
+is twice a bbox has produced a wrong distance. Fetch the way or relation
+geometry and measure to the nearest vertex.
+
+**This reverses the earlier decision not to ship Street View links.** That
+decision was right on its premise — an invented viewpoint is worse than none —
+and what makes the reversal defensible is that a pano link now ships only after
+somebody loaded it and saw the right place. `pano_ok` records the check (null =
+never looked, false = looked and there is no coverage) and `pano_id` pins the
+exact panorama that was confirmed, passed as `pano=<id>` with `viewpoint`
+alongside so a retired pano still lands nearby.
+
+The gate is not optional, because **the Maps deep link does not fail closed**.
+Given a coordinate with no coverage it does not show nothing — it silently
+snaps to the nearest user photosphere. Of eight bearings checked, four had no
+coverage: the Blue Bridge in St James's Park, the Wolfe statue at Greenwich,
+the Tower Bridge span and Minchinhampton Common. The bridge resolved to **The
+O2, six kilometres east**; the Wolfe statue to a 2018 phone upload titled
+`TEST.JPG00000`. Both look authoritative and neither is the place.
+
+One thing that is *not* a fact worth recording: PostgREST serialises `numeric`
+as a JSON number, so coordinates arrive as numbers on the app's path. Direct pg
+drivers hand back strings, which is what a SQL console will show you. The
+`Number()` coercion in KomaView is cheap insurance, not a workaround for the
+app's actual behaviour.
+
 ### Cloud, and absent meaning absent (2026-09-19)
 
 The day card carries a forecast flag off the daily WMO code the trip page

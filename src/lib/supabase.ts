@@ -152,10 +152,14 @@ export interface Shot {
   /** Direction of view, degrees from true north. Null unless derived from
    *  real coordinates — a guessed bearing prints a confident wrong sentence. */
   bearing:     number | null;
-  /** Street View coverage at lat/lng, checked by hand. null = never checked.
-   *  The deep link does not fail closed: with no coverage Google snaps to the
-   *  nearest user photosphere, so the button has to be gated on a real check. */
+  /** Street View coverage at lat/lng, checked by hand. null = never checked,
+   *  false = checked and absent. The deep link does not fail closed: with no
+   *  coverage Google snaps to the nearest user photosphere, so the button has
+   *  to be gated on a real check rather than on having a coordinate. */
   pano_ok:     boolean | null;
+  /** The exact panorama that check confirmed. Pinning it means the link opens
+   *  what was verified, not whatever Maps picks as nearest on the day. */
+  pano_id:     string | null;
   priority:    ShotPriority;
   status:      ShotStatus;
   status_note: string | null;
