@@ -240,9 +240,10 @@ function FrameSheet({
     return sunRelation(s.bearing, azimuth);
   }, [s.bearing, geo, frame.hour]);
 
-  // PostgREST serialises `numeric` as a JSON string, so these arrive as
-  // "51.714901" and not 51.714901 — .toFixed on that throws and takes the
-  // whole sheet down. Confirmed against the live rows; do not drop the Number().
+  // Belt and braces. PostgREST serialises `numeric` as a JSON number, so on
+  // the app's path these arrive as 51.714901 and .toFixed is safe; it is only
+  // direct pg drivers that hand back "51.714901". Cheap to keep, and it means
+  // one bad row cannot throw the whole sheet away on open.
   const lat = s.lat == null ? null : Number(s.lat);
   const lng = s.lng == null ? null : Number(s.lng);
   const spot = lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)
@@ -420,10 +421,12 @@ function FrameSheet({
           {/* Needs all three. A pano facing the wrong way looks authoritative,
               and an uncovered coordinate is worse still — Google answers it
               with the nearest user photosphere rather than nothing, which for
-              the Tower Bridge span was The O2. pano_ok is a hand check. */}
-          {spot && s.bearing != null && s.pano_ok === true && (
+              the Tower Bridge span was The O2, 6km east. So the gate is a
+              pano_id somebody loaded and confirmed, not merely a coordinate.
+              viewpoint rides along so a retired pano still lands nearby. */}
+          {spot && s.bearing != null && s.pano_id && (
             <SpotPill
-              href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${spot.lat},${spot.lng}&heading=${s.bearing}&pitch=0`}
+              href={`https://www.google.com/maps/@?api=1&map_action=pano&pano=${encodeURIComponent(s.pano_id)}&viewpoint=${spot.lat},${spot.lng}&heading=${s.bearing}&pitch=0`}
               label={`Street view · ${s.bearing}°`}
               icon={
                 <>
