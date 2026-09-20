@@ -394,8 +394,14 @@ export interface Note {
   slug:       string;
   title:      string;
   subtitle:   string | null;
+  /** The kerb layer: settings, pivots, tables. Every number lives here. */
+  field_md:   string | null;
+  /** The reading layer: the arguments. Shown only in read mode. */
   body_md:    string;
   sort_order: number;
+  /** Position in the plane read, which is a course and not a lookup, so it
+   *  differs from sort_order. Null omits the note from the continuous read. */
+  read_order: number | null;
 }
 
 /** Published notes in shelf order. Swallows errors so the page degrades to
@@ -403,7 +409,7 @@ export interface Note {
 export async function getNotes(): Promise<Note[]> {
   const { data, error } = await supabase
     .from('koma_notes')
-    .select('id, slug, title, subtitle, body_md, sort_order')
+    .select('id, slug, title, subtitle, field_md, body_md, sort_order, read_order')
     .eq('published', true)
     .order('sort_order');
   if (error) return [];

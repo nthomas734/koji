@@ -442,6 +442,19 @@ input, textarea, select {
   line-height: 1.62;
   color: var(--ink-2);
 }
+
+/* The reading layer, under the field layer of the same note. It has to read as
+   a continuation rather than a second note, so it gets a rule and a slightly
+   longer measure instead of its own card. Prose, so no table styling is
+   expected here — every number lives in the field layer above. */
+.koma-read {
+  border-top: 0.5px solid var(--border);
+  padding-top: 14px;
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+.koma-read p { max-width: 62ch; }
+.koma-read h2:first-child { margin-top: 0; }
 .koma-note h2 {
   font-family: var(--font-mono);
   font-size: 10px;
