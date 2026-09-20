@@ -139,13 +139,23 @@ export interface Shot {
   ref_url:     string | null;
   /** Attribution for ref_url — required by the CC licences these come under. */
   ref_credit:  string | null;
-  /** Google Maps link for the standing position — rendered as a button. */
+  /** Hand-written Google Maps link. A fallback only: it names a venue, and
+   *  several frames share one. Prefer lat/lng, which name the standing point. */
   scout_url:   string | null;
   /** Composition diagram spec, drawn by KomaSketch when there is no photo. */
   sketch:      string | null;
+  /** The standing point — not the venue. Null unless derived from a real
+   *  location; a guessed coordinate sends you to the wrong corner with
+   *  confidence. Set together or not at all (checked in the database). */
+  lat:         number | null;
+  lng:         number | null;
   /** Direction of view, degrees from true north. Null unless derived from
    *  real coordinates — a guessed bearing prints a confident wrong sentence. */
   bearing:     number | null;
+  /** Street View coverage at lat/lng, checked by hand. null = never checked.
+   *  The deep link does not fail closed: with no coverage Google snaps to the
+   *  nearest user photosphere, so the button has to be gated on a real check. */
+  pano_ok:     boolean | null;
   priority:    ShotPriority;
   status:      ShotStatus;
   status_note: string | null;
