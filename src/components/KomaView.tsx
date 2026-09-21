@@ -569,6 +569,17 @@ function Block({ label, md, mono }: { label: string; md: string | null; mono?: b
   );
 }
 
+/** Raw minutes stop being legible somewhere around the hour mark: "169 min" is
+ *  a number you have to do arithmetic on while standing in a car park. Past an
+ *  hour this reads as hours and minutes, and the caller prints the clock time
+ *  beside it, which is the thing actually being asked — when to leave. */
+function fmtAway(mins: number): string {
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
 // ── the footer's four marks ──────────────────────────────────────────────────
 // Drawn to match SunTrack exactly. If the marks there change, change them here
 // or the association silently breaks.
@@ -787,7 +798,11 @@ function KomaDay({
           <div style={{ marginTop: 9, paddingTop: 8, borderTop: '1px solid var(--k-border)',
                         fontSize: 12.5, color: 'var(--k-ink-2)', lineHeight: 1.45 }}>
             Next{next.shot.priority === 'must' ? ' must-get' : ''}
-            {minsAway != null && minsAway > 0 ? <> in <b style={{ color: 'var(--k-copper)' }}>{minsAway} min</b></> : ''}
+            {minsAway != null && minsAway > 0 ? (
+              <> in <b style={{ color: 'var(--k-copper)' }}>{fmtAway(minsAway)}</b>
+                {next.hour != null ? <>, at <b style={{ color: 'var(--k-copper)' }}>{fmtHour(next.hour)}</b></> : null}
+              </>
+            ) : ''}
             {' — frame '}{next.n}{next.stop ? `, ${next.stop.title}` : ''}
             {next.shot.lens ? `. ${next.shot.lens}.` : '.'}
           </div>
