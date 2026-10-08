@@ -19,7 +19,8 @@
 *.pem
 
 # Claude Code session data and worktrees
-.claude/
+.claude/*
+!.claude/skills/
 
 # debug
 npm-debug.log*

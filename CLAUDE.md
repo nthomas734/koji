@@ -542,3 +542,13 @@ A hidden tab re-fetches on wake after 10 minutes via `router.refresh()`.
 
 `sql/` holds dated records of content edits applied live through the Supabase
 connection, like dashi's root `.sql` files. Read them, don't run them.
+
+## Editing itinerary content from a cloud session
+
+Trip content lives in Supabase, not in this repo, so a cloud session (phone, no laptop) edits it the same way a local one does: through the claude.ai Supabase connector, project `lrbmtcyhqzuyczovajnj` (Kura). The skills in `.claude/skills/` (`itinerary-builder`, `koji-export`) carry the formatting rules.
+
+- **Apply edits directly** with `execute_sql`, wrapped in one `DO $koji$ ... $koji$;` block, then run a read-back query and report what changed. `koji-export` describes a paste-it-yourself `.sql` flow; for edits to an existing trip, skip that and apply live.
+- **Look rows up by slug and `sort_order`**, never by hardcoded id. Read a day's stops before changing them; other sessions edit the same rows.
+- **Read the trip's `koji_logistics` rows first.** They hold what isn't in the stops: must-do items that must never be cut or squeezed, what is booked and what still needs booking, and group notes. Keep them in step with any change to the stops.
+- **Never mark anything as booked** unless the user says it is.
+- Links in `body_md` and `value_md` are Google Maps search links only.
