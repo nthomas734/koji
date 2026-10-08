@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Carry, Day, Logistics, Shot, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
@@ -928,6 +928,31 @@ function DayBlock({
   const accent = isToday ? 'var(--brass)' : themeColor.bg;
   const folded = pinned;
 
+  // Folding must not change how much room the header takes in the page. If it
+  // did, the day below would move every time a header folded or unfolded, the
+  // scroll tracker would see a different day at the top, and the two would
+  // chase each other (the flutter at a day boundary). Space added above the
+  // stops makes up the difference, so folded header + space always equals the
+  // unfolded header. It is padding when positive, because a margin there would
+  // merge with the first stop's own margin and come up short; when the rail is
+  // open it goes negative, as a margin, so opening the rail moves nothing.
+  const headerRef = useRef<HTMLDivElement>(null);
+  const fullHeight = useRef(0);
+  const [heightComp, setHeightComp] = useState(0);
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const h = el.offsetHeight;
+      if (!folded) { fullHeight.current = h; setHeightComp(0); }
+      else if (fullHeight.current) setHeightComp(fullHeight.current - h);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [folded]);
+
   const weatherPill = weather && (
     <span className="num" style={{
       flexShrink: 0,
@@ -955,6 +980,7 @@ function DayBlock({
           out beneath it. DAY_HEADER_MARGIN is what the scroll tracker uses to
           tell "pinned" from "in flow". */}
       <div
+        ref={headerRef}
         data-day-header
         className="glass"
         onClick={folded ? onToggleRail : undefined}
@@ -969,7 +995,7 @@ function DayBlock({
           borderRadius: folded ? 12 : 14,
           lineHeight: 1.5,
           cursor: folded ? 'pointer' : 'default',
-          transition: 'padding 0.16s ease, border-radius 0.16s ease',
+          transition: 'border-radius 0.16s ease',
         }}
       >
         <div style={{
@@ -1082,7 +1108,10 @@ function DayBlock({
           </div>
         )}
       </div>
-      <div style={{ padding: '0 12px' }}>
+      <div style={{
+        padding: `${folded ? Math.max(heightComp, 0) : 0}px 12px 0`,
+        marginTop: folded ? Math.min(heightComp, 0) : 0,
+      }}>
         {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} />)}
       </div>
     </section>
@@ -1510,6 +1539,7 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
   const [todayIdx, setTodayIdx]   = useState(-1);
   const [activeDay, setActiveDay] = useState(0);
   const [pinnedDay, setPinnedDay] = useState(-1);
+  const [leavingDay, setLeavingDay] = useState(-1);
   const [railOpen, setRailOpen]   = useState(false);
   const pendingDay = useRef<number | null>(null);
 
@@ -1586,6 +1616,20 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
         if (prev !== pinned) setRailOpen(false);
         return pinned;
       });
+      // The day before the current one, while its header is still on screen
+      // being pushed up by the next section: keep it folded rather than letting
+      // it spring back to two lines on its way out.
+      let leaving = -1;
+      blocks.forEach(b => {
+        if (Number(b.dataset.dayIdx) !== current - 1) return;
+        const header = b.querySelector<HTMLElement>('[data-day-header]');
+        if (!header) return;
+        // Judge by the section, not the header: the header moves when it folds,
+        // the section does not.
+        const sec = b.getBoundingClientRect();
+        if (sec.bottom > 0 && header.getBoundingClientRect().top - sec.top > DAY_HEADER_MARGIN + 2) leaving = current - 1;
+      });
+      setLeavingDay(leaving);
     };
     // rAF is paused in background tabs, so run synchronously there; otherwise
     // coalesce to one pass per frame
@@ -1881,8 +1925,8 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
                 dayTotal={days.length}
                 themeColor={theme}
                 isToday={i === todayIdx}
-                pinned={i === pinnedDay}
-                railOpen={railOpen}
+                pinned={i === pinnedDay || i === leavingDay}
+                railOpen={railOpen && i === pinnedDay}
                 onToggleRail={() => setRailOpen(v => !v)}
                 showToday={tripActive && i !== todayIdx}
                 onToday={goToday}
