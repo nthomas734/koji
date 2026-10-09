@@ -172,6 +172,11 @@ function Avatar({ label, color, size = 20, ring }: { label: string; color: strin
   );
 }
 
+/** One tap to a grid of photos of the food; Google Maps has them too, but deeper. */
+function photosUrl(q: string) {
+  return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`${q} food`)}`;
+}
+
 function mapsUrl(q: string) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q).replace(/%20/g, '+')}`;
 }
@@ -261,6 +266,7 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted }: {
           {o.note && <p style={{ fontSize: 14.5, color: 'var(--ink-2)', lineHeight: 1.5 }}>{o.note}</p>}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
             {o.menu_url && <a href={o.menu_url} target="_blank" rel="noopener" style={btn}>Menu</a>}
+            <a href={photosUrl(o.maps_query)} target="_blank" rel="noopener" style={btn}>Photos</a>
             {o.booking_url
               ? <a href={o.booking_url} target="_blank" rel="noopener" style={btn}>Book</a>
               : o.phone ? <a href={telHref(o.phone)} style={btn}>Call {o.phone}</a> : null}
@@ -278,7 +284,7 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted }: {
           </button>
         )}
         <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open} style={btn}>
-          {open ? 'Less' : 'Details · menu'}
+          {open ? 'Less' : 'Details & photos'}
         </button>
         {voters.length > 0 && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
@@ -366,6 +372,7 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
           <Detail label="Getting there" text={booked.getting_there} />
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
             {booked.menu_url && <a href={booked.menu_url} target="_blank" rel="noopener" style={btn}>Menu</a>}
+            <a href={photosUrl(booked.maps_query)} target="_blank" rel="noopener" style={btn}>Photos</a>
             <a href={mapsUrl(booked.maps_query)} target="_blank" rel="noopener" style={btn}>Map</a>
             {booked.phone && <a href={telHref(booked.phone)} style={btn}>Call {booked.phone}</a>}
           </div>
@@ -568,7 +575,7 @@ function Intro({ title, onStart, onAll }: { title: string; onStart: () => void; 
           <li style={li}><b>Pick your name</b> the first time you vote. Your phone remembers it.</li>
           <li style={li}><b>Go night by night</b> using the dates along the top. A tick means you&rsquo;ve voted on that night.</li>
           <li style={li}><b>Tap Vote</b> on one place per night. Tap it again to take your vote back, or tap another place to change it.</li>
-          <li style={li}><b>Tap &ldquo;Details · menu&rdquo;</b> on any place for why it&rsquo;s on the list, what the food is like, how to get there, and buttons for the menu, booking and a map.</li>
+          <li style={li}><b>Tap &ldquo;Details&rdquo;</b> on any place for why it&rsquo;s on the list, what the food is like and how to get there, with buttons for the menu, photos of the food, booking and a map.</li>
         </ol>
       </section>
       <Rule />
