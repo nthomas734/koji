@@ -583,6 +583,10 @@ dinner to vote on; the itinerary itself is unchanged.
 - **Ties go to a runoff** (`lib/dinnerRounds.ts`, shared by route and page):
   once everyone has voted in a round, a tie at the top opens the next round
   with only the tied options and closes the earlier rounds.
+- **Weights.** `koji_trips.vote_weights` (e.g. `{"Mom": 1.5}`) feeds the same
+  tally. 1.5 lets the guest of honour win a 2-2 split she is in, or a fully
+  split vote, without ever outvoting two people who agree; results show
+  headcounts and label a weight-decided night "Mom's tiebreak".
 - **Family picks first.** `source = 'family'` options lead; Claude's ideas show
   below as quieter dashed cards, never hidden.
 - Once a dinner is decided and booked, write it into the itinerary stop by hand.
