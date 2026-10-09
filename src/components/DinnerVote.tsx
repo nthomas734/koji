@@ -207,15 +207,24 @@ function Detail({ label, text }: { label: string; text: string | null }) {
   );
 }
 
-function OptionCard({ o, voters, mine, leading, closed, onVote, muted }: {
-  muted?: boolean;
+
+function telHref(phone: string) {
+  return `tel:${phone.replace(/[^\d+]/g, '').replace(/^0/, '+44')}`;
+}
+
+// ── ONE OPTION ──────────────────────────────────────────────────────────────
+// Compact by default so a whole night fits on a phone screen; the long-form
+// why / food / getting there and the outbound links sit behind "Details".
+function OptionCard({ o, voters, mine, leading, out, onVote, muted }: {
   o: DinnerOption;
   voters: { name: string; label: string; color: string }[];
   mine: boolean;
   leading: boolean;
-  closed: boolean;
+  out?: boolean;
   onVote?: () => void;
+  muted?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   return (
     <div style={{
       border: mine ? `1.5px solid ${SKY.bar}` : muted ? '1px dashed var(--border-mid)' : '0.5px solid var(--border-mid)',
@@ -224,42 +233,52 @@ function OptionCard({ o, voters, mine, leading, closed, onVote, muted }: {
       display: 'flex', flexDirection: 'column', gap: 5,
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <b style={{ fontSize: muted ? 14 : 14.5, fontWeight: muted ? 600 : 700, color: muted ? 'var(--ink-2)' : 'var(--ink)' }}>{o.name}</b>
+        <b style={{ fontSize: muted ? 14 : 15, fontWeight: muted ? 600 : 700, color: muted ? 'var(--ink-2)' : 'var(--ink)' }}>{o.name}</b>
         {o.price && <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--brass)' }}>{o.price}</span>}
         {o.status === 'held' && <span style={pill('#F0997B', '#4A1B0C')}>Held</span>}
         {leading && <span style={{ ...pill(GREEN.bg, GREEN.text), marginLeft: 'auto' }}>Leading</span>}
       </div>
       {o.kind && <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{o.kind}</div>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <span style={{
-          ...pill(o.walk_in ? '#E3EED6' : '#F7DCD5', o.walk_in ? GREEN.text : '#7A2414'),
-          borderRadius: 4, fontSize: 8.5,
-        }}>{o.walk_in ? 'Walk-in' : 'Book ahead'}</span>
+        <span style={{ ...pill(o.walk_in ? '#E3EED6' : '#F7DCD5', o.walk_in ? GREEN.text : '#7A2414'), borderRadius: 4, fontSize: 8.5 }}>
+          {o.walk_in ? 'Walk-in' : 'Book ahead'}
+        </span>
         <span style={{
           ...pill(o.source === 'family' ? '#F0E4C8' : 'var(--bg-subtle)', o.source === 'family' ? '#5A3F12' : 'var(--ink-3)'),
           borderRadius: 4, fontSize: 8.5,
         }}>{o.source === 'family' ? 'Family pick' : 'Claude’s idea'}</span>
       </div>
       {o.status === 'held' && o.booked_detail && <div style={{ fontSize: 12, color: '#4A1B0C' }}>{o.booked_detail}</div>}
-      {o.draw && <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.5 }}>{o.draw}</p>}
-      <Detail label="Why this one" text={o.why_md} />
-      <Detail label="The food" text={o.food_md} />
-      <Detail label="Order" text={o.order_md} />
-      <Detail label="Getting there" text={o.getting_there} />
-      {o.note && <p style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.45 }}>{o.note}</p>}
+      {o.draw && <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45 }}>{o.draw}</p>}
+
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 4, borderTop: '0.5px solid var(--border)', marginTop: 2 }}>
+          <Detail label="Why this one" text={o.why_md} />
+          <Detail label="The food" text={o.food_md} />
+          <Detail label="Order" text={o.order_md} />
+          <Detail label="Getting there" text={o.getting_there} />
+          {o.note && <p style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.45 }}>{o.note}</p>}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+            {o.menu_url && <a href={o.menu_url} target="_blank" rel="noopener" style={btn}>Menu</a>}
+            {o.booking_url
+              ? <a href={o.booking_url} target="_blank" rel="noopener" style={btn}>Book</a>
+              : o.phone ? <a href={telHref(o.phone)} style={btn}>Call {o.phone}</a> : null}
+            <a href={mapsUrl(o.maps_query)} target="_blank" rel="noopener" style={btn}>Map</a>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
-        {!closed && onVote && (
+        {!out && onVote && (
           <button type="button" onClick={onVote} aria-pressed={mine} style={mine
             ? { ...btn, color: SKY.text, border: `1.5px solid ${SKY.bar}` }
             : { ...btn, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text }}>
             {mine ? '✓ Your vote' : 'Vote'}
           </button>
         )}
-        {o.menu_url && <a href={o.menu_url} target="_blank" rel="noopener" style={btn}>Menu</a>}
-        {o.booking_url
-          ? <a href={o.booking_url} target="_blank" rel="noopener" style={btn}>Book</a>
-          : o.phone ? <a href={`tel:${o.phone.replace(/[^\d+]/g, '').replace(/^0/, '+44')}`} style={btn}>Call {o.phone}</a> : null}
-        <a href={mapsUrl(o.maps_query)} target="_blank" rel="noopener" style={btn}>Map</a>
+        <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open} style={btn}>
+          {open ? 'Less' : 'Details · menu'}
+        </button>
         {voters.length > 0 && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
             <span style={{ display: 'inline-flex' }}>
@@ -277,48 +296,69 @@ function OptionCard({ o, voters, mine, leading, closed, onVote, muted }: {
   );
 }
 
-export function DinnerOptions({ stop }: { stop: Stop }) {
+// ── ONE NIGHT'S DERIVED STATE ───────────────────────────────────────────────
+function useNight(stop: Stop) {
   const ctx = useContext(DinnerCtx);
   const options = stop.options ?? [];
-  if (!ctx || !options.length) return null;
-  const { voters, voter, votes, cast, askName, error } = ctx;
-
-  const init = initialsFor(voters);
-  const colorOf = (n: string) => VOTER_COLORS[Math.max(0, voters.indexOf(n)) % VOTER_COLORS.length];
-  const stopVotes = votes.filter(v => v.stop_id === stop.id && voters.includes(v.voter));
+  const voters = ctx?.voters ?? [];
+  const stopVotes = (ctx?.votes ?? []).filter(v => v.stop_id === stop.id && voters.includes(v.voter));
   const state = dinnerState(options.map(o => o.id), stopVotes, voters);
   const roundVotes = stopVotes.filter(v => v.round === state.round);
+  const booked = options.find(o => o.status === 'booked') ?? null;
+  const voter = ctx?.voter ?? null;
+  const myVote = voter ? roundVotes.find(v => v.voter === voter)?.option_id ?? null : null;
+  const missing = voters.filter(v => !roundVotes.some(x => x.voter === v));
+  const nameOf = (id: number) => options.find(o => o.id === id)?.name ?? '';
+  return { ctx, options, voters, state, roundVotes, booked, voter, myVote, missing, nameOf };
+}
+
+function nightStatus(n: ReturnType<typeof useNight>) {
+  if (n.booked) return { tone: 'booked' as const, text: `Booked: ${n.booked.name}${n.booked.booked_detail ? `, ${n.booked.booked_detail}` : ''}` };
+  if (n.state.winner != null) return { tone: 'decided' as const, text: `Decided: ${n.nameOf(n.state.winner)}` };
+  if (n.state.round > 1) return { tone: 'runoff' as const, text: `Runoff: ${n.state.eligible.map(n.nameOf).join(' vs ')}` };
+  if (n.state.deadlock) return { tone: 'runoff' as const, text: 'Still tied' };
+  if (n.state.leaders.length === 1) return { tone: 'open' as const, text: `Leading: ${n.nameOf(n.state.leaders[0])} (${n.state.counts[n.state.leaders[0]]})` };
+  if (n.state.leaders.length > 1) return { tone: 'open' as const, text: `Tied so far: ${n.state.leaders.map(n.nameOf).join(', ')}` };
+  return { tone: 'open' as const, text: 'No votes yet' };
+}
+
+// ── ONE NIGHT ───────────────────────────────────────────────────────────────
+export function DinnerOptions({ stop }: { stop: Stop }) {
+  const n = useNight(stop);
+  if (!n.ctx || !n.options.length) return null;
+  const { voters, cast, askName, error } = n.ctx;
+  const { options, state, roundVotes, booked, voter, myVote, missing, nameOf } = n;
+
+  const init = initialsFor(voters);
+  const colorOf = (name: string) => VOTER_COLORS[Math.max(0, voters.indexOf(name)) % VOTER_COLORS.length];
   const votersFor = (o: DinnerOption) => roundVotes.filter(v => v.option_id === o.id)
     .map(v => ({ name: v.voter, label: init[v.voter] ?? v.voter[0], color: colorOf(v.voter) }));
-  const leaders = options.filter(o => state.leaders.includes(o.id));
-  const myVote = voter ? roundVotes.find(v => v.voter === voter)?.option_id ?? null : null;
-  const nameOf = (id: number) => options.find(o => o.id === id)?.name ?? '';
-
-  const booked = options.find(o => o.status === 'booked');
-  const family = options.filter(o => o.source === 'family');
-  const primary = booked ? [booked] : (family.length ? family : options);
-  const rest = options.filter(o => !primary.includes(o));
+  const inRound = (o: DinnerOption) => state.eligible.includes(o.id);
 
   const label: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10,
     fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-3)',
   };
   const link: React.CSSProperties = {
-    background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', color: 'var(--ink-2)',
-    borderBottom: '1px solid var(--border-mid)', textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-sans)', fontSize: 12.5,
+    background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--ink-2)',
+    borderBottom: '1px solid var(--border-mid)', textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-sans)', fontSize: 11,
   };
+  const banner = (bg: string, line: string, fg: string, text: React.ReactNode) => (
+    <div style={{ marginTop: 10, borderRadius: 10, background: bg, border: `0.5px solid ${line}`, padding: '9px 11px', fontSize: 13, lineHeight: 1.45, color: fg }}>{text}</div>
+  );
 
   if (booked) {
+    const rest = options.filter(o => o !== booked);
     return (
       <div>
         <div style={{
           marginTop: 10, borderRadius: 12, background: GREEN.soft, border: `0.5px solid ${GREEN.line}`,
-          padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 4,
+          padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 5,
         }}>
           <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: GREEN.text }}>
             Booked{booked.booked_detail ? ` · ${booked.booked_detail}` : ''}
           </span>
-          <b style={{ fontSize: 14.5, color: 'var(--ink)' }}>{booked.name}</b>
+          <b style={{ fontSize: 15, color: 'var(--ink)' }}>{booked.name}</b>
           {booked.kind && <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{booked.kind}</span>}
           <Detail label="The food" text={booked.food_md} />
           <Detail label="Order" text={booked.order_md} />
@@ -326,14 +366,14 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
             {booked.menu_url && <a href={booked.menu_url} target="_blank" rel="noopener" style={btn}>Menu</a>}
             <a href={mapsUrl(booked.maps_query)} target="_blank" rel="noopener" style={btn}>Map</a>
-            {booked.phone && <a href={`tel:${booked.phone.replace(/[^\d+]/g, '').replace(/^0/, '+44')}`} style={btn}>Call {booked.phone}</a>}
+            {booked.phone && <a href={telHref(booked.phone)} style={btn}>Call {booked.phone}</a>}
           </div>
         </div>
         {rest.length > 0 && (
           <>
             <GroupLabel>Voting closed · {rest.length === 1 ? 'backup' : 'backups'}</GroupLabel>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-              {rest.map(o => <OptionCard key={o.id} o={o} voters={[]} mine={false} leading={false} closed muted />)}
+              {rest.map(o => <OptionCard key={o.id} o={o} voters={[]} mine={false} leading={false} out muted />)}
             </div>
           </>
         )}
@@ -341,23 +381,22 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
     );
   }
 
-  const voted = new Set(roundVotes.map(v => v.voter)).size;
-  const inRound = (o: DinnerOption) => state.eligible.includes(o.id);
+  const family = options.filter(o => o.source === 'family');
+  const primary = family.length ? family : options;
+  const rest = options.filter(o => !primary.includes(o));
+  const leaderId = !state.winner && state.leaders.length === 1 ? state.leaders[0] : null;
+  const last = state.history[state.history.length - 1];
   const card = (o: DinnerOption, muted?: boolean) => (
     <OptionCard
       key={o.id}
       o={o}
       voters={inRound(o) ? votersFor(o) : []}
       mine={myVote === o.id}
-      leading={!state.winner && leaders.length === 1 && leaders[0].id === o.id}
-      closed={!inRound(o)}
+      leading={leaderId === o.id}
+      out={!inRound(o)}
       muted={muted || !inRound(o)}
       onVote={() => cast(stop.id, myVote === o.id ? null : o.id, state.round)}
     />
-  );
-  const last = state.history[state.history.length - 1];
-  const banner = (bg: string, line: string, fg: string, text: React.ReactNode) => (
-    <div style={{ marginTop: 10, borderRadius: 10, background: bg, border: `0.5px solid ${line}`, padding: '9px 11px', fontSize: 13, lineHeight: 1.45, color: fg }}>{text}</div>
   );
 
   return (
@@ -367,17 +406,20 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--ink-2)' }}>
             <Avatar label={init[voter] ?? voter[0]} color={colorOf(voter)} />
             Voting as {voter} ·{' '}
-            <button type="button" style={{ ...link, fontSize: 11 }} onClick={askName}>change</button>
+            <button type="button" style={link} onClick={askName}>change</button>
           </span>
         ) : <span>Tap Vote to choose</span>}
-        <span className="num">· {voted} of {voters.length} voted</span>
+        <span className="num">· {voters.length - missing.length} of {voters.length} voted</span>
       </div>
+      {missing.length > 0 && missing.length < voters.length && (
+        <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--ink-3)' }}>Still to vote: {missing.join(', ')}</div>
+      )}
       {error && <p role="alert" style={{ marginTop: 8, fontSize: 12.5, color: '#7A2414' }}>{error}</p>}
       {state.winner != null && banner(GREEN.soft, GREEN.line, GREEN.text, <>
         <b>Decided: {nameOf(state.winner)}</b> ({state.eligible.map(id => state.counts[id]).sort((a, b) => b - a).join('–')}). Next step is booking it.
       </>)}
       {state.round > 1 && !state.winner && last && banner('#FFF4DE', '#EBCB8B', '#5A3F12', <>
-        <b>Tie in round {last.round}</b> ({Object.values(last.counts).filter(n => n > 0).sort((a, b) => b - a).join('–')}). Runoff between {state.eligible.map(nameOf).join(' and ')}: everyone votes again.
+        <b>Tie in round {last.round}</b> ({Object.values(last.counts).filter(c => c > 0).sort((a, b) => b - a).join('–')}). Runoff between {state.eligible.map(nameOf).join(' and ')}: everyone votes again.
       </>)}
       {state.deadlock && banner('#F7DCD5', '#E8B4A8', '#7A2414', <>
         <b>Still tied</b> with everyone voted. Settle it together, or change a vote.
@@ -385,26 +427,18 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
       {state.round > 1 ? (
         <>
           <GroupLabel>Runoff · round {state.round}</GroupLabel>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-            {options.filter(inRound).map(o => card(o))}
-          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{options.filter(inRound).map(o => card(o))}</div>
           <GroupLabel>Out after round {state.round - 1}</GroupLabel>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-            {options.filter(o => !inRound(o)).map(o => card(o, true))}
-          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{options.filter(o => !inRound(o)).map(o => card(o, true))}</div>
         </>
       ) : (
         <>
           {family.length > 0 && rest.length > 0 && <GroupLabel>Family picks</GroupLabel>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-            {primary.map(o => card(o))}
-          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>{primary.map(o => card(o))}</div>
           {rest.length > 0 && (
             <>
               <GroupLabel>Other ideas · Claude&rsquo;s suggestions</GroupLabel>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                {rest.map(o => card(o, true))}
-              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{rest.map(o => card(o, true))}</div>
             </>
           )}
         </>
@@ -415,14 +449,70 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
 
 // ── THE DINNERS PAGE ────────────────────────────────────────────────────────
 // Voting is a one-off, so it lives on its own page (/trips/[slug]/dinners)
-// rather than inside the itinerary. Once the family has decided, the winners
-// go into the itinerary's dinner stops by hand.
+// rather than inside the itinerary. One night at a time, with a day strip and
+// an "All nights" overview that doubles as the results summary.
 
 export type DinnerEntry = { stop: Stop; dayLabel: string };
 
 function splitDayLabel(label: string) {
   const [head, ...rest] = label.split(' - ');
   return { head: head.trim(), sub: rest.join(' · ').trim() };
+}
+
+/** "Fri, Oct 16" -> "Fri 16" */
+function chipLabel(head: string) {
+  const m = head.match(/^(\w{3})\w*,?\s+\w+\s+(\d+)/);
+  return m ? `${m[1]} ${m[2]}` : head;
+}
+
+function Overview({ dinners, onPick }: { dinners: DinnerEntry[]; onPick: (id: number) => void }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+      {dinners.map(d => <OverviewRow key={d.stop.id} entry={d} onPick={onPick} />)}
+    </div>
+  );
+}
+
+function OverviewRow({ entry, onPick }: { entry: DinnerEntry; onPick: (id: number) => void }) {
+  const n = useNight(entry.stop);
+  const { head } = splitDayLabel(entry.dayLabel);
+  const st = nightStatus(n);
+  const tone = { booked: GREEN.text, decided: GREEN.text, runoff: '#5A3F12', open: 'var(--ink-2)' }[st.tone];
+  const mineDone = n.voter && !n.booked ? !n.missing.includes(n.voter) : null;
+  return (
+    <button type="button" onClick={() => onPick(entry.stop.id)} style={{
+      textAlign: 'left', cursor: 'pointer', background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12,
+      padding: '11px 12px', display: 'grid', gridTemplateColumns: '1fr auto', gap: '2px 10px', alignItems: 'center',
+      fontFamily: 'var(--font-sans)', color: 'var(--ink)',
+    }}>
+      <span style={{ fontFamily: 'var(--font-serif)', fontSize: 17 }}>
+        {head}{/birthday/i.test(entry.stop.title) ? ' · Birthday' : ''}
+      </span>
+      <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
+        {n.booked ? '' : `${n.voters.length - n.missing.length}/${n.voters.length}`}
+      </span>
+      <span style={{ fontSize: 13, color: tone, fontWeight: st.tone === 'open' ? 400 : 600 }}>{st.text}</span>
+      <span style={{ fontSize: 11.5, color: mineDone === false ? '#7A2414' : 'var(--ink-3)', whiteSpace: 'nowrap' }}>
+        {mineDone === null ? '›' : mineDone ? '✓ voted ›' : 'Your vote ›'}
+      </span>
+    </button>
+  );
+}
+
+function DayChip({ entry, active, onPick }: { entry: DinnerEntry; active: boolean; onPick: () => void }) {
+  const n = useNight(entry.stop);
+  const { head } = splitDayLabel(entry.dayLabel);
+  const done = n.booked || (n.voter ? !n.missing.includes(n.voter) : false);
+  return (
+    <button type="button" onClick={onPick} aria-current={active ? 'page' : undefined} style={{
+      flexShrink: 0, cursor: 'pointer', borderRadius: 999, padding: '7px 11px', whiteSpace: 'nowrap',
+      fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.04em',
+      border: active ? `1.5px solid ${SKY.text}` : '0.5px solid var(--border-mid)',
+      background: active ? SKY.text : 'var(--surface)', color: active ? 'var(--surface)' : 'var(--ink-2)',
+    }}>
+      {chipLabel(head)}{done ? ' ✓' : ''}
+    </button>
+  );
 }
 
 export function DinnerBoard({ tripId, tripTitle, slug, voters, dinners }: {
@@ -432,41 +522,89 @@ export function DinnerBoard({ tripId, tripTitle, slug, voters, dinners }: {
   voters: string[];
   dinners: DinnerEntry[];
 }) {
+  const [tab, setTab] = useState<number | 'all'>('all');
+
+  // Deep link: #night-<stopId>
+  useEffect(() => {
+    const m = window.location.hash.match(/^#night-(\d+)$/);
+    if (m && dinners.some(d => d.stop.id === Number(m[1]))) setTab(Number(m[1]));
+  }, [dinners]);
+
+  const go = useCallback((t: number | 'all') => {
+    setTab(t);
+    try { history.replaceState(null, '', t === 'all' ? window.location.pathname : `#night-${t}`); } catch { /* ignore */ }
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+  }, []);
+
+  const idx = tab === 'all' ? -1 : dinners.findIndex(d => d.stop.id === tab);
+  const current = idx >= 0 ? dinners[idx] : null;
+  const prev = idx > 0 ? dinners[idx - 1] : null;
+  const next = idx >= 0 && idx < dinners.length - 1 ? dinners[idx + 1] : null;
+
+  const nav: React.CSSProperties = { ...btn, padding: '10px 12px', fontSize: 13 };
+
   return (
     <DinnerVoteProvider tripId={tripId} voters={voters} enabled={voters.length > 0 && dinners.length > 0}>
       <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 40px)' }}>
-        <header style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 28px) 16px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <header style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 24px) 16px 6px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <a href={`/trips/${slug}`} style={{
             alignSelf: 'flex-start', fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em',
             textTransform: 'uppercase', color: 'var(--ink-3)', textDecoration: 'none',
           }}>← {tripTitle}</a>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 32, lineHeight: 1.05, color: 'var(--ink)' }}>Where we eat</h1>
-          <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.55, maxWidth: '58ch' }}>
-            One vote per person per dinner. Tap a place to vote, tap again to take it back. Family picks come first, then other ideas from Claude. Every place has its menu, a Book or Call button and a map. £ casual · ££ a normal dinner out · £££ a splurge.
+          <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.5 }}>
+            One vote per person per night. Tap Vote, tap again to take it back. Ties go to a runoff. &ldquo;Details&rdquo; has the menu, the food and how to book.
+          </p>
+          <p style={{ fontSize: 12.5, color: 'var(--ink-3)', display: 'flex', flexWrap: 'wrap', gap: '2px 12px' }}>
+            <span style={{ whiteSpace: 'nowrap' }}>£ casual</span>
+            <span style={{ whiteSpace: 'nowrap' }}>££ dinner out</span>
+            <span style={{ whiteSpace: 'nowrap' }}>£££ a splurge</span>
           </p>
         </header>
+
+        <nav aria-label="Nights" style={{
+          position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg)',
+          padding: 'calc(env(safe-area-inset-top, 0px) + 8px) 0 8px', borderBottom: '0.5px solid var(--border)',
+        }}>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 12px', scrollbarWidth: 'none' }}>
+            <button type="button" onClick={() => go('all')} aria-current={tab === 'all' ? 'page' : undefined} style={{
+              flexShrink: 0, cursor: 'pointer', borderRadius: 999, padding: '7px 11px', whiteSpace: 'nowrap',
+              fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.04em',
+              border: tab === 'all' ? `1.5px solid ${SKY.text}` : '0.5px solid var(--border-mid)',
+              background: tab === 'all' ? SKY.text : 'var(--surface)', color: tab === 'all' ? 'var(--surface)' : 'var(--ink-2)',
+            }}>All nights</button>
+            {dinners.map(d => <DayChip key={d.stop.id} entry={d} active={tab === d.stop.id} onPick={() => go(d.stop.id)} />)}
+          </div>
+        </nav>
+
         <main style={{ padding: '0 12px' }}>
-          {dinners.map(({ stop, dayLabel }) => {
-            const { head, sub } = splitDayLabel(dayLabel);
+          {!current ? (
+            <Overview dinners={dinners} onPick={id => go(id)} />
+          ) : (() => {
+            const { head, sub } = splitDayLabel(current.dayLabel);
+            const stop = current.stop;
             return (
-              <section key={stop.id} id={`dinner-${stop.id}`} style={{
-                position: 'relative', background: 'var(--surface)', border: '0.5px solid var(--border)',
-                borderRadius: 14, padding: '14px 14px 14px 18px', marginTop: 12, overflow: 'hidden',
-              }}>
-                <div style={{ position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderRadius: 4, background: SKY.bar }} />
-                <div className="num" style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: SKY.text,
+              <>
+                <section id={`dinner-${stop.id}`} style={{
+                  position: 'relative', background: 'var(--surface)', border: '0.5px solid var(--border)',
+                  borderRadius: 14, padding: '14px 14px 14px 18px', marginTop: 12, overflow: 'hidden',
                 }}>
-                  {stop.time_label ? `${stop.time_label} · ` : ''}{/birthday|first-night/i.test(stop.title) ? stop.title : 'Dinner'}
+                  <div style={{ position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderRadius: 4, background: SKY.bar }} />
+                  <div className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: SKY.text }}>
+                    {stop.time_label ? `${stop.time_label} · ` : ''}{/birthday|first-night/i.test(stop.title) ? stop.title : 'Dinner'}
+                  </div>
+                  <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 22, lineHeight: 1.2, color: 'var(--ink)', marginTop: 4 }}>{head}</h2>
+                  {sub && <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{sub}</div>}
+                  <DinnerOptions stop={stop} />
+                </section>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 14 }}>
+                  {prev ? <button type="button" style={nav} onClick={() => go(prev.stop.id)}>‹ {chipLabel(splitDayLabel(prev.dayLabel).head)}</button> : <button type="button" style={nav} onClick={() => go('all')}>‹ All nights</button>}
+                  {next ? <button type="button" style={{ ...nav, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text }} onClick={() => go(next.stop.id)}>Next: {chipLabel(splitDayLabel(next.dayLabel).head)} ›</button>
+                        : <button type="button" style={nav} onClick={() => go('all')}>All nights ›</button>}
                 </div>
-                <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 20, lineHeight: 1.2, color: 'var(--ink)', marginTop: 4 }}>
-                  {head}
-                </h2>
-                {sub && <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{sub}</div>}
-                <DinnerOptions stop={stop} />
-              </section>
+              </>
             );
-          })}
+          })()}
         </main>
       </div>
     </DinnerVoteProvider>
