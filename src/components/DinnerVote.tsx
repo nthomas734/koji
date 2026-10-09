@@ -305,6 +305,44 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted }: {
   );
 }
 
+// ── THE WINNER ──────────────────────────────────────────────────────────────
+// A decided or booked night shows its place with everything open: why, the
+// food, getting there and the menu / photos / book / map buttons, because the
+// next thing anyone does is book it or go. `compact` (Results) keeps the
+// headline and the buttons and drops the long text.
+function WinnerCard({ o, label, compact }: { o: DinnerOption; label: string; compact?: boolean }) {
+  return (
+    <div style={{
+      marginTop: 10, borderRadius: 12, background: GREEN.soft, border: `1px solid ${GREEN.line}`,
+      padding: '13px 14px', display: 'flex', flexDirection: 'column', gap: compact ? 6 : 10,
+    }}>
+      <span className="num" style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 13, letterSpacing: '0.04em', textTransform: 'uppercase', color: GREEN.text }}>
+        {label}
+      </span>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+        <b style={{ fontSize: 19, color: 'var(--ink)' }}>{o.name}</b>
+        {o.price && <span className="num" style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 14, color: PRICE }}>{o.price}</span>}
+      </div>
+      {o.kind && <span style={{ fontSize: 14, color: 'var(--ink-2)' }}>{o.kind}</span>}
+      {!compact && o.draw && <p style={{ fontSize: 15.5, color: 'var(--ink)', lineHeight: 1.5 }}>{o.draw}</p>}
+      {!compact && <Detail label="Why this one" text={o.why_md} />}
+      {!compact && <Detail label="The food" text={o.food_md} />}
+      {!compact && <Detail label="Order" text={o.order_md} />}
+      <Detail label="Getting there" text={o.getting_there} />
+      {!compact && o.note && <p style={{ fontSize: 14.5, color: 'var(--ink-2)', lineHeight: 1.5 }}>{o.note}</p>}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+        {o.status !== 'booked' && (o.booking_url
+          ? <a href={o.booking_url} target="_blank" rel="noopener" style={{ ...btn, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text }}>Book</a>
+          : o.phone ? <a href={telHref(o.phone)} style={{ ...btn, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text }}>Call {o.phone}</a> : null)}
+        {o.menu_url && <a href={o.menu_url} target="_blank" rel="noopener" style={btn}>Menu</a>}
+        <a href={photosUrl(o.maps_query)} target="_blank" rel="noopener" style={btn}>Photos</a>
+        <a href={mapsUrl(o.maps_query)} target="_blank" rel="noopener" style={btn}>Map</a>
+        {o.status === 'booked' && o.phone && <a href={telHref(o.phone)} style={btn}>Call {o.phone}</a>}
+      </div>
+    </div>
+  );
+}
+
 // ── ONE NIGHT'S DERIVED STATE ───────────────────────────────────────────────
 function useNight(stop: Stop) {
   const ctx = useContext(DinnerCtx);
@@ -324,8 +362,8 @@ function useNight(stop: Stop) {
 }
 
 function nightStatus(n: ReturnType<typeof useNight>) {
-  if (n.booked) return { tone: 'booked' as const, text: `Booked: ${n.booked.name}${n.booked.booked_detail ? `, ${n.booked.booked_detail}` : ''}` };
-  if (n.state.winner != null) return { tone: 'decided' as const, text: `Decided: ${n.nameOf(n.state.winner)}${n.state.tiebreak && n.tiebreaker ? ` (${n.tiebreaker}’s tiebreak)` : ''}` };
+  if (n.booked) return { tone: 'booked' as const, text: 'Booked' };
+  if (n.state.winner != null) return { tone: 'decided' as const, text: `Decided${n.state.tiebreak && n.tiebreaker ? ` on ${n.tiebreaker}’s tiebreak` : ''}` };
   if (n.state.round > 1) return { tone: 'runoff' as const, text: `Runoff: ${n.state.eligible.map(n.nameOf).join(' vs ')}` };
   if (n.state.deadlock) return { tone: 'runoff' as const, text: 'Still tied' };
   if (n.state.leaders.length === 1) {
@@ -366,25 +404,7 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
     const rest = options.filter(o => o !== booked);
     return (
       <div>
-        <div style={{
-          marginTop: 10, borderRadius: 12, background: GREEN.soft, border: `0.5px solid ${GREEN.line}`,
-          padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 5,
-        }}>
-          <span className="num" style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 13, letterSpacing: '0.04em', textTransform: 'uppercase', color: GREEN.text }}>
-            Booked{booked.booked_detail ? ` · ${booked.booked_detail}` : ''}
-          </span>
-          <b style={{ fontSize: 18, color: 'var(--ink)' }}>{booked.name}</b>
-          {booked.kind && <span style={{ fontSize: 14, color: 'var(--ink-2)' }}>{booked.kind}</span>}
-          <Detail label="The food" text={booked.food_md} />
-          <Detail label="Order" text={booked.order_md} />
-          <Detail label="Getting there" text={booked.getting_there} />
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-            {booked.menu_url && <a href={booked.menu_url} target="_blank" rel="noopener" style={btn}>Menu</a>}
-            <a href={photosUrl(booked.maps_query)} target="_blank" rel="noopener" style={btn}>Photos</a>
-            <a href={mapsUrl(booked.maps_query)} target="_blank" rel="noopener" style={btn}>Map</a>
-            {booked.phone && <a href={telHref(booked.phone)} style={btn}>Call {booked.phone}</a>}
-          </div>
-        </div>
+        <WinnerCard o={booked} label={`Booked${booked.booked_detail ? ` · ${booked.booked_detail}` : ''}`} />
         {rest.length > 0 && (
           <>
             <GroupLabel>Voting closed · {rest.length === 1 ? 'backup' : 'backups'}</GroupLabel>
@@ -431,9 +451,13 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
         <div style={{ marginTop: 4, fontSize: 14, color: 'var(--ink-2)' }}>Still to vote: <b>{missing.join(', ')}</b></div>
       )}
       {error && <p role="alert" style={{ marginTop: 8, fontSize: 14.5, color: '#7A2414' }}>{error}</p>}
-      {state.winner != null && banner(GREEN.soft, GREEN.line, GREEN.text, <>
-        <b>Decided: {nameOf(state.winner)}</b> ({state.eligible.map(id => state.raw[id]).sort((a, b) => b - a).join('–')}{state.tiebreak && tiebreaker ? `, ${tiebreaker}’s tiebreak` : ''}). Next step is booking it.
-      </>)}
+      {state.winner != null && (() => {
+        const w = options.find(o => o.id === state.winner);
+        if (!w) return null;
+        const tally = state.eligible.map(id => state.raw[id]).sort((a, b) => b - a).join('–');
+        return <WinnerCard o={w} label={`Decided · ${tally}${state.tiebreak && tiebreaker ? ` · ${tiebreaker}’s tiebreak` : ''} · next, book it`} />;
+      })()}
+      {state.winner != null && <GroupLabel>How everyone voted</GroupLabel>}
       {state.round > 1 && !state.winner && last && banner('#FFF4DE', '#EBCB8B', '#5A3F12', <>
         <b>Tie in round {last.round}</b> ({Object.values(last.raw).filter(c => c > 0).sort((a, b) => b - a).join('–')}). Runoff between {state.eligible.map(nameOf).join(' and ')}: everyone votes again.
       </>)}
@@ -518,9 +542,11 @@ function OverviewRow({ entry, onPick }: { entry: DinnerEntry; onPick: (id: numbe
   const tone = { booked: GREEN.text, decided: GREEN.text, runoff: '#5A3F12', open: 'var(--ink)' }[st.tone];
   const mineDone = n.voter && !n.booked ? !n.missing.includes(n.voter) : null;
   const birthday = /birthday/i.test(entry.stop.title);
+  const won = n.booked ?? (n.state.winner != null ? n.options.find(o => o.id === n.state.winner) ?? null : null);
   return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
     <button type="button" onClick={() => onPick(entry.stop.id)} style={{
-      textAlign: 'left', cursor: 'pointer', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+      textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 'none',
       padding: '14px 14px', display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 12px', alignItems: 'center',
       fontFamily: 'var(--font-sans)', color: 'var(--ink)', width: '100%',
     }}>
@@ -542,6 +568,12 @@ function OverviewRow({ entry, onPick }: { entry: DinnerEntry; onPick: (id: numbe
       </span>
       <span aria-hidden style={{ fontSize: 24, color: 'var(--ink-2)', lineHeight: 1 }}>›</span>
     </button>
+    {won && (
+      <div style={{ padding: '0 12px 12px' }}>
+        <WinnerCard compact o={won} label={n.booked ? `Booked${won.booked_detail ? ` · ${won.booked_detail}` : ''}` : 'Decided · next, book it'} />
+      </div>
+    )}
+    </div>
   );
 }
 
