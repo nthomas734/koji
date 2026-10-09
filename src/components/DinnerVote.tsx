@@ -454,7 +454,7 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
       {state.winner != null && (() => {
         const w = options.find(o => o.id === state.winner);
         if (!w) return null;
-        const tally = state.eligible.map(id => state.raw[id]).sort((a, b) => b - a).join('–');
+        const tally = state.eligible.map(id => state.raw[id]).filter(c => c > 0).sort((a, b) => b - a).join('–');
         return <WinnerCard o={w} label={`Decided · ${tally}${state.tiebreak && tiebreaker ? ` · ${tiebreaker}’s tiebreak` : ''} · next, book it`} />;
       })()}
       {state.winner != null && <GroupLabel>How everyone voted</GroupLabel>}
