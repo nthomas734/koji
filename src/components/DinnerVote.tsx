@@ -258,7 +258,7 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted }: {
       {o.draw && <p style={{ fontSize: 15.5, color: 'var(--ink)', lineHeight: 1.5 }}>{o.draw}</p>}
 
       {open && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 4, borderTop: '0.5px solid var(--border)', marginTop: 2 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 10, borderTop: '1px solid var(--border)', marginTop: 4 }}>
           <Detail label="Why this one" text={o.why_md} />
           <Detail label="The food" text={o.food_md} />
           <Detail label="Order" text={o.order_md} />
