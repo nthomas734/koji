@@ -422,7 +422,7 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
         {rest.length > 0 && (
           <>
             <GroupLabel>Voting closed · {rest.length === 1 ? 'backup' : 'backups'}</GroupLabel>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            <div className="dv-opts" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
               {rest.map(o => <OptionCard key={o.id} o={o} voters={[]} mine={false} leading={false} out muted />)}
             </div>
           </>
@@ -497,18 +497,18 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
       {state.round > 1 ? (
         <>
           <GroupLabel>Runoff · round {state.round}</GroupLabel>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{options.filter(inRound).map(o => card(o))}</div>
+          <div className="dv-opts" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{options.filter(inRound).map(o => card(o))}</div>
           <GroupLabel>Out after round {state.round - 1}</GroupLabel>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{options.filter(o => !inRound(o)).map(o => card(o, true))}</div>
+          <div className="dv-opts" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{options.filter(o => !inRound(o)).map(o => card(o, true))}</div>
         </>
       ) : (
         <>
           {family.length > 0 && rest.length > 0 && <GroupLabel>Family picks</GroupLabel>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>{primary.map(o => card(o))}</div>
+          <div className="dv-opts" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>{primary.map(o => card(o))}</div>
           {rest.length > 0 && (
             <>
               <GroupLabel>Other ideas · Claude&rsquo;s suggestions</GroupLabel>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{rest.map(o => card(o, true))}</div>
+              <div className="dv-opts" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>{rest.map(o => card(o, true))}</div>
             </>
           )}
         </>
@@ -680,6 +680,53 @@ function Intro({ title, onStart, onAll, tiebreaker, chooserNote }: { title: stri
   );
 }
 
+// Desktop (900px and up): the chip strip gives way to a sticky list of nights
+// down the left, options sit two to a row, and Results goes two columns.
+// Phones keep the single-column layout untouched.
+const DESKTOP_CSS = `
+.dv-side { display: none; }
+.dv-wrap button:hover, .dv-wrap a:hover { filter: brightness(0.96); }
+@media (min-width: 900px) {
+  .dv-wrap { max-width: 1240px !important; }
+  .dv-head { padding-left: 28px !important; padding-right: 28px !important; }
+  .dv-strip { display: none !important; }
+  .dv-layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 24px; padding: 0 28px; align-items: start; }
+  .dv-layout > main { padding: 0 !important; }
+  .dv-side { display: flex; flex-direction: column; gap: 6px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; padding: 12px 2px 12px 0; }
+  .dv-opts { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .dv-results { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
+`;
+
+function sideItem(active: boolean): React.CSSProperties {
+  return {
+    textAlign: 'left', cursor: 'pointer', width: '100%', borderRadius: 12, padding: '11px 13px',
+    display: 'flex', flexDirection: 'column', gap: 3, fontFamily: 'var(--font-sans)',
+    border: active ? `1.5px solid ${SKY.text}` : '1px solid var(--border)',
+    background: active ? SKY.text : 'var(--surface)', color: active ? 'var(--surface)' : 'var(--ink)',
+  };
+}
+
+function SideNight({ entry, active, onPick }: { entry: DinnerEntry; active: boolean; onPick: () => void }) {
+  const n = useNight(entry.stop);
+  const { head } = splitDayLabel(entry.dayLabel);
+  const st = nightStatus(n);
+  const mine = n.voter && !n.booked && (!n.chooser || n.voter === n.chooser) ? !n.missing.includes(n.voter) : null;
+  const sub = active ? 'var(--surface)' : 'var(--ink-2)';
+  return (
+    <button type="button" onClick={onPick} aria-current={active ? 'page' : undefined} style={sideItem(active)}>
+      <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontFamily: 'var(--font-serif)', fontSize: 19 }}>
+          {head}{/birthday/i.test(entry.stop.title) && <span style={{ fontStyle: 'italic', fontSize: 15, color: active ? 'var(--surface)' : RED.text }}> · Birthday</span>}
+        </span>
+        {mine === true && <span style={{ fontSize: 13.5, fontWeight: 700, color: active ? 'var(--surface)' : GREEN.text }}>✓</span>}
+      </span>
+      <span style={{ fontSize: 14, fontWeight: st.tone === 'open' ? 500 : 700, color: active ? 'var(--surface)' : st.tone === 'open' ? sub : GREEN.text }}>{st.text}</span>
+      {mine === false && <span style={{ fontSize: 13.5, fontWeight: 700, color: active ? 'var(--surface)' : RED.text }}>Your vote needed</span>}
+    </button>
+  );
+}
+
 function BoardInner({ tripId, tripTitle, slug, dinners }: {
   tripId: number; tripTitle: string; slug: string; dinners: DinnerEntry[];
 }) {
@@ -763,8 +810,9 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
   }
 
   return (
-    <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 40px)' }}>
-      <header style={{
+    <div className="dv-wrap" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 40px)' }}>
+      <style>{DESKTOP_CSS}</style>
+      <header className="dv-head" style={{
         padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 16px 4px',
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12,
       }}>
@@ -775,7 +823,7 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
         }}>How it works</button>
       </header>
 
-      <nav aria-label="Nights" style={{
+      <nav className="dv-strip" aria-label="Nights" style={{
         position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg)',
         padding: 'calc(env(safe-area-inset-top, 0px) + 8px) 0 10px', borderBottom: '3px double var(--border-mid)',
       }}>
@@ -790,13 +838,26 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
         </div>
       </nav>
 
-      <main style={{ padding: '0 12px' }}>
+      <div className="dv-layout">
+      <aside className="dv-side" aria-label="Nights">
+        <button type="button" onClick={() => go('all')} style={sideItem(tab === 'all')}>
+          <span style={{ fontFamily: 'var(--font-serif)', fontSize: 19 }}>Results</span>
+          <span style={{ fontSize: 13.5, color: tab === 'all' ? 'var(--surface)' : 'var(--ink-2)' }}>Every night at a glance</span>
+        </button>
+        {groups.map((g, gi) => (
+          <div key={g.place + gi} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 17, color: 'var(--ink)', margin: '10px 4px 0' }}>{placeName(g.place)}</div>
+            {g.items.map(d => <SideNight key={d.stop.id} entry={d} active={tab === d.stop.id} onPick={() => go(d.stop.id)} />)}
+          </div>
+        ))}
+      </aside>
+      <main style={{ padding: '0 12px', minWidth: 0 }}>
         {!current ? (
           <div style={{ marginTop: 4 }}>
             {groups.map((g, gi) => (
               <section key={g.place + gi}>
                 <PlaceHeading>{placeName(g.place)}</PlaceHeading>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="dv-results" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {g.items.map(d => <OverviewRow key={d.stop.id} entry={d} onPick={id => go(id)} />)}
                 </div>
               </section>
@@ -833,6 +894,7 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
           );
         })()}
       </main>
+      </div>
     </div>
   );
 }
