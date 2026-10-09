@@ -181,6 +181,19 @@ const pill = (bg: string, fg: string): React.CSSProperties => ({
   padding: '3px 7px', borderRadius: 999, background: bg, color: fg, whiteSpace: 'nowrap',
 });
 
+function Detail({ label, text }: { label: string; text: string | null }) {
+  if (!text) return null;
+  return (
+    <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}>
+      <span style={{
+        fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
+        color: 'var(--ink-3)', marginRight: 6,
+      }}>{label}</span>
+      {text}
+    </p>
+  );
+}
+
 function OptionCard({ o, voters, mine, leading, closed, onVote }: {
   o: DinnerOption;
   voters: { name: string; label: string; color: string }[];
@@ -202,16 +215,23 @@ function OptionCard({ o, voters, mine, leading, closed, onVote }: {
         {o.status === 'held' && <span style={pill('#F0997B', '#4A1B0C')}>Held</span>}
         {leading && <span style={{ ...pill(GREEN.bg, GREEN.text), marginLeft: 'auto' }}>Leading</span>}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 12, color: 'var(--ink-3)' }}>
-        {o.kind && <span>{o.kind}</span>}
+      {o.kind && <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{o.kind}</div>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <span style={{
           ...pill(o.walk_in ? '#E3EED6' : '#F7DCD5', o.walk_in ? GREEN.text : '#7A2414'),
           borderRadius: 4, fontSize: 8.5,
         }}>{o.walk_in ? 'Walk-in' : 'Book ahead'}</span>
+        <span style={{
+          ...pill(o.source === 'family' ? '#F0E4C8' : 'var(--bg-subtle)', o.source === 'family' ? '#5A3F12' : 'var(--ink-3)'),
+          borderRadius: 4, fontSize: 8.5,
+        }}>{o.source === 'family' ? 'Family pick' : 'Claude’s idea'}</span>
       </div>
       {o.status === 'held' && o.booked_detail && <div style={{ fontSize: 12, color: '#4A1B0C' }}>{o.booked_detail}</div>}
-      {o.draw && <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}>{o.draw}</p>}
-      {o.order_md && <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}><span style={{ color: 'var(--ink-3)', fontWeight: 600 }}>Order: </span>{o.order_md}</p>}
+      {o.draw && <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.5 }}>{o.draw}</p>}
+      <Detail label="Why this one" text={o.why_md} />
+      <Detail label="The food" text={o.food_md} />
+      <Detail label="Order" text={o.order_md} />
+      <Detail label="Getting there" text={o.getting_there} />
       {o.note && <p style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.45 }}>{o.note}</p>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
         {!closed && onVote && (
@@ -221,6 +241,7 @@ function OptionCard({ o, voters, mine, leading, closed, onVote }: {
             {mine ? '✓ Your vote' : 'Vote'}
           </button>
         )}
+        {o.menu_url && <a href={o.menu_url} target="_blank" rel="noopener" style={btn}>Menu</a>}
         {o.booking_url
           ? <a href={o.booking_url} target="_blank" rel="noopener" style={btn}>Book</a>
           : o.phone ? <a href={`tel:${o.phone.replace(/[^\d+]/g, '').replace(/^0/, '+44')}`} style={btn}>Call {o.phone}</a> : null}
@@ -285,8 +306,11 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
           </span>
           <b style={{ fontSize: 14.5, color: 'var(--ink)' }}>{booked.name}</b>
           {booked.kind && <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{booked.kind}</span>}
-          {booked.order_md && <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}><span style={{ color: 'var(--ink-3)', fontWeight: 600 }}>Order: </span>{booked.order_md}</p>}
+          <Detail label="The food" text={booked.food_md} />
+          <Detail label="Order" text={booked.order_md} />
+          <Detail label="Getting there" text={booked.getting_there} />
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+            {booked.menu_url && <a href={booked.menu_url} target="_blank" rel="noopener" style={btn}>Menu</a>}
             <a href={mapsUrl(booked.maps_query)} target="_blank" rel="noopener" style={btn}>Map</a>
             {booked.phone && <a href={`tel:${booked.phone.replace(/[^\d+]/g, '').replace(/^0/, '+44')}`} style={btn}>Call {booked.phone}</a>}
           </div>
@@ -379,7 +403,7 @@ export function DinnerBoard({ tripId, tripTitle, slug, voters, dinners }: {
           }}>← {tripTitle}</a>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 32, lineHeight: 1.05, color: 'var(--ink)' }}>Where we eat</h1>
           <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.55, maxWidth: '58ch' }}>
-            One vote per person per dinner. Tap a place to vote, tap again to take it back. Your family&rsquo;s picks come first; Claude&rsquo;s ideas sit under &ldquo;more ideas&rdquo;. Every card has a Book or Call button and a map.
+            One vote per person per dinner. Tap a place to vote, tap again to take it back. Family picks come first; Claude&rsquo;s ideas sit under &ldquo;more ideas&rdquo;. Every place has its menu, a Book or Call button and a map. £ casual · ££ a normal dinner out · £££ a splurge.
           </p>
         </header>
         <main style={{ padding: '0 12px' }}>

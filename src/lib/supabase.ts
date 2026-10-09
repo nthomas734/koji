@@ -111,6 +111,10 @@ export interface DinnerOption {
   source:        'family' | 'claude';
   status:        'option' | 'held' | 'booked';
   booked_detail: string | null;
+  why_md:        string | null;
+  food_md:       string | null;
+  getting_there: string | null;
+  menu_url:      string | null;
 }
 
 export interface DinnerVote {
