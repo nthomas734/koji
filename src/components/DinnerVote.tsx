@@ -21,6 +21,7 @@ const PRICE = '#6E4F14';
 
 type Ctx = {
   voters: string[];
+  weights: Record<string, number>;
   voter: string | null;
   votes: DinnerVote[];
   cast: (stopId: number, optionId: number | null, round: number) => void;
@@ -41,9 +42,10 @@ function initialsFor(voters: string[]) {
   return map;
 }
 
-export function DinnerVoteProvider({ tripId, voters, enabled, children }: {
+export function DinnerVoteProvider({ tripId, voters, weights = {}, enabled, children }: {
   tripId: number;
   voters: string[];
+  weights?: Record<string, number>;
   enabled: boolean;
   children: React.ReactNode;
 }) {
@@ -114,9 +116,9 @@ export function DinnerVoteProvider({ tripId, voters, enabled, children }: {
   }, [voter, send]);
 
   const value = useMemo<Ctx>(() => ({
-    voters, voter, votes, cast, error,
+    voters, weights, voter, votes, cast, error,
     askName: (then?: (name: string) => void) => setSheet({ open: true, then }),
-  }), [voters, voter, votes, cast, error]);
+  }), [voters, weights, voter, votes, cast, error]);
 
   return (
     <DinnerCtx.Provider value={value}>
@@ -309,22 +311,28 @@ function useNight(stop: Stop) {
   const options = stop.options ?? [];
   const voters = ctx?.voters ?? [];
   const stopVotes = (ctx?.votes ?? []).filter(v => v.stop_id === stop.id && voters.includes(v.voter));
-  const state = dinnerState(options.map(o => o.id), stopVotes, voters);
+  const weights = ctx?.weights ?? {};
+  const state = dinnerState(options.map(o => o.id), stopVotes, voters, weights);
   const roundVotes = stopVotes.filter(v => v.round === state.round);
+  const tiebreaker = Object.keys(weights).find(k => weights[k] > 1) ?? null;
   const booked = options.find(o => o.status === 'booked') ?? null;
   const voter = ctx?.voter ?? null;
   const myVote = voter ? roundVotes.find(v => v.voter === voter)?.option_id ?? null : null;
   const missing = voters.filter(v => !roundVotes.some(x => x.voter === v));
   const nameOf = (id: number) => options.find(o => o.id === id)?.name ?? '';
-  return { ctx, options, voters, state, roundVotes, booked, voter, myVote, missing, nameOf };
+  return { ctx, options, voters, state, roundVotes, booked, voter, myVote, missing, nameOf, tiebreaker };
 }
 
 function nightStatus(n: ReturnType<typeof useNight>) {
   if (n.booked) return { tone: 'booked' as const, text: `Booked: ${n.booked.name}${n.booked.booked_detail ? `, ${n.booked.booked_detail}` : ''}` };
-  if (n.state.winner != null) return { tone: 'decided' as const, text: `Decided: ${n.nameOf(n.state.winner)}` };
+  if (n.state.winner != null) return { tone: 'decided' as const, text: `Decided: ${n.nameOf(n.state.winner)}${n.state.tiebreak && n.tiebreaker ? ` (${n.tiebreaker}’s tiebreak)` : ''}` };
   if (n.state.round > 1) return { tone: 'runoff' as const, text: `Runoff: ${n.state.eligible.map(n.nameOf).join(' vs ')}` };
   if (n.state.deadlock) return { tone: 'runoff' as const, text: 'Still tied' };
-  if (n.state.leaders.length === 1) return { tone: 'open' as const, text: `Leading: ${n.nameOf(n.state.leaders[0])} (${n.state.counts[n.state.leaders[0]]})` };
+  if (n.state.leaders.length === 1) {
+    const id = n.state.leaders[0];
+    const v = n.state.raw[id];
+    return { tone: 'open' as const, text: `Leading: ${n.nameOf(id)} (${v} vote${v === 1 ? '' : 's'}${n.state.tiebreak && n.tiebreaker ? `, ${n.tiebreaker}’s tiebreak` : ''})` };
+  }
   if (n.state.leaders.length > 1) return { tone: 'open' as const, text: `Tied so far: ${n.state.leaders.map(n.nameOf).join(', ')}` };
   return { tone: 'open' as const, text: 'No votes yet' };
 }
@@ -334,7 +342,7 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
   const n = useNight(stop);
   if (!n.ctx || !n.options.length) return null;
   const { voters, cast, askName, error } = n.ctx;
-  const { options, state, roundVotes, booked, voter, myVote, missing, nameOf } = n;
+  const { options, state, roundVotes, booked, voter, myVote, missing, nameOf, tiebreaker } = n;
 
   const init = initialsFor(voters);
   const colorOf = (name: string) => VOTER_COLORS[Math.max(0, voters.indexOf(name)) % VOTER_COLORS.length];
@@ -424,10 +432,10 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
       )}
       {error && <p role="alert" style={{ marginTop: 8, fontSize: 14.5, color: '#7A2414' }}>{error}</p>}
       {state.winner != null && banner(GREEN.soft, GREEN.line, GREEN.text, <>
-        <b>Decided: {nameOf(state.winner)}</b> ({state.eligible.map(id => state.counts[id]).sort((a, b) => b - a).join('–')}). Next step is booking it.
+        <b>Decided: {nameOf(state.winner)}</b> ({state.eligible.map(id => state.raw[id]).sort((a, b) => b - a).join('–')}{state.tiebreak && tiebreaker ? `, ${tiebreaker}’s tiebreak` : ''}). Next step is booking it.
       </>)}
       {state.round > 1 && !state.winner && last && banner('#FFF4DE', '#EBCB8B', '#5A3F12', <>
-        <b>Tie in round {last.round}</b> ({Object.values(last.counts).filter(c => c > 0).sort((a, b) => b - a).join('–')}). Runoff between {state.eligible.map(nameOf).join(' and ')}: everyone votes again.
+        <b>Tie in round {last.round}</b> ({Object.values(last.raw).filter(c => c > 0).sort((a, b) => b - a).join('–')}). Runoff between {state.eligible.map(nameOf).join(' and ')}: everyone votes again.
       </>)}
       {state.deadlock && banner('#F7DCD5', '#E8B4A8', '#7A2414', <>
         <b>Still tied</b> with everyone voted. Settle it together, or change a vote.
@@ -561,7 +569,7 @@ const primaryBtn: React.CSSProperties = {
   ...btn, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text, fontSize: 17, padding: '16px 20px',
 };
 
-function Intro({ title, onStart, onAll }: { title: string; onStart: () => void; onAll: () => void }) {
+function Intro({ title, onStart, onAll, tiebreaker }: { title: string; onStart: () => void; onAll: () => void; tiebreaker: string | null }) {
   const h: React.CSSProperties = { fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 21, color: 'var(--ink)', marginBottom: 6 };
   const p: React.CSSProperties = { fontSize: 16, lineHeight: 1.55, color: 'var(--ink)' };
   const li: React.CSSProperties = { ...p, marginBottom: 6 };
@@ -592,7 +600,10 @@ function Intro({ title, onStart, onAll }: { title: string; onStart: () => void; 
       <Rule />
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <h2 style={h}>Ties and bookings</h2>
-        <p style={p}>If the top places tie once all five have voted (say 2–2–1), that night goes to a <b>runoff</b> between just the tied places, and everyone votes once more.</p>
+        {tiebreaker && (
+          <p style={p}>It&rsquo;s {tiebreaker}&rsquo;s trip, so <b>{tiebreaker}&rsquo;s vote counts 1.5</b> and breaks any ties. She votes like everyone else; the extra half does the rest.</p>
+        )}
+        <p style={p}>If the top places are still tied once all five have voted, that night goes to a <b>runoff</b> between just the tied places, and everyone votes once more.</p>
         <p style={p}>Friday 23rd is already <b>booked</b> at St. John Bread and Wine. For the birthday dinner on Saturday 24th, a table is being <b>held</b> at Bocca di Lupo while we decide.</p>
       </section>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>
@@ -644,7 +655,7 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
       const opts = d.stop.options ?? [];
       if (opts.some(o => o.status === 'booked')) continue;
       const sv = votes.filter(v => v.stop_id === d.stop.id && voters.includes(v.voter));
-      const st = dinnerState(opts.map(o => o.id), sv, voters);
+      const st = dinnerState(opts.map(o => o.id), sv, voters, ctx?.weights ?? {});
       if (!sv.some(v => v.round === st.round && v.voter === name)) return d.stop.id;
     }
     return 'all' as const;
@@ -664,7 +675,7 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
           <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: RED.text, marginTop: 10 }}>Dinner vote</div>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 40, lineHeight: 1.05, color: 'var(--ink)' }}>Where we eat</h1>
         </header>
-        <Intro title={tripTitle} onStart={start} onAll={() => { try { localStorage.setItem(seenKey, '1'); } catch { /* */ } go('all'); }} />
+        <Intro title={tripTitle} tiebreaker={Object.keys(ctx?.weights ?? {}).find(k => (ctx?.weights ?? {})[k] > 1) ?? null} onStart={start} onAll={() => { try { localStorage.setItem(seenKey, '1'); } catch { /* */ } go('all'); }} />
       </div>
     );
   }
@@ -758,15 +769,16 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
   );
 }
 
-export function DinnerBoard({ tripId, tripTitle, slug, voters, dinners }: {
+export function DinnerBoard({ tripId, tripTitle, slug, voters, weights = {}, dinners }: {
   tripId: number;
   tripTitle: string;
   slug: string;
   voters: string[];
+  weights?: Record<string, number>;
   dinners: DinnerEntry[];
 }) {
   return (
-    <DinnerVoteProvider tripId={tripId} voters={voters} enabled={voters.length > 0 && dinners.length > 0}>
+    <DinnerVoteProvider tripId={tripId} voters={voters} weights={weights} enabled={voters.length > 0 && dinners.length > 0}>
       <BoardInner tripId={tripId} tripTitle={tripTitle} slug={slug} dinners={dinners} />
     </DinnerVoteProvider>
   );

@@ -52,6 +52,8 @@ export interface Trip {
   updated_at:   string;
   /** Names that can vote on dinners. No logins: a phone picks one once. */
   voters?:      string[];
+  /** Per-voter weight where it isn't 1, e.g. { Mom: 1.5 }. */
+  vote_weights?: Record<string, number>;
 }
 
 export interface Logistics {

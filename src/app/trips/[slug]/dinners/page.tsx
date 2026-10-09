@@ -25,6 +25,7 @@ export default async function DinnersPage({ params }: { params: Promise<{ slug: 
       tripTitle={trip.title}
       slug={trip.slug}
       voters={trip.voters ?? []}
+      weights={trip.vote_weights ?? {}}
       dinners={dinners}
     />
   );

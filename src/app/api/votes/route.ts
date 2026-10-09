@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   if (!stop) return NextResponse.json({ error: 'no such stop' }, { status: 404 });
   const { data: day } = await db.from('koji_days').select('trip_id').eq('id', stop.day_id).maybeSingle();
   const { data: trip } = day
-    ? await db.from('koji_trips').select('id, voters, published').eq('id', day.trip_id).maybeSingle()
+    ? await db.from('koji_trips').select('id, voters, published, vote_weights').eq('id', day.trip_id).maybeSingle()
     : { data: null };
   if (!trip?.published) return NextResponse.json({ error: 'no such trip' }, { status: 404 });
   if (!(trip.voters ?? []).includes(voter)) {
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
 
   const { data: existing } = await db.from('koji_dinner_votes')
     .select('option_id, voter, round').eq('stop_id', stopId);
-  const state = dinnerState(options.map(o => o.id), existing ?? [], trip.voters ?? []);
+  const state = dinnerState(options.map(o => o.id), existing ?? [], trip.voters ?? [], trip.vote_weights ?? {});
   const round = body.round == null ? state.round : Number(body.round);
   if (round !== state.round) {
     return NextResponse.json({ error: round < state.round ? 'that round is closed: there is a runoff now' : 'no such round' }, { status: 409 });
