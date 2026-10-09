@@ -181,6 +181,18 @@ const pill = (bg: string, fg: string): React.CSSProperties => ({
   padding: '3px 7px', borderRadius: 999, background: bg, color: fg, whiteSpace: 'nowrap',
 });
 
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 2,
+      fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)',
+    }}>
+      <span style={{ whiteSpace: 'nowrap' }}>{children}</span>
+      <span style={{ flex: 1, height: 0.5, background: 'var(--border-mid)' }} />
+    </div>
+  );
+}
+
 function Detail({ label, text }: { label: string; text: string | null }) {
   if (!text) return null;
   return (
@@ -194,7 +206,8 @@ function Detail({ label, text }: { label: string; text: string | null }) {
   );
 }
 
-function OptionCard({ o, voters, mine, leading, closed, onVote }: {
+function OptionCard({ o, voters, mine, leading, closed, onVote, muted }: {
+  muted?: boolean;
   o: DinnerOption;
   voters: { name: string; label: string; color: string }[];
   mine: boolean;
@@ -204,13 +217,13 @@ function OptionCard({ o, voters, mine, leading, closed, onVote }: {
 }) {
   return (
     <div style={{
-      border: mine ? `1.5px solid ${SKY.bar}` : '0.5px solid var(--border-mid)',
-      background: mine ? '#F3F6F9' : 'var(--bg)',
+      border: mine ? `1.5px solid ${SKY.bar}` : muted ? '1px dashed var(--border-mid)' : '0.5px solid var(--border-mid)',
+      background: mine ? '#F3F6F9' : muted ? 'transparent' : 'var(--bg)',
       borderRadius: 12, padding: mine ? '10px 11px' : '11px 12px',
       display: 'flex', flexDirection: 'column', gap: 5,
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <b style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)' }}>{o.name}</b>
+        <b style={{ fontSize: muted ? 14 : 14.5, fontWeight: muted ? 600 : 700, color: muted ? 'var(--ink-2)' : 'var(--ink)' }}>{o.name}</b>
         {o.price && <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--brass)' }}>{o.price}</span>}
         {o.status === 'held' && <span style={pill('#F0997B', '#4A1B0C')}>Held</span>}
         {leading && <span style={{ ...pill(GREEN.bg, GREEN.text), marginLeft: 'auto' }}>Leading</span>}
@@ -265,7 +278,6 @@ function OptionCard({ o, voters, mine, leading, closed, onVote }: {
 
 export function DinnerOptions({ stop }: { stop: Stop }) {
   const ctx = useContext(DinnerCtx);
-  const [showMore, setShowMore] = useState(false);
   const options = stop.options ?? [];
   if (!ctx || !options.length) return null;
   const { voters, voter, votes, cast, askName, error } = ctx;
@@ -317,17 +329,10 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
         </div>
         {rest.length > 0 && (
           <>
-            <div style={label}>
-              Voting closed ·{' '}
-              <button type="button" style={link} onClick={() => setShowMore(v => !v)}>
-                {showMore ? 'hide' : `show the ${rest.length === 1 ? 'backup' : `${rest.length} backups`}`}
-              </button>
+            <GroupLabel>Voting closed · {rest.length === 1 ? 'backup' : 'backups'}</GroupLabel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+              {rest.map(o => <OptionCard key={o.id} o={o} voters={[]} mine={false} leading={false} closed muted />)}
             </div>
-            {showMore && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                {rest.map(o => <OptionCard key={o.id} o={o} voters={[]} mine={false} leading={false} closed />)}
-              </div>
-            )}
           </>
         )}
       </div>
@@ -335,7 +340,18 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
   }
 
   const voted = new Set(stopVotes.map(v => v.voter)).size;
-  const shown = showMore ? [...primary, ...rest] : primary;
+  const card = (o: DinnerOption, muted?: boolean) => (
+    <OptionCard
+      key={o.id}
+      o={o}
+      voters={votersFor(o)}
+      mine={myVote === o.id}
+      leading={leaders.length === 1 && leaders[0].id === o.id}
+      closed={false}
+      muted={muted}
+      onVote={() => cast(stop.id, myVote === o.id ? null : o.id)}
+    />
+  );
 
   return (
     <div>
@@ -350,25 +366,17 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
         <span className="num">· {voted} of {voters.length} voted</span>
       </div>
       {error && <p role="alert" style={{ marginTop: 8, fontSize: 12.5, color: '#7A2414' }}>{error}</p>}
+      {family.length > 0 && rest.length > 0 && <GroupLabel>Family picks</GroupLabel>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-        {shown.map(o => (
-          <OptionCard
-            key={o.id}
-            o={o}
-            voters={votersFor(o)}
-            mine={myVote === o.id}
-            leading={leaders.length === 1 && leaders[0].id === o.id}
-            closed={false}
-            onVote={() => cast(stop.id, myVote === o.id ? null : o.id)}
-          />
-        ))}
+        {primary.map(o => card(o))}
       </div>
       {rest.length > 0 && (
-        <div style={{ ...label, textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-sans)', fontSize: 12.5 }}>
-          <button type="button" style={link} onClick={() => setShowMore(v => !v)}>
-            {showMore ? 'Show fewer' : `+ ${rest.length} more idea${rest.length === 1 ? '' : 's'}: ${rest.map(o => o.name).join(', ')}`}
-          </button>
-        </div>
+        <>
+          <GroupLabel>Other ideas · Claude&rsquo;s suggestions</GroupLabel>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            {rest.map(o => card(o, true))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -403,7 +411,7 @@ export function DinnerBoard({ tripId, tripTitle, slug, voters, dinners }: {
           }}>← {tripTitle}</a>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 32, lineHeight: 1.05, color: 'var(--ink)' }}>Where we eat</h1>
           <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.55, maxWidth: '58ch' }}>
-            One vote per person per dinner. Tap a place to vote, tap again to take it back. Family picks come first; Claude&rsquo;s ideas sit under &ldquo;more ideas&rdquo;. Every place has its menu, a Book or Call button and a map. £ casual · ££ a normal dinner out · £££ a splurge.
+            One vote per person per dinner. Tap a place to vote, tap again to take it back. Family picks come first, then other ideas from Claude. Every place has its menu, a Book or Call button and a map. £ casual · ££ a normal dinner out · £££ a splurge.
           </p>
         </header>
         <main style={{ padding: '0 12px' }}>
