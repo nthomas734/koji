@@ -603,9 +603,16 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
 
   // Deep link (#night-<stopId>), else straight to the nights once started before
   useEffect(() => {
-    const m = window.location.hash.match(/^#night-(\d+)$/);
-    if (m && dinners.some(d => d.stop.id === Number(m[1]))) { setTab(Number(m[1])); return; }
-    try { if (localStorage.getItem(seenKey)) setTab('all'); } catch { /* private mode */ }
+    const fromHash = () => {
+      const m = window.location.hash.match(/^#night-(\d+)$/);
+      if (m && dinners.some(d => d.stop.id === Number(m[1]))) { setTab(Number(m[1])); return true; }
+      return false;
+    };
+    if (!fromHash()) {
+      try { if (localStorage.getItem(seenKey)) setTab('all'); } catch { /* private mode */ }
+    }
+    window.addEventListener('hashchange', fromHash);
+    return () => window.removeEventListener('hashchange', fromHash);
   }, [dinners, seenKey]);
 
   const go = useCallback((t: number | 'all' | 'intro') => {
