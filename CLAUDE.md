@@ -565,3 +565,24 @@ Trip content lives in Supabase, not in this repo, so a cloud session (phone, no 
 - **Read the trip's `koji_logistics` rows first.** They hold what isn't in the stops: must-do items that must never be cut or squeezed, what is booked and what still needs booking, and group notes. Keep them in step with any change to the stops.
 - **Never mark anything as booked** unless the user says it is.
 - Links in `body_md` and `value_md` are Google Maps search links only.
+
+## Dinner votes (2026-10-08)
+
+A one-off page per trip at `/trips/[slug]/dinners`, deliberately kept out of the
+itinerary. Every stop with rows in `koji_dinner_options` appears there as a
+dinner to vote on; the itinerary itself is unchanged.
+
+- **Tables.** `koji_dinner_options` (per stop: name, menu link, why, food,
+  getting there, booking URL or phone, `walk_in`, `source` family/claude,
+  `status` option/held/booked) and `koji_dinner_votes` (one row per voter per
+  stop per `round`). `koji_trips.voters` is the list of names that can vote.
+- **No logins,** like koma's frame status: a phone picks a name once
+  (localStorage) and `/api/votes` checks the name is on the trip, the option
+  is on the stop and the dinner is not booked. Booking state (`status`) is set
+  by hand in SQL or from chat, never from the page.
+- **Ties go to a runoff** (`lib/dinnerRounds.ts`, shared by route and page):
+  once everyone has voted in a round, a tie at the top opens the next round
+  with only the tied options and closes the earlier rounds.
+- **Family picks first.** `source = 'family'` options lead; Claude's ideas show
+  below as quieter dashed cards, never hidden.
+- Once a dinner is decided and booked, write it into the itinerary stop by hand.
