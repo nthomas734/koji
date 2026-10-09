@@ -15,7 +15,7 @@ export default async function DinnersPage({ params }: { params: Promise<{ slug: 
   const { trip, days } = data;
 
   const dinners: DinnerEntry[] = days.flatMap(d =>
-    (d.stops ?? []).filter(st => st.options?.length).map(stop => ({ stop, dayLabel: d.label })),
+    (d.stops ?? []).filter(st => st.options?.length).map(stop => ({ stop, dayLabel: d.label, place: d.location_label ?? '' })),
   );
   if (!dinners.length) notFound();
 

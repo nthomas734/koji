@@ -11,7 +11,9 @@ import { dinnerState } from '@/lib/dinnerRounds';
 // the options themselves arrive with the prerendered page.
 
 const SKY = { bg: '#85B7EB', text: '#042C53', bar: '#378ADD' };
-const GREEN = { bg: '#97C459', text: '#173404', soft: '#EEF4E6', line: '#C9DCAF' };
+const GREEN = { bg: '#CFE3C6', text: '#1E4D3A', soft: '#EAF2E6', line: '#B9D3B0' };
+/** Pillar-box red, for anything that needs a table booked. */
+const RED = { text: '#9E1B1B', bg: '#F7E0DD' };
 const VOTER_COLORS = ['#B8944E', '#3A5A7A', '#7A4A6A', '#4A6A3A', '#A0583A', '#5A5A8A', '#3A7A7A'];
 const POLL_MS = 30_000;
 /** Koji's brass is decorative-only contrast on parchment; prices need to be read. */
@@ -22,7 +24,7 @@ type Ctx = {
   voter: string | null;
   votes: DinnerVote[];
   cast: (stopId: number, optionId: number | null, round: number) => void;
-  askName: () => void;
+  askName: (then?: (name: string) => void) => void;
   error: string | null;
 };
 const DinnerCtx = createContext<Ctx | null>(null);
@@ -113,7 +115,7 @@ export function DinnerVoteProvider({ tripId, voters, enabled, children }: {
 
   const value = useMemo<Ctx>(() => ({
     voters, voter, votes, cast, error,
-    askName: () => setSheet({ open: true }),
+    askName: (then?: (name: string) => void) => setSheet({ open: true, then }),
   }), [voters, voter, votes, cast, error]);
 
   return (
@@ -239,7 +241,7 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted }: {
       </div>
       {o.kind && <div style={{ fontSize: 14, color: 'var(--ink-2)' }}>{o.kind}</div>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <span style={{ ...pill(o.walk_in ? '#E3EED6' : '#F7DCD5', o.walk_in ? GREEN.text : '#7A2414'), borderRadius: 4 }}>
+        <span style={{ ...pill(o.walk_in ? GREEN.soft : RED.bg, o.walk_in ? GREEN.text : RED.text), borderRadius: 4 }}>
           {o.walk_in ? 'Walk-in' : 'Book ahead'}
         </span>
         <span style={{
@@ -405,10 +407,10 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--ink-2)' }}>
             <Avatar label={init[voter] ?? voter[0]} color={colorOf(voter)} />
             Voting as {voter} ·{' '}
-            <button type="button" style={link} onClick={askName}>change</button>
+            <button type="button" style={link} onClick={() => askName()}>change</button>
           </span>
-        ) : <span>Tap Vote to choose</span>}
-        <span className="num">· {voters.length - missing.length} of {voters.length} voted</span>
+        ) : <span>Tap Vote on one place</span>}
+        <span className="num">· {voters.length - missing.length} of {voters.length} have voted</span>
       </div>
       {missing.length > 0 && missing.length < voters.length && (
         <div style={{ marginTop: 4, fontSize: 14, color: 'var(--ink-2)' }}>Still to vote: <b>{missing.join(', ')}</b></div>
@@ -448,10 +450,14 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
 
 // ── THE DINNERS PAGE ────────────────────────────────────────────────────────
 // Voting is a one-off, so it lives on its own page (/trips/[slug]/dinners)
-// rather than inside the itinerary. One night at a time, with a day strip and
-// an "All nights" overview that doubles as the results summary.
+// rather than inside the itinerary. A welcome screen explains it once; after
+// "Start voting" the page goes one night at a time, with a day strip and an
+// "All nights" summary that doubles as the results. Nights are grouped by
+// where the trip is (the Cotswolds, then London).
 
-export type DinnerEntry = { stop: Stop; dayLabel: string };
+export type DinnerEntry = { stop: Stop; dayLabel: string; place: string };
+
+const FLEURON = '❦';
 
 function splitDayLabel(label: string) {
   const [head, ...rest] = label.split(' - ');
@@ -464,11 +470,29 @@ function chipLabel(head: string) {
   return m ? `${m[1]} ${m[2]}` : head;
 }
 
-function Overview({ dinners, onPick }: { dinners: DinnerEntry[]; onPick: (id: number) => void }) {
+function placeName(place: string) {
+  return /cotswold/i.test(place) ? 'The Cotswolds' : place || 'Elsewhere';
+}
+
+function Rule() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-      {dinners.map(d => <OverviewRow key={d.stop.id} entry={d} onPick={onPick} />)}
+    <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 12, color: 'var(--ink-2)', margin: '18px 0 14px' }}>
+      <span style={{ flex: 1, height: 0, borderTop: '3px double var(--border-mid)' }} />
+      <span style={{ fontFamily: 'var(--font-serif)', fontSize: 18, lineHeight: 1 }}>{FLEURON}</span>
+      <span style={{ flex: 1, height: 0, borderTop: '3px double var(--border-mid)' }} />
     </div>
+  );
+}
+
+function PlaceHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 style={{
+      fontFamily: 'var(--font-serif)', fontWeight: 400, fontStyle: 'italic', fontSize: 20, color: 'var(--ink)',
+      margin: '18px 4px 6px', display: 'flex', alignItems: 'center', gap: 10,
+    }}>
+      {children}
+      <span style={{ flex: 1, height: 0, borderTop: '0.5px solid var(--border-mid)' }} />
+    </h3>
   );
 }
 
@@ -478,22 +502,27 @@ function OverviewRow({ entry, onPick }: { entry: DinnerEntry; onPick: (id: numbe
   const st = nightStatus(n);
   const tone = { booked: GREEN.text, decided: GREEN.text, runoff: '#5A3F12', open: 'var(--ink)' }[st.tone];
   const mineDone = n.voter && !n.booked ? !n.missing.includes(n.voter) : null;
+  const birthday = /birthday/i.test(entry.stop.title);
   return (
     <button type="button" onClick={() => onPick(entry.stop.id)} style={{
-      textAlign: 'left', cursor: 'pointer', background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12,
-      padding: '14px 14px', display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 10px', alignItems: 'center',
-      fontFamily: 'var(--font-sans)', color: 'var(--ink)',
+      textAlign: 'left', cursor: 'pointer', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+      padding: '14px 14px', display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 12px', alignItems: 'center',
+      fontFamily: 'var(--font-sans)', color: 'var(--ink)', width: '100%',
     }}>
-      <span style={{ fontFamily: 'var(--font-serif)', fontSize: 20 }}>
-        {head}{/birthday/i.test(entry.stop.title) ? ' · Birthday' : ''}
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+        <span style={{ fontFamily: 'var(--font-serif)', fontSize: 20, lineHeight: 1.15 }}>
+          {head}{birthday && <span style={{ fontStyle: 'italic', color: RED.text }}> · Birthday</span>}
+        </span>
+        <span style={{ fontSize: 15.5, color: tone, fontWeight: st.tone === 'open' ? 500 : 700 }}>{st.text}</span>
+        {!n.booked && (
+          <span style={{ fontSize: 14, color: 'var(--ink-2)' }}>
+            {n.voters.length - n.missing.length} of {n.voters.length} have voted
+            {mineDone === true && <span style={{ color: GREEN.text, fontWeight: 700 }}> · you ✓</span>}
+            {mineDone === false && <span style={{ color: RED.text, fontWeight: 700 }}> · your vote needed</span>}
+          </span>
+        )}
       </span>
-      <span className="num" style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 14, color: 'var(--ink-2)' }}>
-        {n.booked ? '' : `${n.voters.length - n.missing.length} of ${n.voters.length} voted`}
-      </span>
-      <span style={{ fontSize: 15.5, color: tone, fontWeight: st.tone === 'open' ? 500 : 700 }}>{st.text}</span>
-      <span style={{ fontSize: 14, fontWeight: 600, color: mineDone === false ? '#7A2414' : 'var(--ink-2)', whiteSpace: 'nowrap' }}>
-        {mineDone === null ? '›' : mineDone ? '✓ voted ›' : 'Your vote ›'}
-      </span>
+      <span aria-hidden style={{ fontSize: 24, color: 'var(--ink-2)', lineHeight: 1 }}>›</span>
     </button>
   );
 }
@@ -503,14 +532,212 @@ function DayChip({ entry, active, onPick }: { entry: DinnerEntry; active: boolea
   const { head } = splitDayLabel(entry.dayLabel);
   const done = n.booked || (n.voter ? !n.missing.includes(n.voter) : false);
   return (
-    <button type="button" onClick={onPick} aria-current={active ? 'page' : undefined} style={{
-      flexShrink: 0, cursor: 'pointer', borderRadius: 999, padding: '10px 14px', whiteSpace: 'nowrap',
-      fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 600,
-      border: active ? `1.5px solid ${SKY.text}` : '0.5px solid var(--border-mid)',
-      background: active ? SKY.text : 'var(--surface)', color: active ? 'var(--surface)' : 'var(--ink-2)',
-    }}>
+    <button type="button" onClick={onPick} aria-current={active ? 'page' : undefined} style={chipStyle(active)}>
       {chipLabel(head)}{done ? ' ✓' : ''}
     </button>
+  );
+}
+
+function chipStyle(active: boolean): React.CSSProperties {
+  return {
+    flexShrink: 0, cursor: 'pointer', borderRadius: 999, padding: '10px 14px', whiteSpace: 'nowrap',
+    fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 600,
+    border: active ? `1.5px solid ${SKY.text}` : '1px solid var(--border-mid)',
+    background: active ? SKY.text : 'var(--surface)', color: active ? 'var(--surface)' : 'var(--ink)',
+  };
+}
+
+const primaryBtn: React.CSSProperties = {
+  ...btn, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text, fontSize: 17, padding: '16px 20px',
+};
+
+function Intro({ title, onStart, onAll }: { title: string; onStart: () => void; onAll: () => void }) {
+  const h: React.CSSProperties = { fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 21, color: 'var(--ink)', marginBottom: 6 };
+  const p: React.CSSProperties = { fontSize: 16, lineHeight: 1.55, color: 'var(--ink)' };
+  const li: React.CSSProperties = { ...p, marginBottom: 6 };
+  const tag = (bg: string, fg: string, text: string) => <span style={{ ...pill(bg, fg), borderRadius: 4 }}>{text}</span>;
+  return (
+    <div style={{ padding: '0 18px 8px' }}>
+      <p style={{ ...p, fontSize: 17 }}>
+        Nine dinners, five of us, one vote each. Pick where we eat each night, and whoever does the booking will see what won.
+      </p>
+      <Rule />
+      <section>
+        <h2 style={h}>How it works</h2>
+        <ol style={{ paddingLeft: 22 }}>
+          <li style={li}><b>Pick your name</b> the first time you vote. Your phone remembers it.</li>
+          <li style={li}><b>Go night by night</b> using the dates along the top. A tick means you&rsquo;ve voted on that night.</li>
+          <li style={li}><b>Tap Vote</b> on one place per night. Tap it again to take your vote back, or tap another place to change it.</li>
+          <li style={li}><b>Tap &ldquo;Details · menu&rdquo;</b> on any place for why it&rsquo;s on the list, what the food is like, how to get there, and buttons for the menu, booking and a map.</li>
+        </ol>
+      </section>
+      <Rule />
+      <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <h2 style={h}>Reading the cards</h2>
+        <p style={p}>{tag('#F0E4C8', '#5A3F12', 'Family pick')} came from one of us, and these are listed first. {tag('var(--bg-subtle)', 'var(--ink-2)', 'Claude’s idea')} places follow underneath as other options.</p>
+        <p style={p}>{tag(RED.bg, RED.text, 'Book ahead')} needs a table reserved. {tag(GREEN.soft, GREEN.text, 'Walk-in')} means we can just turn up.</p>
+        <p style={p}>£ is a casual meal, ££ a normal dinner out, £££ a splurge.</p>
+      </section>
+      <Rule />
+      <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <h2 style={h}>Ties and bookings</h2>
+        <p style={p}>If the top places tie once all five have voted (say 2–2–1), that night goes to a <b>runoff</b> between just the tied places, and everyone votes once more.</p>
+        <p style={p}>Friday 23rd is already <b>booked</b> at St. John Bread and Wine. For the birthday dinner on Saturday 24th, a table is being <b>held</b> at Bocca di Lupo while we decide.</p>
+        <p style={p}><b>Please vote on the Cotswolds nights (Fri 16 to Sun 18) and the birthday dinner first.</b> Every option on those nights needs a booking, and they&rsquo;re coming up soon.</p>
+      </section>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>
+        <button type="button" onClick={onStart} style={primaryBtn}>Start voting</button>
+        <button type="button" onClick={onAll} style={{ ...btn, fontSize: 16, padding: '14px 18px' }}>See all nights and results</button>
+      </div>
+      <p style={{ ...p, fontSize: 14, color: 'var(--ink-2)', textAlign: 'center', marginTop: 18 }}>{title} · London &amp; the Cotswolds</p>
+    </div>
+  );
+}
+
+function BoardInner({ tripId, tripTitle, slug, dinners }: {
+  tripId: number; tripTitle: string; slug: string; dinners: DinnerEntry[];
+}) {
+  const ctx = useContext(DinnerCtx);
+  const seenKey = `koji:dinners:started:${tripId}`;
+  const [tab, setTab] = useState<number | 'all' | 'intro'>('intro');
+
+  // Deep link (#night-<stopId>), else straight to the nights once started before
+  useEffect(() => {
+    const m = window.location.hash.match(/^#night-(\d+)$/);
+    if (m && dinners.some(d => d.stop.id === Number(m[1]))) { setTab(Number(m[1])); return; }
+    try { if (localStorage.getItem(seenKey)) setTab('all'); } catch { /* private mode */ }
+  }, [dinners, seenKey]);
+
+  const go = useCallback((t: number | 'all' | 'intro') => {
+    setTab(t);
+    try { history.replaceState(null, '', typeof t === 'number' ? `#night-${t}` : window.location.pathname); } catch { /* ignore */ }
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+  }, []);
+
+  useEffect(() => {
+    const el = document.querySelector<HTMLElement>('nav[aria-label="Nights"] [aria-current="page"]');
+    el?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [tab]);
+
+  /** First night this person still needs to vote on (booked nights skipped). */
+  const firstOpenFor = (name: string) => {
+    const votes = ctx?.votes ?? [];
+    const voters = ctx?.voters ?? [];
+    for (const d of dinners) {
+      const opts = d.stop.options ?? [];
+      if (opts.some(o => o.status === 'booked')) continue;
+      const sv = votes.filter(v => v.stop_id === d.stop.id && voters.includes(v.voter));
+      const st = dinnerState(opts.map(o => o.id), sv, voters);
+      if (!sv.some(v => v.round === st.round && v.voter === name)) return d.stop.id;
+    }
+    return 'all' as const;
+  };
+
+  const start = () => {
+    try { localStorage.setItem(seenKey, '1'); } catch { /* private mode */ }
+    if (ctx?.voter) go(firstOpenFor(ctx.voter));
+    else ctx?.askName(name => go(firstOpenFor(name)));
+  };
+
+  if (tab === 'intro') {
+    return (
+      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 40px)' }}>
+        <header style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 24px) 18px 6px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <a href={`/trips/${slug}`} style={{ alignSelf: 'flex-start', fontSize: 15, fontWeight: 600, color: 'var(--ink-2)', textDecoration: 'none' }}>← {tripTitle}</a>
+          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: RED.text, marginTop: 10 }}>Dinner vote</div>
+          <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 40, lineHeight: 1.05, color: 'var(--ink)' }}>Where we eat</h1>
+        </header>
+        <Intro title={tripTitle} onStart={start} onAll={() => { try { localStorage.setItem(seenKey, '1'); } catch { /* */ } go('all'); }} />
+      </div>
+    );
+  }
+
+  const idx = tab === 'all' ? -1 : dinners.findIndex(d => d.stop.id === tab);
+  const current = idx >= 0 ? dinners[idx] : null;
+  const prev = idx > 0 ? dinners[idx - 1] : null;
+  const next = idx >= 0 && idx < dinners.length - 1 ? dinners[idx + 1] : null;
+  const nav: React.CSSProperties = { ...btn, padding: '14px 16px', fontSize: 16 };
+
+  // Group the nights by place, keeping trip order
+  const groups: { place: string; items: DinnerEntry[] }[] = [];
+  for (const d of dinners) {
+    const last = groups[groups.length - 1];
+    if (last && last.place === d.place) last.items.push(d);
+    else groups.push({ place: d.place, items: [d] });
+  }
+
+  return (
+    <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 40px)' }}>
+      <header style={{
+        padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 16px 4px',
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12,
+      }}>
+        <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 26, color: 'var(--ink)' }}>Where we eat</h1>
+        <button type="button" onClick={() => go('intro')} style={{
+          background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+          fontSize: 15, fontWeight: 600, color: SKY.text, borderBottom: `1px solid ${SKY.text}`,
+        }}>How it works</button>
+      </header>
+
+      <nav aria-label="Nights" style={{
+        position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg)',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 8px) 0 10px', borderBottom: '3px double var(--border-mid)',
+      }}>
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 12px', scrollbarWidth: 'none', alignItems: 'center' }}>
+          <button type="button" onClick={() => go('all')} aria-current={tab === 'all' ? 'page' : undefined} style={chipStyle(tab === 'all')}>All nights</button>
+          {groups.map((g, gi) => (
+            <span key={g.place + gi} style={{ display: 'contents' }}>
+              {gi > 0 && <span aria-hidden style={{ flexShrink: 0, width: 1, height: 24, background: 'var(--border-mid)', margin: '0 4px' }} />}
+              {g.items.map(d => <DayChip key={d.stop.id} entry={d} active={tab === d.stop.id} onPick={() => go(d.stop.id)} />)}
+            </span>
+          ))}
+        </div>
+      </nav>
+
+      <main style={{ padding: '0 12px' }}>
+        {!current ? (
+          <div style={{ marginTop: 4 }}>
+            {groups.map((g, gi) => (
+              <section key={g.place + gi}>
+                <PlaceHeading>{placeName(g.place)}</PlaceHeading>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {g.items.map(d => <OverviewRow key={d.stop.id} entry={d} onPick={id => go(id)} />)}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (() => {
+          const { head, sub } = splitDayLabel(current.dayLabel);
+          const stop = current.stop;
+          const special = /birthday|first-night/i.test(stop.title);
+          return (
+            <>
+              <section id={`dinner-${stop.id}`} style={{
+                position: 'relative', background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 14, padding: '16px 16px 16px 20px', marginTop: 12, overflow: 'hidden',
+              }}>
+                <div style={{ position: 'absolute', left: 0, top: 12, bottom: 12, width: 4, borderRadius: 4, background: /birthday/i.test(stop.title) ? RED.text : SKY.bar }} />
+                <div className="num" style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', color: /birthday/i.test(stop.title) ? RED.text : SKY.text }}>
+                  {placeName(current.place)} · {stop.time_label ?? ''}{special ? ` · ${stop.title}` : ''}
+                </div>
+                <h2 style={{
+                  fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 28, lineHeight: 1.15, color: 'var(--ink)',
+                  marginTop: 6, paddingBottom: 8, borderBottom: '3px double var(--border-mid)',
+                }}>{head}</h2>
+                {sub && <div style={{ fontSize: 15, color: 'var(--ink-2)', marginTop: 8 }}>{sub}</div>}
+                <DinnerOptions stop={stop} />
+              </section>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 14 }}>
+                {prev ? <button type="button" style={nav} onClick={() => go(prev.stop.id)}>‹ {chipLabel(splitDayLabel(prev.dayLabel).head)}</button>
+                      : <button type="button" style={nav} onClick={() => go('all')}>‹ All nights</button>}
+                {next ? <button type="button" style={{ ...nav, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text }} onClick={() => go(next.stop.id)}>Next: {chipLabel(splitDayLabel(next.dayLabel).head)} ›</button>
+                      : <button type="button" style={{ ...nav, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text }} onClick={() => go('all')}>See results ›</button>}
+              </div>
+            </>
+          );
+        })()}
+      </main>
+    </div>
   );
 }
 
@@ -521,97 +748,9 @@ export function DinnerBoard({ tripId, tripTitle, slug, voters, dinners }: {
   voters: string[];
   dinners: DinnerEntry[];
 }) {
-  const [tab, setTab] = useState<number | 'all'>('all');
-
-  // Deep link: #night-<stopId>
-  useEffect(() => {
-    const m = window.location.hash.match(/^#night-(\d+)$/);
-    if (m && dinners.some(d => d.stop.id === Number(m[1]))) setTab(Number(m[1]));
-  }, [dinners]);
-
-  const go = useCallback((t: number | 'all') => {
-    setTab(t);
-    try { history.replaceState(null, '', t === 'all' ? window.location.pathname : `#night-${t}`); } catch { /* ignore */ }
-    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-  }, []);
-
-  // Keep the selected night's chip in view in the strip
-  useEffect(() => {
-    const el = document.querySelector<HTMLElement>('nav[aria-label="Nights"] [aria-current="page"]');
-    el?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
-  }, [tab]);
-
-  const idx = tab === 'all' ? -1 : dinners.findIndex(d => d.stop.id === tab);
-  const current = idx >= 0 ? dinners[idx] : null;
-  const prev = idx > 0 ? dinners[idx - 1] : null;
-  const next = idx >= 0 && idx < dinners.length - 1 ? dinners[idx + 1] : null;
-
-  const nav: React.CSSProperties = { ...btn, padding: '13px 16px', fontSize: 15.5 };
-
   return (
     <DinnerVoteProvider tripId={tripId} voters={voters} enabled={voters.length > 0 && dinners.length > 0}>
-      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 40px)' }}>
-        <header style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 24px) 16px 6px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <a href={`/trips/${slug}`} style={{
-            alignSelf: 'flex-start', fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600,
-            color: 'var(--ink-2)', textDecoration: 'none',
-          }}>← {tripTitle}</a>
-          <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 32, lineHeight: 1.05, color: 'var(--ink)' }}>Where we eat</h1>
-          <p style={{ fontSize: 16, color: 'var(--ink)', lineHeight: 1.5 }}>
-            One vote per person per night. Tap Vote, tap again to take it back. Ties go to a runoff. &ldquo;Details&rdquo; has the menu, the food and how to book.
-          </p>
-          <p style={{ fontSize: 15, color: 'var(--ink-2)', display: 'flex', flexWrap: 'wrap', gap: '2px 14px' }}>
-            <span style={{ whiteSpace: 'nowrap' }}>£ casual</span>
-            <span style={{ whiteSpace: 'nowrap' }}>££ dinner out</span>
-            <span style={{ whiteSpace: 'nowrap' }}>£££ a splurge</span>
-          </p>
-        </header>
-
-        <nav aria-label="Nights" style={{
-          position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg)',
-          padding: 'calc(env(safe-area-inset-top, 0px) + 8px) 0 8px', borderBottom: '0.5px solid var(--border)',
-        }}>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 12px', scrollbarWidth: 'none' }}>
-            <button type="button" onClick={() => go('all')} aria-current={tab === 'all' ? 'page' : undefined} style={{
-              flexShrink: 0, cursor: 'pointer', borderRadius: 999, padding: '10px 14px', whiteSpace: 'nowrap',
-              fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 600,
-              border: tab === 'all' ? `1.5px solid ${SKY.text}` : '0.5px solid var(--border-mid)',
-              background: tab === 'all' ? SKY.text : 'var(--surface)', color: tab === 'all' ? 'var(--surface)' : 'var(--ink-2)',
-            }}>All nights</button>
-            {dinners.map(d => <DayChip key={d.stop.id} entry={d} active={tab === d.stop.id} onPick={() => go(d.stop.id)} />)}
-          </div>
-        </nav>
-
-        <main style={{ padding: '0 12px' }}>
-          {!current ? (
-            <Overview dinners={dinners} onPick={id => go(id)} />
-          ) : (() => {
-            const { head, sub } = splitDayLabel(current.dayLabel);
-            const stop = current.stop;
-            return (
-              <>
-                <section id={`dinner-${stop.id}`} style={{
-                  position: 'relative', background: 'var(--surface)', border: '0.5px solid var(--border)',
-                  borderRadius: 14, padding: '14px 14px 14px 18px', marginTop: 12, overflow: 'hidden',
-                }}>
-                  <div style={{ position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderRadius: 4, background: SKY.bar }} />
-                  <div className="num" style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 13, letterSpacing: '0.05em', textTransform: 'uppercase', color: SKY.text }}>
-                    {stop.time_label ? `${stop.time_label} · ` : ''}{/birthday|first-night/i.test(stop.title) ? stop.title : 'Dinner'}
-                  </div>
-                  <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 26, lineHeight: 1.2, color: 'var(--ink)', marginTop: 4 }}>{head}</h2>
-                  {sub && <div style={{ fontSize: 15, color: 'var(--ink-2)', marginTop: 2 }}>{sub}</div>}
-                  <DinnerOptions stop={stop} />
-                </section>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 14 }}>
-                  {prev ? <button type="button" style={nav} onClick={() => go(prev.stop.id)}>‹ {chipLabel(splitDayLabel(prev.dayLabel).head)}</button> : <button type="button" style={nav} onClick={() => go('all')}>‹ All nights</button>}
-                  {next ? <button type="button" style={{ ...nav, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text }} onClick={() => go(next.stop.id)}>Next: {chipLabel(splitDayLabel(next.dayLabel).head)} ›</button>
-                        : <button type="button" style={nav} onClick={() => go('all')}>All nights ›</button>}
-                </div>
-              </>
-            );
-          })()}
-        </main>
-      </div>
+      <BoardInner tripId={tripId} tripTitle={tripTitle} slug={slug} dinners={dinners} />
     </DinnerVoteProvider>
   );
 }
