@@ -121,6 +121,7 @@ export interface DinnerVote {
   stop_id:   number;
   option_id: number;
   voter:     string;
+  round:     number;
 }
 
 // ── KOMA ────────────────────────────────────────────────────────────────────

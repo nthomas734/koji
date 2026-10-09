@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { DinnerOption, DinnerVote, Stop } from '@/lib/supabase';
+import { dinnerState } from '@/lib/dinnerRounds';
 
 // ── DINNER VOTES ────────────────────────────────────────────────────────────
 // A dinner stop with options shows them as cards the family votes on. No
@@ -18,7 +19,7 @@ type Ctx = {
   voters: string[];
   voter: string | null;
   votes: DinnerVote[];
-  cast: (stopId: number, optionId: number | null) => void;
+  cast: (stopId: number, optionId: number | null, round: number) => void;
   askName: () => void;
   error: string | null;
 };
@@ -70,19 +71,19 @@ export function DinnerVoteProvider({ tripId, voters, enabled, children }: {
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', tick); };
   }, [enabled, load]);
 
-  const send = useCallback(async (name: string, stopId: number, optionId: number | null) => {
+  const send = useCallback(async (name: string, stopId: number, optionId: number | null, round: number) => {
     setError(null);
     const before = votes;
     // Optimistic: one vote per person per dinner
     setVotes(v => {
-      const rest = v.filter(x => !(x.stop_id === stopId && x.voter === name));
-      return optionId === null ? rest : [...rest, { stop_id: stopId, option_id: optionId, voter: name }];
+      const rest = v.filter(x => !(x.stop_id === stopId && x.voter === name && x.round === round));
+      return optionId === null ? rest : [...rest, { stop_id: stopId, option_id: optionId, voter: name, round }];
     });
     try {
       const r = await fetch('/api/votes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stopId, optionId, voter: name }),
+        body: JSON.stringify({ stopId, optionId, voter: name, round }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'That vote did not save.');
@@ -103,9 +104,9 @@ export function DinnerVoteProvider({ tripId, voters, enabled, children }: {
     then?.(name);
   }, [tripId, sheet]);
 
-  const cast = useCallback((stopId: number, optionId: number | null) => {
-    if (!voter) { setSheet({ open: true, then: name => send(name, stopId, optionId) }); return; }
-    send(voter, stopId, optionId);
+  const cast = useCallback((stopId: number, optionId: number | null, round: number) => {
+    if (!voter) { setSheet({ open: true, then: name => send(name, stopId, optionId, round) }); return; }
+    send(voter, stopId, optionId, round);
   }, [voter, send]);
 
   const value = useMemo<Ctx>(() => ({
@@ -285,12 +286,13 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
   const init = initialsFor(voters);
   const colorOf = (n: string) => VOTER_COLORS[Math.max(0, voters.indexOf(n)) % VOTER_COLORS.length];
   const stopVotes = votes.filter(v => v.stop_id === stop.id && voters.includes(v.voter));
-  const votersFor = (o: DinnerOption) => stopVotes.filter(v => v.option_id === o.id)
+  const state = dinnerState(options.map(o => o.id), stopVotes, voters);
+  const roundVotes = stopVotes.filter(v => v.round === state.round);
+  const votersFor = (o: DinnerOption) => roundVotes.filter(v => v.option_id === o.id)
     .map(v => ({ name: v.voter, label: init[v.voter] ?? v.voter[0], color: colorOf(v.voter) }));
-  const counts = options.map(o => votersFor(o).length);
-  const max = Math.max(0, ...counts);
-  const leaders = options.filter((_, i) => max > 0 && counts[i] === max);
-  const myVote = voter ? stopVotes.find(v => v.voter === voter)?.option_id ?? null : null;
+  const leaders = options.filter(o => state.leaders.includes(o.id));
+  const myVote = voter ? roundVotes.find(v => v.voter === voter)?.option_id ?? null : null;
+  const nameOf = (id: number) => options.find(o => o.id === id)?.name ?? '';
 
   const booked = options.find(o => o.status === 'booked');
   const family = options.filter(o => o.source === 'family');
@@ -339,18 +341,23 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
     );
   }
 
-  const voted = new Set(stopVotes.map(v => v.voter)).size;
+  const voted = new Set(roundVotes.map(v => v.voter)).size;
+  const inRound = (o: DinnerOption) => state.eligible.includes(o.id);
   const card = (o: DinnerOption, muted?: boolean) => (
     <OptionCard
       key={o.id}
       o={o}
-      voters={votersFor(o)}
+      voters={inRound(o) ? votersFor(o) : []}
       mine={myVote === o.id}
-      leading={leaders.length === 1 && leaders[0].id === o.id}
-      closed={false}
-      muted={muted}
-      onVote={() => cast(stop.id, myVote === o.id ? null : o.id)}
+      leading={!state.winner && leaders.length === 1 && leaders[0].id === o.id}
+      closed={!inRound(o)}
+      muted={muted || !inRound(o)}
+      onVote={() => cast(stop.id, myVote === o.id ? null : o.id, state.round)}
     />
+  );
+  const last = state.history[state.history.length - 1];
+  const banner = (bg: string, line: string, fg: string, text: React.ReactNode) => (
+    <div style={{ marginTop: 10, borderRadius: 10, background: bg, border: `0.5px solid ${line}`, padding: '9px 11px', fontSize: 13, lineHeight: 1.45, color: fg }}>{text}</div>
   );
 
   return (
@@ -366,16 +373,40 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
         <span className="num">· {voted} of {voters.length} voted</span>
       </div>
       {error && <p role="alert" style={{ marginTop: 8, fontSize: 12.5, color: '#7A2414' }}>{error}</p>}
-      {family.length > 0 && rest.length > 0 && <GroupLabel>Family picks</GroupLabel>}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-        {primary.map(o => card(o))}
-      </div>
-      {rest.length > 0 && (
+      {state.winner != null && banner(GREEN.soft, GREEN.line, GREEN.text, <>
+        <b>Decided: {nameOf(state.winner)}</b> ({state.eligible.map(id => state.counts[id]).sort((a, b) => b - a).join('–')}). Next step is booking it.
+      </>)}
+      {state.round > 1 && !state.winner && last && banner('#FFF4DE', '#EBCB8B', '#5A3F12', <>
+        <b>Tie in round {last.round}</b> ({Object.values(last.counts).filter(n => n > 0).sort((a, b) => b - a).join('–')}). Runoff between {state.eligible.map(nameOf).join(' and ')}: everyone votes again.
+      </>)}
+      {state.deadlock && banner('#F7DCD5', '#E8B4A8', '#7A2414', <>
+        <b>Still tied</b> with everyone voted. Settle it together, or change a vote.
+      </>)}
+      {state.round > 1 ? (
         <>
-          <GroupLabel>Other ideas · Claude&rsquo;s suggestions</GroupLabel>
+          <GroupLabel>Runoff · round {state.round}</GroupLabel>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-            {rest.map(o => card(o, true))}
+            {options.filter(inRound).map(o => card(o))}
           </div>
+          <GroupLabel>Out after round {state.round - 1}</GroupLabel>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            {options.filter(o => !inRound(o)).map(o => card(o, true))}
+          </div>
+        </>
+      ) : (
+        <>
+          {family.length > 0 && rest.length > 0 && <GroupLabel>Family picks</GroupLabel>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+            {primary.map(o => card(o))}
+          </div>
+          {rest.length > 0 && (
+            <>
+              <GroupLabel>Other ideas · Claude&rsquo;s suggestions</GroupLabel>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                {rest.map(o => card(o, true))}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { dinnerState } from '@/lib/dinnerRounds';
 
 export const dynamic = 'force-dynamic';
 
 // Dinner votes are open, like marking a koma frame: the family votes from
 // their phones without logging in, picking a name from the trip's `voters`.
 // What is checked rather than trusted: the name is on that trip's list, the
-// option belongs to the stop, and the dinner is not already booked. Booking
+// option belongs to the stop, and the dinner is not already booked. Ties go
+// to a runoff (see lib/dinnerRounds): only the open round can be voted in, and
+// only for an option still in it. Booking
 // state itself is never written here.
 
 const noStore = { 'Cache-Control': 'no-store' };
@@ -14,7 +17,7 @@ const noStore = { 'Cache-Control': 'no-store' };
 async function votesFor(tripId: number) {
   const { data, error } = await supabaseAdmin()
     .from('koji_dinner_votes')
-    .select('stop_id, option_id, voter')
+    .select('stop_id, option_id, voter, round')
     .eq('trip_id', tripId);
   if (error) throw error;
   return data ?? [];
@@ -33,7 +36,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  let body: { stopId?: unknown; optionId?: unknown; voter?: unknown };
+  let body: { stopId?: unknown; optionId?: unknown; voter?: unknown; round?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'bad json' }, { status: 400 }); }
   const stopId = Number(body.stopId);
   const optionId = body.optionId == null ? null : Number(body.optionId);
@@ -60,16 +63,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'this dinner is booked' }, { status: 409 });
   }
 
+  const { data: existing } = await db.from('koji_dinner_votes')
+    .select('option_id, voter, round').eq('stop_id', stopId);
+  const state = dinnerState(options.map(o => o.id), existing ?? [], trip.voters ?? []);
+  const round = body.round == null ? state.round : Number(body.round);
+  if (round !== state.round) {
+    return NextResponse.json({ error: round < state.round ? 'that round is closed: there is a runoff now' : 'no such round' }, { status: 409 });
+  }
+
   if (optionId === null) {
-    const { error } = await db.from('koji_dinner_votes').delete().eq('stop_id', stopId).eq('voter', voter);
+    const { error } = await db.from('koji_dinner_votes').delete().eq('stop_id', stopId).eq('voter', voter).eq('round', round);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   } else {
     if (!options.some(o => o.id === optionId)) {
       return NextResponse.json({ error: 'option is not on this dinner' }, { status: 400 });
     }
+    if (!state.eligible.includes(optionId)) {
+      return NextResponse.json({ error: 'that place is out of the runoff' }, { status: 409 });
+    }
     const { error } = await db.from('koji_dinner_votes').upsert(
-      { trip_id: trip.id, stop_id: stopId, option_id: optionId, voter, updated_at: new Date().toISOString() },
-      { onConflict: 'stop_id,voter' },
+      { trip_id: trip.id, stop_id: stopId, option_id: optionId, voter, round, updated_at: new Date().toISOString() },
+      { onConflict: 'stop_id,voter,round' },
     );
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
