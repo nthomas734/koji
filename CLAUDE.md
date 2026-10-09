@@ -587,6 +587,10 @@ dinner to vote on; the itinerary itself is unchanged.
   tally. 1.5 lets the guest of honour win a 2-2 split she is in, or a fully
   split vote, without ever outvoting two people who agree; results show
   headcounts and label a weight-decided night "Mom's tiebreak".
+- **Choosers.** `koji_trips.dinner_choosers` (`{"<stop id>": "Mom"}`) makes a
+  dinner one person's call: everyone browses the options, only the chooser
+  gets Choose buttons, and the route refuses anyone else. Used for the
+  birthday dinner.
 - **Family picks first.** `source = 'family'` options lead; Claude's ideas show
   below as quieter dashed cards, never hidden.
 - Once a dinner is decided and booked, write it into the itinerary stop by hand.
