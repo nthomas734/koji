@@ -54,6 +54,8 @@ export interface Trip {
   voters?:      string[];
   /** Per-voter weight where it isn't 1, e.g. { Mom: 1.5 }. */
   vote_weights?: Record<string, number>;
+  /** Dinners one person decides alone, by stop id, e.g. { "480": "Mom" }. */
+  dinner_choosers?: Record<string, string>;
 }
 
 export interface Logistics {

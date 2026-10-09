@@ -22,6 +22,8 @@ const PRICE = '#6E4F14';
 type Ctx = {
   voters: string[];
   weights: Record<string, number>;
+  /** Stop id -> the one person who picks that dinner. */
+  choosers: Record<string, string>;
   voter: string | null;
   votes: DinnerVote[];
   cast: (stopId: number, optionId: number | null, round: number) => void;
@@ -42,10 +44,11 @@ function initialsFor(voters: string[]) {
   return map;
 }
 
-export function DinnerVoteProvider({ tripId, voters, weights = {}, enabled, children }: {
+export function DinnerVoteProvider({ tripId, voters, weights = {}, choosers = {}, enabled, children }: {
   tripId: number;
   voters: string[];
   weights?: Record<string, number>;
+  choosers?: Record<string, string>;
   enabled: boolean;
   children: React.ReactNode;
 }) {
@@ -116,9 +119,9 @@ export function DinnerVoteProvider({ tripId, voters, weights = {}, enabled, chil
   }, [voter, send]);
 
   const value = useMemo<Ctx>(() => ({
-    voters, weights, voter, votes, cast, error,
+    voters, weights, choosers, voter, votes, cast, error,
     askName: (then?: (name: string) => void) => setSheet({ open: true, then }),
-  }), [voters, weights, voter, votes, cast, error]);
+  }), [voters, weights, choosers, voter, votes, cast, error]);
 
   return (
     <DinnerCtx.Provider value={value}>
@@ -223,7 +226,9 @@ function telHref(phone: string) {
 // ── ONE OPTION ──────────────────────────────────────────────────────────────
 // Compact by default so a whole night fits on a phone screen; the long-form
 // why / food / getting there and the outbound links sit behind "Details".
-function OptionCard({ o, voters, mine, leading, out, onVote, muted }: {
+function OptionCard({ o, voters, mine, leading, out, onVote, muted, voteLabel = 'Vote', votedLabel = '✓ Your vote' }: {
+  voteLabel?: string;
+  votedLabel?: string;
   o: DinnerOption;
   voters: { name: string; label: string; color: string }[];
   mine: boolean;
@@ -282,7 +287,7 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted }: {
           <button type="button" onClick={onVote} aria-pressed={mine} style={mine
             ? { ...btn, color: SKY.text, border: `1.5px solid ${SKY.bar}` }
             : { ...btn, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text }}>
-            {mine ? '✓ Your vote' : 'Vote'}
+            {mine ? votedLabel : voteLabel}
           </button>
         )}
         <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open} style={btn}>
@@ -347,22 +352,29 @@ function WinnerCard({ o, label, compact }: { o: DinnerOption; label: string; com
 function useNight(stop: Stop) {
   const ctx = useContext(DinnerCtx);
   const options = stop.options ?? [];
-  const voters = ctx?.voters ?? [];
+  const chooser = ctx?.choosers?.[String(stop.id)] ?? null;
+  // A chooser night has one voter; everyone else just browses
+  const voters = chooser ? [chooser] : ctx?.voters ?? [];
   const stopVotes = (ctx?.votes ?? []).filter(v => v.stop_id === stop.id && voters.includes(v.voter));
-  const weights = ctx?.weights ?? {};
+  const weights = chooser ? {} : ctx?.weights ?? {};
   const state = dinnerState(options.map(o => o.id), stopVotes, voters, weights);
   const roundVotes = stopVotes.filter(v => v.round === state.round);
-  const tiebreaker = Object.keys(weights).find(k => weights[k] > 1) ?? null;
+  const tiebreaker = Object.keys(ctx?.weights ?? {}).find(k => (ctx?.weights ?? {})[k] > 1) ?? null;
   const booked = options.find(o => o.status === 'booked') ?? null;
   const voter = ctx?.voter ?? null;
   const myVote = voter ? roundVotes.find(v => v.voter === voter)?.option_id ?? null : null;
   const missing = voters.filter(v => !roundVotes.some(x => x.voter === v));
   const nameOf = (id: number) => options.find(o => o.id === id)?.name ?? '';
-  return { ctx, options, voters, state, roundVotes, booked, voter, myVote, missing, nameOf, tiebreaker };
+  return { ctx, options, voters, state, roundVotes, booked, voter, myVote, missing, nameOf, tiebreaker, chooser };
 }
 
 function nightStatus(n: ReturnType<typeof useNight>) {
   if (n.booked) return { tone: 'booked' as const, text: 'Booked' };
+  if (n.chooser) {
+    return n.state.winner != null
+      ? { tone: 'decided' as const, text: `${n.chooser} chose` }
+      : { tone: 'open' as const, text: `${n.chooser}’s pick · waiting for ${n.chooser}` };
+  }
   if (n.state.winner != null) return { tone: 'decided' as const, text: `Decided${n.state.tiebreak && n.tiebreaker ? ` on ${n.tiebreaker}’s tiebreak` : ''}` };
   if (n.state.round > 1) return { tone: 'runoff' as const, text: `Runoff: ${n.state.eligible.map(n.nameOf).join(' vs ')}` };
   if (n.state.deadlock) return { tone: 'runoff' as const, text: 'Still tied' };
@@ -379,8 +391,10 @@ function nightStatus(n: ReturnType<typeof useNight>) {
 export function DinnerOptions({ stop }: { stop: Stop }) {
   const n = useNight(stop);
   if (!n.ctx || !n.options.length) return null;
-  const { voters, cast, askName, error } = n.ctx;
-  const { options, state, roundVotes, booked, voter, myVote, missing, nameOf, tiebreaker } = n;
+  const { cast, askName, error } = n.ctx;
+  const voters = n.ctx.voters;
+  const { options, state, roundVotes, booked, voter, myVote, missing, nameOf, tiebreaker, chooser } = n;
+  const canVote = !chooser || voter === chooser;
 
   const init = initialsFor(voters);
   const colorOf = (name: string) => VOTER_COLORS[Math.max(0, voters.indexOf(name)) % VOTER_COLORS.length];
@@ -420,7 +434,7 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
   const family = options.filter(o => o.source === 'family');
   const primary = family.length ? family : options;
   const rest = options.filter(o => !primary.includes(o));
-  const leaderId = !state.winner && state.leaders.length === 1 ? state.leaders[0] : null;
+  const leaderId = !chooser && !state.winner && state.leaders.length === 1 ? state.leaders[0] : null;
   const last = state.history[state.history.length - 1];
   const card = (o: DinnerOption, muted?: boolean) => (
     <OptionCard
@@ -431,33 +445,49 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
       leading={leaderId === o.id}
       out={!inRound(o)}
       muted={muted || !inRound(o)}
-      onVote={() => cast(stop.id, myVote === o.id ? null : o.id, state.round)}
+      onVote={canVote ? () => cast(stop.id, myVote === o.id ? null : o.id, state.round) : undefined}
+      voteLabel={chooser ? 'Choose' : 'Vote'}
+      votedLabel={chooser ? '✓ Your choice' : '✓ Your vote'}
     />
   );
 
   return (
     <div>
-      <div style={label}>
-        {voter ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--ink-2)' }}>
-            <Avatar label={init[voter] ?? voter[0]} color={colorOf(voter)} />
-            Voting as {voter} ·{' '}
-            <button type="button" style={link} onClick={() => askName()}>change</button>
-          </span>
-        ) : <span>Tap Vote on one place</span>}
-        <span className="num">· {voters.length - missing.length} of {voters.length} have voted</span>
-      </div>
-      {missing.length > 0 && missing.length < voters.length && (
-        <div style={{ marginTop: 4, fontSize: 14, color: 'var(--ink-2)' }}>Still to vote: <b>{missing.join(', ')}</b></div>
+      {chooser && banner('#FBEDE9', '#E8B4A8', '#5A1A12', <>
+        <b>{chooser}&rsquo;s pick.</b> It&rsquo;s her birthday dinner, so {chooser} chooses. Everyone can look through the options, menus and photos.
+      </>)}
+      {chooser ? (
+        <div style={label}>
+          {state.winner != null ? null
+            : voter === chooser ? <span>Your choice, {chooser}: tap Choose on one place.</span>
+            : voter ? <span>Waiting for {chooser} to choose.</span>
+            : <span>Waiting for {chooser} to choose. {chooser}? <button type="button" style={link} onClick={() => askName()}>Tap here first</button></span>}
+        </div>
+      ) : (
+        <>
+          <div style={label}>
+            {voter ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--ink-2)' }}>
+                <Avatar label={init[voter] ?? voter[0]} color={colorOf(voter)} />
+                Voting as {voter} ·{' '}
+                <button type="button" style={link} onClick={() => askName()}>change</button>
+              </span>
+            ) : <span>Tap Vote on one place</span>}
+            <span className="num">· {n.voters.length - missing.length} of {n.voters.length} have voted</span>
+          </div>
+          {missing.length > 0 && missing.length < n.voters.length && (
+            <div style={{ marginTop: 4, fontSize: 14, color: 'var(--ink-2)' }}>Still to vote: <b>{missing.join(', ')}</b></div>
+          )}
+        </>
       )}
       {error && <p role="alert" style={{ marginTop: 8, fontSize: 14.5, color: '#7A2414' }}>{error}</p>}
       {state.winner != null && (() => {
         const w = options.find(o => o.id === state.winner);
         if (!w) return null;
         const tally = state.eligible.map(id => state.raw[id]).filter(c => c > 0).sort((a, b) => b - a).join('–');
-        return <WinnerCard o={w} label={`Decided · ${tally}${state.tiebreak && tiebreaker ? ` · ${tiebreaker}’s tiebreak` : ''} · next, book it`} />;
+        return <WinnerCard o={w} label={chooser ? `${chooser}’s choice · next, book it` : `Decided · ${tally}${state.tiebreak && tiebreaker ? ` · ${tiebreaker}’s tiebreak` : ''} · next, book it`} />;
       })()}
-      {state.winner != null && <GroupLabel>How everyone voted</GroupLabel>}
+      {state.winner != null && <GroupLabel>{chooser ? 'All the options' : 'How everyone voted'}</GroupLabel>}
       {state.round > 1 && !state.winner && last && banner('#FFF4DE', '#EBCB8B', '#5A3F12', <>
         <b>Tie in round {last.round}</b> ({Object.values(last.raw).filter(c => c > 0).sort((a, b) => b - a).join('–')}). Runoff between {state.eligible.map(nameOf).join(' and ')}: everyone votes again.
       </>)}
@@ -540,7 +570,7 @@ function OverviewRow({ entry, onPick }: { entry: DinnerEntry; onPick: (id: numbe
   const { head } = splitDayLabel(entry.dayLabel);
   const st = nightStatus(n);
   const tone = { booked: GREEN.text, decided: GREEN.text, runoff: '#5A3F12', open: 'var(--ink)' }[st.tone];
-  const mineDone = n.voter && !n.booked ? !n.missing.includes(n.voter) : null;
+  const mineDone = n.voter && !n.booked && (!n.chooser || n.voter === n.chooser) ? !n.missing.includes(n.voter) : null;
   const birthday = /birthday/i.test(entry.stop.title);
   const won = n.booked ?? (n.state.winner != null ? n.options.find(o => o.id === n.state.winner) ?? null : null);
   return (
@@ -555,14 +585,14 @@ function OverviewRow({ entry, onPick }: { entry: DinnerEntry; onPick: (id: numbe
           {head}{birthday && <span style={{ fontStyle: 'italic', color: RED.text }}> · Birthday</span>}
         </span>
         <span style={{ fontSize: 15.5, color: tone, fontWeight: st.tone === 'open' ? 500 : 700 }}>{st.text}</span>
-        {!n.booked && (
+        {!n.booked && !n.chooser && (
           <span style={{ fontSize: 14, color: 'var(--ink-2)' }}>
             {n.voters.length - n.missing.length} of {n.voters.length} have voted
             {mineDone === true && <span style={{ color: GREEN.text, fontWeight: 700 }}> · you ✓</span>}
             {mineDone === false && <span style={{ color: RED.text, fontWeight: 700 }}> · your vote needed</span>}
           </span>
         )}
-        {!n.booked && n.missing.length > 0 && n.missing.length < n.voters.length && (
+        {!n.booked && !n.chooser && n.missing.length > 0 && n.missing.length < n.voters.length && (
           <span style={{ fontSize: 14, color: 'var(--ink-2)' }}>Still to vote: {n.missing.join(', ')}</span>
         )}
       </span>
@@ -570,7 +600,7 @@ function OverviewRow({ entry, onPick }: { entry: DinnerEntry; onPick: (id: numbe
     </button>
     {won && (
       <div style={{ padding: '0 12px 12px' }}>
-        <WinnerCard compact o={won} label={n.booked ? `Booked${won.booked_detail ? ` · ${won.booked_detail}` : ''}` : 'Decided · next, book it'} />
+        <WinnerCard compact o={won} label={n.booked ? `Booked${won.booked_detail ? ` · ${won.booked_detail}` : ''}` : n.chooser ? `${n.chooser}’s choice · next, book it` : 'Decided · next, book it'} />
       </div>
     )}
     </div>
@@ -601,7 +631,7 @@ const primaryBtn: React.CSSProperties = {
   ...btn, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text, fontSize: 17, padding: '16px 20px',
 };
 
-function Intro({ title, onStart, onAll, tiebreaker }: { title: string; onStart: () => void; onAll: () => void; tiebreaker: string | null }) {
+function Intro({ title, onStart, onAll, tiebreaker, chooserNote }: { title: string; onStart: () => void; onAll: () => void; tiebreaker: string | null; chooserNote: boolean }) {
   const h: React.CSSProperties = { fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 21, color: 'var(--ink)', marginBottom: 6 };
   const p: React.CSSProperties = { fontSize: 16, lineHeight: 1.55, color: 'var(--ink)' };
   const li: React.CSSProperties = { ...p, marginBottom: 6 };
@@ -632,11 +662,14 @@ function Intro({ title, onStart, onAll, tiebreaker }: { title: string; onStart: 
       <Rule />
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <h2 style={h}>Ties and bookings</h2>
+        {chooserNote && (
+          <p style={p}><b>The birthday dinner on Saturday 24th is Mom&rsquo;s pick.</b> Everyone can look through the options, menus and photos, but only Mom chooses. A table is being held at Bocca di Lupo while she decides.</p>
+        )}
         {tiebreaker && (
-          <p style={p}>It&rsquo;s {tiebreaker}&rsquo;s trip, so <b>{tiebreaker}&rsquo;s vote counts 1.5</b> and breaks any ties. She votes like everyone else; the extra half does the rest.</p>
+          <p style={p}>It&rsquo;s {tiebreaker}&rsquo;s trip, so on the other nights <b>{tiebreaker}&rsquo;s vote counts 1.5</b> and breaks any ties. She votes like everyone else; the extra half does the rest.</p>
         )}
         <p style={p}>If the top places are still tied once all five have voted, that night goes to a <b>runoff</b> between just the tied places, and everyone votes once more.</p>
-        <p style={p}>Friday 23rd is already <b>booked</b> at St. John Bread and Wine. For the birthday dinner on Saturday 24th, a table is being <b>held</b> at Bocca di Lupo while we decide.</p>
+        <p style={p}>Friday 23rd is already <b>booked</b> at St. John Bread and Wine.</p>
       </section>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>
         <button type="button" onClick={onStart} style={primaryBtn}>Start voting</button>
@@ -686,8 +719,11 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
     for (const d of dinners) {
       const opts = d.stop.options ?? [];
       if (opts.some(o => o.status === 'booked')) continue;
-      const sv = votes.filter(v => v.stop_id === d.stop.id && voters.includes(v.voter));
-      const st = dinnerState(opts.map(o => o.id), sv, voters, ctx?.weights ?? {});
+      const chooser = ctx?.choosers?.[String(d.stop.id)];
+      if (chooser && chooser !== name) continue;
+      const who = chooser ? [chooser] : voters;
+      const sv = votes.filter(v => v.stop_id === d.stop.id && who.includes(v.voter));
+      const st = dinnerState(opts.map(o => o.id), sv, who, chooser ? {} : ctx?.weights ?? {});
       if (!sv.some(v => v.round === st.round && v.voter === name)) return d.stop.id;
     }
     return 'all' as const;
@@ -707,7 +743,7 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
           <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: RED.text, marginTop: 10 }}>Dinner vote</div>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 40, lineHeight: 1.05, color: 'var(--ink)' }}>Where we eat</h1>
         </header>
-        <Intro title={tripTitle} tiebreaker={Object.keys(ctx?.weights ?? {}).find(k => (ctx?.weights ?? {})[k] > 1) ?? null} onStart={start} onAll={() => { try { localStorage.setItem(seenKey, '1'); } catch { /* */ } go('all'); }} />
+        <Intro title={tripTitle} chooserNote={Object.keys(ctx?.choosers ?? {}).length > 0} tiebreaker={Object.keys(ctx?.weights ?? {}).find(k => (ctx?.weights ?? {})[k] > 1) ?? null} onStart={start} onAll={() => { try { localStorage.setItem(seenKey, '1'); } catch { /* */ } go('all'); }} />
       </div>
     );
   }
@@ -801,16 +837,17 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
   );
 }
 
-export function DinnerBoard({ tripId, tripTitle, slug, voters, weights = {}, dinners }: {
+export function DinnerBoard({ tripId, tripTitle, slug, voters, weights = {}, choosers = {}, dinners }: {
   tripId: number;
   tripTitle: string;
   slug: string;
   voters: string[];
   weights?: Record<string, number>;
+  choosers?: Record<string, string>;
   dinners: DinnerEntry[];
 }) {
   return (
-    <DinnerVoteProvider tripId={tripId} voters={voters} weights={weights} enabled={voters.length > 0 && dinners.length > 0}>
+    <DinnerVoteProvider tripId={tripId} voters={voters} weights={weights} choosers={choosers} enabled={voters.length > 0 && dinners.length > 0}>
       <BoardInner tripId={tripId} tripTitle={tripTitle} slug={slug} dinners={dinners} />
     </DinnerVoteProvider>
   );
