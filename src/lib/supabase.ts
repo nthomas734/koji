@@ -50,6 +50,8 @@ export interface Trip {
   sort_order:   number;
   created_at:   string;
   updated_at:   string;
+  /** Names that can vote on dinners. No logins: a phone picks one once. */
+  voters?:      string[];
 }
 
 export interface Logistics {
@@ -84,6 +86,37 @@ export interface Stop {
   body_md:     string;
   is_optional: boolean;
   sort_order:  number;
+  /** Dinner choices. A stop with options renders the vote cards. */
+  options?:    DinnerOption[];
+}
+
+// ── DINNER VOTES ────────────────────────────────────────────────────────────
+// Options hang off a dinner stop. `source` keeps the family's picks ahead of
+// Claude's suggestions; `status` is set by hand (SQL or chat), never from the
+// public page: 'booked' closes the vote, 'held' marks a placeholder.
+export interface DinnerOption {
+  id:            number;
+  stop_id:       number;
+  sort_order:    number;
+  name:          string;
+  maps_query:    string;
+  price:         string | null;
+  kind:          string | null;
+  draw:          string | null;
+  order_md:      string | null;
+  booking_url:   string | null;
+  phone:         string | null;
+  note:          string | null;
+  walk_in:       boolean;
+  source:        'family' | 'claude';
+  status:        'option' | 'held' | 'booked';
+  booked_detail: string | null;
+}
+
+export interface DinnerVote {
+  stop_id:   number;
+  option_id: number;
+  voter:     string;
 }
 
 // ── KOMA ────────────────────────────────────────────────────────────────────
@@ -325,6 +358,25 @@ export async function getTripBySlug(slug: string): Promise<{
     .select('*')
     .eq('trip_id', trip.id)
     .order('sort_order');
+
+  // Dinner options ride along with their stops, like the shots: public read,
+  // prerendered, so the cards work offline. Votes are fetched live instead.
+  const stopIds = (days ?? []).flatMap((d: { stops?: { id: number }[] }) => (d.stops ?? []).map(st => st.id));
+  const { data: options } = stopIds.length
+    ? await supabase.from('koji_dinner_options').select('*').in('stop_id', stopIds).order('sort_order')
+    : { data: [] };
+  const byStop = new Map<number, DinnerOption[]>();
+  for (const o of (options as DinnerOption[]) ?? []) {
+    const list = byStop.get(o.stop_id) ?? [];
+    list.push(o);
+    byStop.set(o.stop_id, list);
+  }
+  for (const d of (days ?? []) as Day[]) {
+    for (const st of d.stops ?? []) {
+      const opts = byStop.get(st.id);
+      if (opts) st.options = opts;
+    }
+  }
 
   const dayIds = (days ?? []).map((d: { id: number }) => d.id);
   const { data: carry } = dayIds.length
