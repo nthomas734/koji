@@ -14,6 +14,8 @@ const SKY = { bg: '#85B7EB', text: '#042C53', bar: '#378ADD' };
 const GREEN = { bg: '#97C459', text: '#173404', soft: '#EEF4E6', line: '#C9DCAF' };
 const VOTER_COLORS = ['#B8944E', '#3A5A7A', '#7A4A6A', '#4A6A3A', '#A0583A', '#5A5A8A', '#3A7A7A'];
 const POLL_MS = 30_000;
+/** Koji's brass is decorative-only contrast on parchment; prices need to be read. */
+const PRICE = '#6E4F14';
 
 type Ctx = {
   voters: string[];
@@ -138,16 +140,16 @@ function NameSheet({ voters, current, onPick, onClose }: {
       }}>
         <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-mid)', margin: '0 auto 2px' }} />
         <h4 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 20, lineHeight: 1.15, color: 'var(--ink)' }}>Who&rsquo;s voting?</h4>
-        <p style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5 }}>Pick your name once. This phone remembers it, and your votes show your initials.</p>
+        <p style={{ fontSize: 15, color: 'var(--ink-2)', lineHeight: 1.5 }}>Pick your name once. This phone remembers it, and your votes show your initials.</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {voters.map((v, i) => (
             <button key={v} type="button" onClick={() => onPick(v)} style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 12,
+              display: 'flex', alignItems: 'center', gap: 10, padding: '14px 14px', borderRadius: 12,
               border: v === current ? `1.5px solid ${SKY.bar}` : '0.5px solid var(--border-mid)',
-              background: 'var(--bg)', fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)',
+              background: 'var(--bg)', fontFamily: 'var(--font-sans)', fontSize: 17, fontWeight: 600, color: 'var(--ink)',
               cursor: 'pointer', textAlign: 'left',
             }}>
-              <Avatar label={init[v]} color={VOTER_COLORS[i % VOTER_COLORS.length]} size={26} />
+              <Avatar label={init[v]} color={VOTER_COLORS[i % VOTER_COLORS.length]} size={30} />
               {v}
             </button>
           ))}
@@ -173,20 +175,20 @@ function mapsUrl(q: string) {
 }
 
 const btn: React.CSSProperties = {
-  fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 12, lineHeight: 1, padding: '7px 10px',
-  borderRadius: 8, border: '0.5px solid var(--border-mid)', background: 'var(--surface)', color: 'var(--ink-2)',
+  fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 14.5, lineHeight: 1, padding: '11px 14px',
+  borderRadius: 10, border: '1px solid var(--border-mid)', background: 'var(--surface)', color: 'var(--ink)',
   textDecoration: 'none', whiteSpace: 'nowrap', cursor: 'pointer',
 };
 const pill = (bg: string, fg: string): React.CSSProperties => ({
-  fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
-  padding: '3px 7px', borderRadius: 999, background: bg, color: fg, whiteSpace: 'nowrap',
+  fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 11.5, letterSpacing: '0.04em', textTransform: 'uppercase',
+  padding: '4px 8px', borderRadius: 999, background: bg, color: fg, whiteSpace: 'nowrap',
 });
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 2,
-      fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)',
+      fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--ink-2)',
     }}>
       <span style={{ whiteSpace: 'nowrap' }}>{children}</span>
       <span style={{ flex: 1, height: 0.5, background: 'var(--border-mid)' }} />
@@ -197,13 +199,10 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
 function Detail({ label, text }: { label: string; text: string | null }) {
   if (!text) return null;
   return (
-    <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}>
-      <span style={{
-        fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
-        color: 'var(--ink-3)', marginRight: 6,
-      }}>{label}</span>
-      {text}
-    </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>{label}</span>
+      <p style={{ fontSize: 15, color: 'var(--ink)', lineHeight: 1.5 }}>{text}</p>
+    </div>
   );
 }
 
@@ -227,29 +226,29 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted }: {
   const [open, setOpen] = useState(false);
   return (
     <div style={{
-      border: mine ? `1.5px solid ${SKY.bar}` : muted ? '1px dashed var(--border-mid)' : '0.5px solid var(--border-mid)',
-      background: mine ? '#F3F6F9' : muted ? 'transparent' : 'var(--bg)',
-      borderRadius: 12, padding: mine ? '10px 11px' : '11px 12px',
-      display: 'flex', flexDirection: 'column', gap: 5,
+      border: mine ? `2px solid ${SKY.bar}` : muted ? '1.5px dashed var(--border-mid)' : '1px solid var(--border-mid)',
+      background: mine ? '#EAF1F8' : muted ? 'var(--surface)' : 'var(--bg)',
+      borderRadius: 12, padding: '13px 14px',
+      display: 'flex', flexDirection: 'column', gap: 8,
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <b style={{ fontSize: muted ? 14 : 15, fontWeight: muted ? 600 : 700, color: muted ? 'var(--ink-2)' : 'var(--ink)' }}>{o.name}</b>
-        {o.price && <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--brass)' }}>{o.price}</span>}
+        <b style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>{o.name}</b>
+        {o.price && <span className="num" style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 14, color: PRICE }}>{o.price}</span>}
         {o.status === 'held' && <span style={pill('#F0997B', '#4A1B0C')}>Held</span>}
         {leading && <span style={{ ...pill(GREEN.bg, GREEN.text), marginLeft: 'auto' }}>Leading</span>}
       </div>
-      {o.kind && <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{o.kind}</div>}
+      {o.kind && <div style={{ fontSize: 14, color: 'var(--ink-2)' }}>{o.kind}</div>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <span style={{ ...pill(o.walk_in ? '#E3EED6' : '#F7DCD5', o.walk_in ? GREEN.text : '#7A2414'), borderRadius: 4, fontSize: 8.5 }}>
+        <span style={{ ...pill(o.walk_in ? '#E3EED6' : '#F7DCD5', o.walk_in ? GREEN.text : '#7A2414'), borderRadius: 4 }}>
           {o.walk_in ? 'Walk-in' : 'Book ahead'}
         </span>
         <span style={{
-          ...pill(o.source === 'family' ? '#F0E4C8' : 'var(--bg-subtle)', o.source === 'family' ? '#5A3F12' : 'var(--ink-3)'),
-          borderRadius: 4, fontSize: 8.5,
+          ...pill(o.source === 'family' ? '#F0E4C8' : 'var(--bg-subtle)', o.source === 'family' ? '#5A3F12' : 'var(--ink-2)'),
+          borderRadius: 4,
         }}>{o.source === 'family' ? 'Family pick' : 'Claude’s idea'}</span>
       </div>
-      {o.status === 'held' && o.booked_detail && <div style={{ fontSize: 12, color: '#4A1B0C' }}>{o.booked_detail}</div>}
-      {o.draw && <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45 }}>{o.draw}</p>}
+      {o.status === 'held' && o.booked_detail && <div style={{ fontSize: 14, fontWeight: 600, color: '#4A1B0C' }}>{o.booked_detail}</div>}
+      {o.draw && <p style={{ fontSize: 15.5, color: 'var(--ink)', lineHeight: 1.5 }}>{o.draw}</p>}
 
       {open && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 4, borderTop: '0.5px solid var(--border)', marginTop: 2 }}>
@@ -257,7 +256,7 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted }: {
           <Detail label="The food" text={o.food_md} />
           <Detail label="Order" text={o.order_md} />
           <Detail label="Getting there" text={o.getting_there} />
-          {o.note && <p style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.45 }}>{o.note}</p>}
+          {o.note && <p style={{ fontSize: 14.5, color: 'var(--ink-2)', lineHeight: 1.5 }}>{o.note}</p>}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
             {o.menu_url && <a href={o.menu_url} target="_blank" rel="noopener" style={btn}>Menu</a>}
             {o.booking_url
@@ -284,11 +283,11 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted }: {
             <span style={{ display: 'inline-flex' }}>
               {voters.map((v, i) => (
                 <span key={v.name} title={v.name} style={{ marginLeft: i ? -5 : 0 }}>
-                  <Avatar label={v.label} color={v.color} ring />
+                  <Avatar label={v.label} color={v.color} size={24} ring />
                 </span>
               ))}
             </span>
-            <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>{voters.length}</span>
+            <span className="num" style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 14, color: 'var(--ink-2)' }}>{voters.length}</span>
           </span>
         )}
       </div>
@@ -336,15 +335,15 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
   const inRound = (o: DinnerOption) => state.eligible.includes(o.id);
 
   const label: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10,
-    fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-3)',
+    display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12,
+    fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink-2)',
   };
   const link: React.CSSProperties = {
     background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--ink-2)',
-    borderBottom: '1px solid var(--border-mid)', textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-sans)', fontSize: 11,
+    borderBottom: '1px solid var(--ink-3)', textTransform: 'none', letterSpacing: 0, fontFamily: 'var(--font-sans)', fontSize: 14,
   };
   const banner = (bg: string, line: string, fg: string, text: React.ReactNode) => (
-    <div style={{ marginTop: 10, borderRadius: 10, background: bg, border: `0.5px solid ${line}`, padding: '9px 11px', fontSize: 13, lineHeight: 1.45, color: fg }}>{text}</div>
+    <div style={{ marginTop: 10, borderRadius: 10, background: bg, border: `0.5px solid ${line}`, padding: '11px 13px', fontSize: 15, lineHeight: 1.5, color: fg }}>{text}</div>
   );
 
   if (booked) {
@@ -355,11 +354,11 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
           marginTop: 10, borderRadius: 12, background: GREEN.soft, border: `0.5px solid ${GREEN.line}`,
           padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 5,
         }}>
-          <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: GREEN.text }}>
+          <span className="num" style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 13, letterSpacing: '0.04em', textTransform: 'uppercase', color: GREEN.text }}>
             Booked{booked.booked_detail ? ` · ${booked.booked_detail}` : ''}
           </span>
-          <b style={{ fontSize: 15, color: 'var(--ink)' }}>{booked.name}</b>
-          {booked.kind && <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{booked.kind}</span>}
+          <b style={{ fontSize: 18, color: 'var(--ink)' }}>{booked.name}</b>
+          {booked.kind && <span style={{ fontSize: 14, color: 'var(--ink-2)' }}>{booked.kind}</span>}
           <Detail label="The food" text={booked.food_md} />
           <Detail label="Order" text={booked.order_md} />
           <Detail label="Getting there" text={booked.getting_there} />
@@ -412,9 +411,9 @@ export function DinnerOptions({ stop }: { stop: Stop }) {
         <span className="num">· {voters.length - missing.length} of {voters.length} voted</span>
       </div>
       {missing.length > 0 && missing.length < voters.length && (
-        <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--ink-3)' }}>Still to vote: {missing.join(', ')}</div>
+        <div style={{ marginTop: 4, fontSize: 14, color: 'var(--ink-2)' }}>Still to vote: <b>{missing.join(', ')}</b></div>
       )}
-      {error && <p role="alert" style={{ marginTop: 8, fontSize: 12.5, color: '#7A2414' }}>{error}</p>}
+      {error && <p role="alert" style={{ marginTop: 8, fontSize: 14.5, color: '#7A2414' }}>{error}</p>}
       {state.winner != null && banner(GREEN.soft, GREEN.line, GREEN.text, <>
         <b>Decided: {nameOf(state.winner)}</b> ({state.eligible.map(id => state.counts[id]).sort((a, b) => b - a).join('–')}). Next step is booking it.
       </>)}
@@ -477,22 +476,22 @@ function OverviewRow({ entry, onPick }: { entry: DinnerEntry; onPick: (id: numbe
   const n = useNight(entry.stop);
   const { head } = splitDayLabel(entry.dayLabel);
   const st = nightStatus(n);
-  const tone = { booked: GREEN.text, decided: GREEN.text, runoff: '#5A3F12', open: 'var(--ink-2)' }[st.tone];
+  const tone = { booked: GREEN.text, decided: GREEN.text, runoff: '#5A3F12', open: 'var(--ink)' }[st.tone];
   const mineDone = n.voter && !n.booked ? !n.missing.includes(n.voter) : null;
   return (
     <button type="button" onClick={() => onPick(entry.stop.id)} style={{
       textAlign: 'left', cursor: 'pointer', background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 12,
-      padding: '11px 12px', display: 'grid', gridTemplateColumns: '1fr auto', gap: '2px 10px', alignItems: 'center',
+      padding: '14px 14px', display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 10px', alignItems: 'center',
       fontFamily: 'var(--font-sans)', color: 'var(--ink)',
     }}>
-      <span style={{ fontFamily: 'var(--font-serif)', fontSize: 17 }}>
+      <span style={{ fontFamily: 'var(--font-serif)', fontSize: 20 }}>
         {head}{/birthday/i.test(entry.stop.title) ? ' · Birthday' : ''}
       </span>
-      <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
-        {n.booked ? '' : `${n.voters.length - n.missing.length}/${n.voters.length}`}
+      <span className="num" style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 14, color: 'var(--ink-2)' }}>
+        {n.booked ? '' : `${n.voters.length - n.missing.length} of ${n.voters.length} voted`}
       </span>
-      <span style={{ fontSize: 13, color: tone, fontWeight: st.tone === 'open' ? 400 : 600 }}>{st.text}</span>
-      <span style={{ fontSize: 11.5, color: mineDone === false ? '#7A2414' : 'var(--ink-3)', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 15.5, color: tone, fontWeight: st.tone === 'open' ? 500 : 700 }}>{st.text}</span>
+      <span style={{ fontSize: 14, fontWeight: 600, color: mineDone === false ? '#7A2414' : 'var(--ink-2)', whiteSpace: 'nowrap' }}>
         {mineDone === null ? '›' : mineDone ? '✓ voted ›' : 'Your vote ›'}
       </span>
     </button>
@@ -505,8 +504,8 @@ function DayChip({ entry, active, onPick }: { entry: DinnerEntry; active: boolea
   const done = n.booked || (n.voter ? !n.missing.includes(n.voter) : false);
   return (
     <button type="button" onClick={onPick} aria-current={active ? 'page' : undefined} style={{
-      flexShrink: 0, cursor: 'pointer', borderRadius: 999, padding: '7px 11px', whiteSpace: 'nowrap',
-      fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.04em',
+      flexShrink: 0, cursor: 'pointer', borderRadius: 999, padding: '10px 14px', whiteSpace: 'nowrap',
+      fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 600,
       border: active ? `1.5px solid ${SKY.text}` : '0.5px solid var(--border-mid)',
       background: active ? SKY.text : 'var(--surface)', color: active ? 'var(--surface)' : 'var(--ink-2)',
     }}>
@@ -547,21 +546,21 @@ export function DinnerBoard({ tripId, tripTitle, slug, voters, dinners }: {
   const prev = idx > 0 ? dinners[idx - 1] : null;
   const next = idx >= 0 && idx < dinners.length - 1 ? dinners[idx + 1] : null;
 
-  const nav: React.CSSProperties = { ...btn, padding: '10px 12px', fontSize: 13 };
+  const nav: React.CSSProperties = { ...btn, padding: '13px 16px', fontSize: 15.5 };
 
   return (
     <DinnerVoteProvider tripId={tripId} voters={voters} enabled={voters.length > 0 && dinners.length > 0}>
       <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 40px)' }}>
         <header style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 24px) 16px 6px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <a href={`/trips/${slug}`} style={{
-            alignSelf: 'flex-start', fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em',
-            textTransform: 'uppercase', color: 'var(--ink-3)', textDecoration: 'none',
+            alignSelf: 'flex-start', fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600,
+            color: 'var(--ink-2)', textDecoration: 'none',
           }}>← {tripTitle}</a>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 32, lineHeight: 1.05, color: 'var(--ink)' }}>Where we eat</h1>
-          <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 16, color: 'var(--ink)', lineHeight: 1.5 }}>
             One vote per person per night. Tap Vote, tap again to take it back. Ties go to a runoff. &ldquo;Details&rdquo; has the menu, the food and how to book.
           </p>
-          <p style={{ fontSize: 12.5, color: 'var(--ink-3)', display: 'flex', flexWrap: 'wrap', gap: '2px 12px' }}>
+          <p style={{ fontSize: 15, color: 'var(--ink-2)', display: 'flex', flexWrap: 'wrap', gap: '2px 14px' }}>
             <span style={{ whiteSpace: 'nowrap' }}>£ casual</span>
             <span style={{ whiteSpace: 'nowrap' }}>££ dinner out</span>
             <span style={{ whiteSpace: 'nowrap' }}>£££ a splurge</span>
@@ -574,8 +573,8 @@ export function DinnerBoard({ tripId, tripTitle, slug, voters, dinners }: {
         }}>
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 12px', scrollbarWidth: 'none' }}>
             <button type="button" onClick={() => go('all')} aria-current={tab === 'all' ? 'page' : undefined} style={{
-              flexShrink: 0, cursor: 'pointer', borderRadius: 999, padding: '7px 11px', whiteSpace: 'nowrap',
-              fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.04em',
+              flexShrink: 0, cursor: 'pointer', borderRadius: 999, padding: '10px 14px', whiteSpace: 'nowrap',
+              fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 600,
               border: tab === 'all' ? `1.5px solid ${SKY.text}` : '0.5px solid var(--border-mid)',
               background: tab === 'all' ? SKY.text : 'var(--surface)', color: tab === 'all' ? 'var(--surface)' : 'var(--ink-2)',
             }}>All nights</button>
@@ -596,11 +595,11 @@ export function DinnerBoard({ tripId, tripTitle, slug, voters, dinners }: {
                   borderRadius: 14, padding: '14px 14px 14px 18px', marginTop: 12, overflow: 'hidden',
                 }}>
                   <div style={{ position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderRadius: 4, background: SKY.bar }} />
-                  <div className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: SKY.text }}>
+                  <div className="num" style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 13, letterSpacing: '0.05em', textTransform: 'uppercase', color: SKY.text }}>
                     {stop.time_label ? `${stop.time_label} · ` : ''}{/birthday|first-night/i.test(stop.title) ? stop.title : 'Dinner'}
                   </div>
-                  <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 22, lineHeight: 1.2, color: 'var(--ink)', marginTop: 4 }}>{head}</h2>
-                  {sub && <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{sub}</div>}
+                  <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 26, lineHeight: 1.2, color: 'var(--ink)', marginTop: 4 }}>{head}</h2>
+                  {sub && <div style={{ fontSize: 15, color: 'var(--ink-2)', marginTop: 2 }}>{sub}</div>}
                   <DinnerOptions stop={stop} />
                 </section>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 14 }}>
