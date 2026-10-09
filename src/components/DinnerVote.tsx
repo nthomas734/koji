@@ -528,6 +528,9 @@ function OverviewRow({ entry, onPick }: { entry: DinnerEntry; onPick: (id: numbe
             {mineDone === false && <span style={{ color: RED.text, fontWeight: 700 }}> · your vote needed</span>}
           </span>
         )}
+        {!n.booked && n.missing.length > 0 && n.missing.length < n.voters.length && (
+          <span style={{ fontSize: 14, color: 'var(--ink-2)' }}>Still to vote: {n.missing.join(', ')}</span>
+        )}
       </span>
       <span aria-hidden style={{ fontSize: 24, color: 'var(--ink-2)', lineHeight: 1 }}>›</span>
     </button>
@@ -566,7 +569,7 @@ function Intro({ title, onStart, onAll }: { title: string; onStart: () => void; 
   return (
     <div style={{ padding: '0 18px 8px' }}>
       <p style={{ ...p, fontSize: 17 }}>
-        Nine dinners, five of us, one vote each. Pick where we eat each night, and whoever does the booking will see what won.
+        Nine dinners, five of us, one vote each. Everyone sees the votes as they come in, and the Results page shows what&rsquo;s winning each night.
       </p>
       <Rule />
       <section>
@@ -574,6 +577,7 @@ function Intro({ title, onStart, onAll }: { title: string; onStart: () => void; 
         <ol style={{ paddingLeft: 22 }}>
           <li style={li}><b>Pick your name</b> the first time you vote. Your phone remembers it.</li>
           <li style={li}><b>Go night by night</b> using the dates along the top. A tick means you&rsquo;ve voted on that night.</li>
+          <li style={li}><b>Check the Results</b> tab any time to see what&rsquo;s leading each night and who still needs to vote.</li>
           <li style={li}><b>Tap Vote</b> on one place per night. Tap it again to take your vote back, or tap another place to change it.</li>
           <li style={li}><b>Tap &ldquo;Details&rdquo;</b> on any place for why it&rsquo;s on the list, what the food is like and how to get there, with buttons for the menu, photos of the food, booking and a map.</li>
         </ol>
@@ -593,7 +597,7 @@ function Intro({ title, onStart, onAll }: { title: string; onStart: () => void; 
       </section>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>
         <button type="button" onClick={onStart} style={primaryBtn}>Start voting</button>
-        <button type="button" onClick={onAll} style={{ ...btn, fontSize: 16, padding: '14px 18px' }}>See all nights and results</button>
+        <button type="button" onClick={onAll} style={{ ...btn, fontSize: 16, padding: '14px 18px' }}>See the results</button>
       </div>
       <p style={{ ...p, fontSize: 14, color: 'var(--ink-2)', textAlign: 'center', marginTop: 18 }}>{title} · London &amp; the Cotswolds</p>
     </div>
@@ -697,7 +701,7 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
         padding: 'calc(env(safe-area-inset-top, 0px) + 8px) 0 10px', borderBottom: '3px double var(--border-mid)',
       }}>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 12px', scrollbarWidth: 'none', alignItems: 'center' }}>
-          <button type="button" onClick={() => go('all')} aria-current={tab === 'all' ? 'page' : undefined} style={chipStyle(tab === 'all')}>All nights</button>
+          <button type="button" onClick={() => go('all')} aria-current={tab === 'all' ? 'page' : undefined} style={chipStyle(tab === 'all')}>Results</button>
           {groups.map((g, gi) => (
             <span key={g.place + gi} style={{ display: 'contents' }}>
               {gi > 0 && <span aria-hidden style={{ flexShrink: 0, width: 1, height: 24, background: 'var(--border-mid)', margin: '0 4px' }} />}
@@ -742,7 +746,7 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
               </section>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 14 }}>
                 {prev ? <button type="button" style={nav} onClick={() => go(prev.stop.id)}>‹ {chipLabel(splitDayLabel(prev.dayLabel).head)}</button>
-                      : <button type="button" style={nav} onClick={() => go('all')}>‹ All nights</button>}
+                      : <button type="button" style={nav} onClick={() => go('all')}>‹ Results</button>}
                 {next ? <button type="button" style={{ ...nav, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text }} onClick={() => go(next.stop.id)}>Next: {chipLabel(splitDayLabel(next.dayLabel).head)} ›</button>
                       : <button type="button" style={{ ...nav, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text }} onClick={() => go('all')}>See results ›</button>}
               </div>
