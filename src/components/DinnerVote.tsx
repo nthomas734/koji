@@ -536,6 +536,12 @@ export function DinnerBoard({ tripId, tripTitle, slug, voters, dinners }: {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, []);
 
+  // Keep the selected night's chip in view in the strip
+  useEffect(() => {
+    const el = document.querySelector<HTMLElement>('nav[aria-label="Nights"] [aria-current="page"]');
+    el?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [tab]);
+
   const idx = tab === 'all' ? -1 : dinners.findIndex(d => d.stop.id === tab);
   const current = idx >= 0 ? dinners[idx] : null;
   const prev = idx > 0 ? dinners[idx - 1] : null;
