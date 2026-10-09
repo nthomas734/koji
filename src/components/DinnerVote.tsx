@@ -577,7 +577,7 @@ function Intro({ title, onStart, onAll, tiebreaker }: { title: string; onStart: 
   return (
     <div style={{ padding: '0 18px 8px' }}>
       <p style={{ ...p, fontSize: 17 }}>
-        Nine dinners, five of us, one vote each. Everyone sees the votes as they come in, and the Results page shows what&rsquo;s winning each night.
+        Help pick where we eat each night of the trip, from the first evening in the Cotswolds to Mom&rsquo;s birthday dinner in London. Votes show up for everyone as they come in.
       </p>
       <Rule />
       <section>
