@@ -583,7 +583,6 @@ function Intro({ title, onStart, onAll }: { title: string; onStart: () => void; 
         <h2 style={h}>Ties and bookings</h2>
         <p style={p}>If the top places tie once all five have voted (say 2–2–1), that night goes to a <b>runoff</b> between just the tied places, and everyone votes once more.</p>
         <p style={p}>Friday 23rd is already <b>booked</b> at St. John Bread and Wine. For the birthday dinner on Saturday 24th, a table is being <b>held</b> at Bocca di Lupo while we decide.</p>
-        <p style={p}><b>Please vote on the Cotswolds nights (Fri 16 to Sun 18) and the birthday dinner first.</b> Every option on those nights needs a booking, and they&rsquo;re coming up soon.</p>
       </section>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>
         <button type="button" onClick={onStart} style={primaryBtn}>Start voting</button>
