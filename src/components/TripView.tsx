@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Carry, Day, Logistics, Shot, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
@@ -928,31 +928,6 @@ function DayBlock({
   const accent = isToday ? 'var(--brass)' : themeColor.bg;
   const folded = pinned;
 
-  // Folding must not change how much room the header takes in the page. If it
-  // did, the day below would move every time a header folded or unfolded, the
-  // scroll tracker would see a different day at the top, and the two would
-  // chase each other (the flutter at a day boundary). Space added above the
-  // stops makes up the difference, so folded header + space always equals the
-  // unfolded header. It is padding when positive, because a margin there would
-  // merge with the first stop's own margin and come up short; when the rail is
-  // open it goes negative, as a margin, so opening the rail moves nothing.
-  const headerRef = useRef<HTMLDivElement>(null);
-  const fullHeight = useRef(0);
-  const [heightComp, setHeightComp] = useState(0);
-  useLayoutEffect(() => {
-    const el = headerRef.current;
-    if (!el) return;
-    const measure = () => {
-      const h = el.offsetHeight;
-      if (!folded) { fullHeight.current = h; setHeightComp(0); }
-      else if (fullHeight.current) setHeightComp(fullHeight.current - h);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [folded]);
-
   const weatherPill = weather && (
     <span className="num" style={{
       flexShrink: 0,
@@ -975,39 +950,47 @@ function DayBlock({
 
   return (
     <section id={`day-${dayIndex}`} data-day-idx={dayIndex} className="row-in" style={{ animationDelay: `${Math.min(dayIndex, 8) * 40}ms`, scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}>
-      {/* Sticky glass header. While its day scrolls it pins under the status
-          bar and folds to one line; tapping the folded line drops the day rail
-          out beneath it. DAY_HEADER_MARGIN is what the scroll tracker uses to
-          tell "pinned" from "in flow". */}
+      {/* Sticky header. While its day scrolls it pins under the status bar and
+          folds to one line; tapping the folded line drops the day rail out
+          beneath it. DAY_HEADER_MARGIN is what the scroll tracker uses to tell
+          "pinned" from "in flow".
+
+          Both variants render into the same grid cell and toggle with
+          visibility, so the sticky box always takes the full header's height
+          and folding changes no layout at all. Nothing in here may change
+          height on scroll: the day below would move, the tracker would see a
+          different day at the top, and the two would chase each other. */}
       <div
-        ref={headerRef}
         data-day-header
-        className="glass"
-        onClick={folded ? onToggleRail : undefined}
-        role={folded ? 'button' : undefined}
-        aria-expanded={folded ? railOpen : undefined}
         style={{
           position: 'sticky',
           top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
           zIndex: 5,
           margin: `${DAY_HEADER_MARGIN}px 12px 0`,
-          padding: folded ? '8px 12px 8px 18px' : '12px 14px 11px 20px',
-          borderRadius: folded ? 12 : 14,
-          lineHeight: 1.5,
-          cursor: folded ? 'pointer' : 'default',
-          transition: 'border-radius 0.16s ease',
+          display: 'grid',
+          pointerEvents: 'none',
         }}
       >
-        <div style={{
-          position: 'absolute',
-          left: 0,
-          top: folded ? 8 : 10,
-          bottom: folded ? 8 : 10,
-          width: 4,
-          background: accent,
-          borderRadius: 4,
-        }} />
-        {folded ? (
+        {/* Folded: one line, at the top of the cell */}
+        <div
+          className="glass"
+          onClick={onToggleRail}
+          role="button"
+          aria-expanded={railOpen}
+          aria-hidden={!folded}
+          style={{
+            gridArea: '1 / 1',
+            alignSelf: 'start',
+            position: 'relative',
+            visibility: folded ? 'visible' : 'hidden',
+            pointerEvents: folded ? 'auto' : 'none',
+            padding: '8px 12px 8px 18px',
+            borderRadius: 12,
+            lineHeight: 1.5,
+            cursor: 'pointer',
+          }}
+        >
+          <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 4, background: accent, borderRadius: 4 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 24 }}>
             <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 16, color: 'var(--ink)', lineHeight: 1.1, whiteSpace: 'nowrap', margin: 0 }}>
               {headline}
@@ -1054,7 +1037,33 @@ function DayBlock({
               transition: 'transform 0.16s ease',
             }} />
           </div>
-        ) : (
+          {/* The rail hangs below the folded card out of flow, so opening it
+              cannot change the sticky box's height either */}
+          {folded && railOpen && (
+            <div
+              className="glass"
+              onClick={e => e.stopPropagation()}
+              style={{ position: 'absolute', left: 0, right: 0, top: 'calc(100% + 6px)', padding: 10, borderRadius: 12 }}
+            >
+              {rail}
+            </div>
+          )}
+        </div>
+        {/* Full: the three-line header that sets the cell's height */}
+        <div
+          className="glass"
+          aria-hidden={folded}
+          style={{
+            gridArea: '1 / 1',
+            position: 'relative',
+            visibility: folded ? 'hidden' : 'visible',
+            pointerEvents: folded ? 'none' : 'auto',
+            padding: '12px 14px 11px 20px',
+            borderRadius: 14,
+            lineHeight: 1.5,
+          }}
+        >
+          <div style={{ position: 'absolute', left: 0, top: 10, bottom: 10, width: 4, background: accent, borderRadius: 4 }} />
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
@@ -1101,17 +1110,9 @@ function DayBlock({
             </div>
             {weatherPill && <span style={{ marginTop: 2, display: 'inline-flex' }}>{weatherPill}</span>}
           </div>
-        )}
-        {folded && railOpen && (
-          <div onClick={e => e.stopPropagation()} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(30,26,21,0.08)' }}>
-            {rail}
-          </div>
-        )}
+        </div>
       </div>
-      <div style={{
-        padding: `${folded ? Math.max(heightComp, 0) : 0}px 12px 0`,
-        marginTop: folded ? Math.min(heightComp, 0) : 0,
-      }}>
+      <div style={{ padding: '0 12px' }}>
         {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} />)}
       </div>
     </section>

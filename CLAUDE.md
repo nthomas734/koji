@@ -528,18 +528,22 @@ Picking a day scrolls there (`scrollIntoView`, honouring the section's
 During the trip, a folded header for any day other than today carries a brass
 "today" chip that jumps there.
 
-**Folding must never change layout height** (fixed 2026-10-08). It used to: a
-folded header was ~40px shorter, so at a day boundary the outgoing header
-unfolded, pushed the next section down past the tracker's 80px line, the
-outgoing day became current again and folded, and the two chased each other
-every frame (the "flutter"). `DayBlock` now measures the unfolded height and
-adds the difference back above the stops: as `padding-top` when positive (a
-margin would merge with the first stop's margin and come up short) and as a
-negative `margin-top` while the rail is open. The day before the current one
+**Folding must never change layout height** (2026-10-08, redone 2026-10-11).
+It used to: a folded header was ~40px shorter, so at a day boundary the
+outgoing header unfolded, pushed the next section down past the tracker's 80px
+line, the outgoing day became current again and folded, and the two chased
+each other every frame (the "flutter"). The first fix measured the unfolded
+height with a `useLayoutEffect` + `ResizeObserver` and padded the stops by the
+difference — a layout change, a forced re-measure and a second render on every
+fold, mid-scroll, and no compensation at all for a day that mounted already
+folded. It still hitched. Now the sticky box in `DayBlock` is a grid with both
+header variants in the same cell, toggled with `visibility`: the box is always
+the full header's height and folding is a paint change only. The rail hangs
+below the folded card with `position: absolute` for the same reason. Nothing
+inside that box may change height on scroll. The day before the current one
 also stays folded (`leavingDay`) until its section has scrolled off, judged by
-the section's rect, not the header's, because the header moves when it folds.
-To check: scroll to each boundary, stop, and confirm the next section's top is
-identical across 10+ animation frames.
+the section's rect, not the header's. To check: scroll to each boundary, stop,
+and confirm the next section's top is identical across 10+ animation frames.
 
 Day awareness: `todayIdx` is computed on the client from the phone's local
 date against `dateForDay`. During the trip the page opens scrolled to today
