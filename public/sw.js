@@ -87,3 +87,30 @@ async function networkFirst(req) {
     throw err;
   }
 }
+
+// Trip alerts (Web Push from /api/notify). iOS requires every push to show a
+// notification, so always call showNotification.
+self.addEventListener('push', (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch { d = { body: event.data ? event.data.text() : '' }; }
+  event.waitUntil(self.registration.showNotification(d.title || 'koji', {
+    body: d.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: d.tag,
+    data: { url: d.url || '/' },
+  }));
+});
+
+// Tap: focus an open koji window on the stop, or open one
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || '/', self.location.origin).href;
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) {
+      if ('focus' in w) { await w.navigate(url).catch(() => {}); return w.focus(); }
+    }
+    return self.clients.openWindow(url);
+  })());
+});

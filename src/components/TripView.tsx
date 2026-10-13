@@ -7,6 +7,7 @@ import { renderMd } from '@/lib/markdown';
 import { KojiMark } from '@/components/KojiMark';
 import { KomaView } from '@/components/KomaView';
 import { KomaMark } from '@/components/KomaMark';
+import { TripAlerts } from '@/components/TripAlerts';
 import { useQueueDrain } from '@/lib/komaQueue';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
@@ -1773,6 +1774,8 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
 
   const showRail = !!trip.date_start && days.length > 1;
   const tripActive = todayIdx >= 0;
+  // Alerts only make sense until the last day is over
+  const tripUpcoming = !!trip.date_start && (trip.date_end || trip.date_start) >= fmtLocalDate(new Date());
 
   return (
     <div style={{
@@ -1915,6 +1918,7 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
 
       {activeTab === 'itinerary' && !komaOn && (
         <>
+          {tripUpcoming && <TripAlerts slug={trip.slug} title={trip.title} theme={theme} />}
           <QuickStrip logistics={logistics} theme={theme} />
           <main>
             {days.map((day, i) => (
