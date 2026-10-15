@@ -2,19 +2,18 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { SWRegister } from '@/components/SWRegister';
+import { ICON_180 } from './icon-data';
 
 export const metadata: Metadata = {
   title: 'koji',
   description: 'trip itineraries',
-  manifest: '/manifest.json?v=2',
+  manifest: '/manifest.json?v=3',
   icons: {
     icon: [
       { url: '/icon.svg', type: 'image/svg+xml' },
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
     ],
-    apple: [
-      { url: '/apple-touch-icon.png?v=3', sizes: '180x180', type: 'image/png' },
-    ],
+    apple: [{ url: ICON_180, sizes: '180x180', type: 'image/png' }],
   },
   appleWebApp: {
     capable: true,
