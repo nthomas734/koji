@@ -972,6 +972,10 @@ function DayBlock({
           zIndex: 5,
           margin: `${DAY_HEADER_MARGIN}px 12px 0`,
           display: 'grid',
+          // minmax(0, …) so the one-line folded row's nowrap content can't
+          // widen the shared cell past the screen and drag the full header
+          // with it; the folded subtitle ellipsizes instead
+          gridTemplateColumns: 'minmax(0, 1fr)',
           pointerEvents: 'none',
         }}
       >
@@ -995,7 +999,7 @@ function DayBlock({
           }}
         >
           <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 4, background: accent, borderRadius: 4 }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 24 }}>
             <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 16, color: 'var(--ink)', lineHeight: 1.1, whiteSpace: 'nowrap', margin: 0 }}>
               {headline}
             </h2>
