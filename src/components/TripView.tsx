@@ -8,6 +8,7 @@ import { KojiMark } from '@/components/KojiMark';
 import { KomaView } from '@/components/KomaView';
 import { KomaMark } from '@/components/KomaMark';
 import { TripAlerts } from '@/components/TripAlerts';
+import { TripSearch, type SearchTarget } from '@/components/TripSearch';
 import { useQueueDrain } from '@/lib/komaQueue';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
@@ -758,7 +759,9 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
               return (
                 <div
                   key={row.id}
+                  id={`log-${row.id}`}
                   style={{
+                    scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 16px)',
                     position: 'relative',
                     background: 'var(--surface)',
                     border: '0.5px solid var(--border)',
@@ -1483,6 +1486,8 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
   // there is signal, whether or not the mode is still open. See komaQueue.
   useQueueDrain();
   const [activeTab, setActiveTabState] = useState<Tab>('itinerary');
+  const [searchOn, setSearchOn] = useState(false);
+  const closeSearch = useCallback(() => setSearchOn(false), []);
 
   // ── koma ──────────────────────────────────────────────────────────────────
   // Hidden, not locked — the same call daizu makes for /barista. The mode is
@@ -1687,6 +1692,36 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
     }
   }, [activeTab, setActiveTab, scrollToDay]);
 
+  // ── search: jump to a result, then flash it ──────────────────────────────
+  const pickResult = useCallback((t: SearchTarget) => {
+    setSearchOn(false);
+    if (t.kind === 'day') { pickDay(t.index); return; }
+    const tab: Tab = t.kind === 'log' ? 'logistics' : 'itinerary';
+    if (activeTab !== tab) setActiveTab(tab);
+    if (tab === 'itinerary' && komaOn) toggleKoma();
+    const id = t.kind === 'log' ? `log-${t.id}` : `stop-${t.id}`;
+    let tries = 0;
+    const go = () => {
+      const el = document.getElementById(id);
+      if (!el) { if (++tries < 20) requestAnimationFrame(go); return; }
+      el.scrollIntoView({ block: 'start', behavior: 'instant' as ScrollBehavior });
+      el.animate(
+        [{ boxShadow: '0 0 0 2px var(--brass)' }, { boxShadow: '0 0 0 2px transparent' }],
+        { duration: 1600, easing: 'ease-out' },
+      );
+    };
+    requestAnimationFrame(() => requestAnimationFrame(go));
+  }, [activeTab, setActiveTab, pickDay, komaOn, toggleKoma]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA)$/.test(e.target.tagName);
+      if (!typing && (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key === 'k'))) { e.preventDefault(); setSearchOn(true); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // ── stale-tab refresh: a tab left open overnight re-fetches on wake ───────
   useEffect(() => {
     let hiddenAt = 0;
@@ -1826,11 +1861,25 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
             <KomaMark on={komaOn} onToggle={toggleKoma} />
           </span>
         )}
+        <button
+          type="button"
+          onClick={() => setSearchOn(true)}
+          className="tap"
+          aria-label="Search this trip"
+          style={{
+            marginLeft: shots.length > 0 ? 6 : 'auto',   // an array is never null
+            color: 'var(--ink-4)', background: 'transparent', border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, padding: 0,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>
+          </svg>
+        </button>
         <a
           href={`/admin/trips/${trip.id}`}
           className="tap"
           style={{
-            marginLeft: shots.length > 0 ? 10 : 'auto',   // an array is never null
             color: 'var(--ink-4)',
             display: 'flex',
             alignItems: 'center',
@@ -1995,6 +2044,8 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
           />
         );
       })()}
+
+      {searchOn && <TripSearch days={days} logistics={logistics} onPick={pickResult} onClose={closeSearch} />}
 
       {/* Footer */}
       <footer style={{
