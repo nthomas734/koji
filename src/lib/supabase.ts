@@ -128,6 +128,37 @@ export interface DinnerVote {
   round:     number;
 }
 
+// ── VERDICTS ────────────────────────────────────────────────────────────────
+// Nathan's private "was it worth it" call on a place. Never read with the anon
+// client: the table has RLS on and no policies, and every access goes through
+// /api/verdicts. See sql/2026-11-08-koji-verdicts.sql.
+
+export type VerdictValue = 'back' | 'once' | 'skip';
+export type VerdictSource = 'stop' | 'app' | 'share' | 'photo';
+
+export interface Verdict {
+  id:         number;
+  client_key: string;
+  trip_id:    number;
+  day_id:     number | null;
+  stop_id:    number | null;
+  title:      string;
+  maps_url:   string | null;
+  source_url: string | null;
+  verdict:    VerdictValue | null;
+  note:       string | null;
+  source:     VerdictSource;
+  visited_on: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** The Google Maps search link every place in the kura apps uses. */
+export function mapsSearchUrl(...parts: (string | null | undefined)[]): string {
+  const q = parts.filter(Boolean).join(' ').trim().split(/\s+/).map(encodeURIComponent).join('+');
+  return `https://www.google.com/maps/search/?api=1&query=${q}`;
+}
+
 // ── KOMA ────────────────────────────────────────────────────────────────────
 // The shooting plan. Hidden rather than locked: the mode is reached by a
 // long-press on the aperture mark in the header, the same call daizu makes for

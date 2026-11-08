@@ -13,7 +13,9 @@ export async function POST(req: Request) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    // A year, not 30 days: verdicts (the private stamps on the trip page) only
+    // appear while this cookie is alive, and it must not lapse mid-trip.
+    maxAge: 60 * 60 * 24 * 365,
     path: '/',
   });
 

@@ -109,6 +109,23 @@ Editing these regexes changes how already-authored trip data renders — check e
 
 `public/sw.js` (registered by `SWRegister` in `layout.tsx`) provides offline support: network-first with cache fallback for same-origin pages/RSC payloads, cache-first for `/_next/static`. It never intercepts `/api/`, `/admin`, cross-origin, or non-GET requests — the `UpdateBanner` deploy check (HEAD `/`) passes through untouched. Bump its `VERSION` constant to invalidate old caches.
 
+## Verdicts — private "was it worth it" stamps (2026-11-08)
+
+`VERDICTS.md` is the full account, including the iOS Shortcut setup and the post-trip photo rebuild and Hitlist steps.
+
+How the parts fit:
+- **Table.** `koji_verdicts` (`sql/2026-11-08-koji-verdicts.sql`) has RLS on and **no policies**.
+- **Who sees them.** Only `/api/verdicts` (needs the `koji_admin` cookie) and `/api/verdicts/share` (needs the `KOJI_SHARE_TOKEN` bearer token) touch the table. `lib/verdicts.ts` asks the API on mount, and a 200 is the only thing that turns on `owner`. The prerendered trip page never carries verdicts.
+- **Private, not hidden.** This is the opposite of koma's call. Don't add a public read policy, and don't ship verdicts with the page payload.
+- **Offline writes.** These follow komaQueue: the tap goes into a localStorage queue, overlays the last server list, and drains when there is a network.
+- **One key per place.** Every write is an upsert on `client_key`:
+  - `stop:<id>` for a planned stop
+  - `x:<uuid>` for a place added in the app
+  - `share:<uuid>` for one sent by the Shortcut
+  - `photo:<…>` for one found by the photo rebuild
+- **Unplanned places stay private.** They never become `koji_stops` rows, which are public.
+- **Cookie lifetime.** The admin cookie lifetime went from 30 days to a year so the stamps can't disappear mid-trip.
+
 ## koma — the shooting mode (2026-09-16)
 
 A private photography-planning layer over an existing itinerary, named for 齣

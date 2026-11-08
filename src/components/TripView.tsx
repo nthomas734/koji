@@ -10,6 +10,9 @@ import { KomaMark } from '@/components/KomaMark';
 import { TripAlerts } from '@/components/TripAlerts';
 import { TripSearch, type SearchTarget } from '@/components/TripSearch';
 import { useQueueDrain } from '@/lib/komaQueue';
+import { mapsSearchUrl } from '@/lib/supabase';
+import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
+import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
 const THEMES: Record<string, { bg: string; fg: string }> = {
@@ -826,7 +829,7 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
 // ── STOP ROW ────────────────────────────────────────────────────────────────
 // 3px accent bar on left matches the tag pill's color family.
 // Time label tinted in the pill's dark text color to tie everything together.
-function StopRow({ stop }: { stop: Stop }) {
+function StopRow({ stop, stamp }: { stop: Stop; stamp?: React.ReactNode }) {
   const tagColor = TAG_COLORS[stop.tag_color] ?? TAG_COLORS.gray;
   const bodyHtml = renderMd(stop.body_md);
   const tagText = stop.is_optional && !/optional/i.test(stop.tag) ? `${stop.tag} · optional` : stop.tag;
@@ -834,7 +837,8 @@ function StopRow({ stop }: { stop: Stop }) {
     <article id={`stop-${stop.id}`} style={{
       position: 'relative',
       display: 'grid',
-      gridTemplateColumns: '54px 1fr',
+      // The third column only exists for the owner's verdict stamp.
+      gridTemplateColumns: stamp ? '54px 1fr auto' : '54px 1fr',
       gap: 6,
       background: 'var(--surface)',
       border: '0.5px solid var(--border)',
@@ -891,6 +895,7 @@ function StopRow({ stop }: { stop: Stop }) {
           />
         )}
       </div>
+      {stamp && <div style={{ paddingTop: 1 }}>{stamp}</div>}
     </article>
   );
 }
@@ -914,7 +919,12 @@ function DayBlock({
   rail,
   showToday,
   onToday,
+  stampFor,
+  afterStops,
 }: {
+  stampFor?: (stop: Stop) => React.ReactNode;
+  /** The owner's unplanned places and the add button. Absent for everyone else. */
+  afterStops?: React.ReactNode;
   day: Day;
   weather: DayWeather | null;
   dayIndex: number;
@@ -1121,7 +1131,8 @@ function DayBlock({
         </div>
       </div>
       <div style={{ padding: '0 12px' }}>
-        {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} />)}
+        {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} stamp={stampFor?.(stop)} />)}
+        {afterStops}
       </div>
     </section>
   );
@@ -1544,6 +1555,60 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
   const [weatherLoading, setLoading]    = useState(false);
   const [isSeasonal, setIsSeasonal]     = useState(false);
   const theme = THEMES[trip.header_theme] ?? THEMES.forest;
+
+  // ── verdicts ───────────────────────────────────────────────────────────────
+  // Private, not hidden: nothing here is in the prerendered page. useVerdicts
+  // asks the API, and only a phone holding the admin cookie gets `owner`.
+  const verdicts = useVerdicts(trip.id);
+  const [sheet, setSheet] = useState<SheetTarget | null>(null);
+
+  const dayContext = (i: number) => {
+    const date = trip.date_start ? dateForDay(trip.date_start, i) : null;
+    return { date, city: days[i]?.location_label ?? trip.location ?? null };
+  };
+
+  const openStop = (stop: Stop, i: number) => {
+    const { date } = dayContext(i);
+    const row = verdicts.byStop.get(stop.id);
+    setSheet({
+      mode: 'stop',
+      context: [`day ${i + 1}`, stop.time_label].filter(Boolean).join(' · '),
+      city: null,
+      draft: {
+        client_key: `stop:${stop.id}`,
+        trip_id: trip.id,
+        day_id: days[i].id,
+        stop_id: stop.id,
+        title: stop.title,
+        maps_url: row?.maps_url ?? mapsSearchUrl(stop.title, dayContext(i).city),
+        verdict: row?.verdict ?? null,
+        note: row?.note ?? null,
+        source: 'stop',
+        visited_on: row?.visited_on ?? date,
+      },
+    });
+  };
+
+  const openNew = (i: number) => {
+    const { date, city } = dayContext(i);
+    setSheet({
+      mode: 'new',
+      context: `day ${i + 1} · not on the plan`,
+      city,
+      draft: {
+        client_key: newPlaceKey(),
+        trip_id: trip.id,
+        day_id: days[i].id,
+        stop_id: null,
+        title: '',
+        maps_url: null,
+        verdict: null,
+        note: null,
+        source: 'app',
+        visited_on: date,
+      },
+    });
+  };
 
   // Day awareness. todayIdx is -1 outside the trip; computed on the client so
   // the server render (UTC) never disagrees with the phone.
@@ -1988,6 +2053,30 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
                 onToggleRail={() => setRailOpen(v => !v)}
                 showToday={tripActive && i !== todayIdx}
                 onToday={goToday}
+                stampFor={verdicts.owner ? (stop => (
+                  <VerdictStamp row={verdicts.byStop.get(stop.id)} label={stop.title} onOpen={() => openStop(stop, i)} />
+                )) : undefined}
+                afterStops={verdicts.owner ? (
+                  <>
+                    {(verdicts.extras.get(day.id) ?? []).map(row => (
+                      <ExtraPlaceRow
+                        key={row.client_key}
+                        row={row}
+                        onOpen={() => setSheet({
+                          mode: 'extra',
+                          context: `day ${i + 1} · ${row.source === 'share' ? 'shared from maps' : row.source === 'photo' ? 'from photos' : 'not on the plan'}`,
+                          city: dayContext(i).city,
+                          draft: {
+                            client_key: row.client_key, trip_id: row.trip_id, day_id: row.day_id, stop_id: null,
+                            title: row.title, maps_url: row.maps_url, verdict: row.verdict, note: row.note,
+                            source: row.source, visited_on: row.visited_on,
+                          },
+                        })}
+                      />
+                    ))}
+                    <AddPlaceButton onAdd={() => openNew(i)} />
+                  </>
+                ) : undefined}
                 rail={showRail ? (
                   <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} />
                 ) : null}
@@ -2064,6 +2153,16 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
       }}>
         {trip.title}
       </footer>
+
+      {verdicts.owner && sheet && (
+        <VerdictSheet
+          key={sheet.draft.client_key}
+          target={sheet}
+          onSave={verdicts.save}
+          onRemove={verdicts.remove}
+          onClose={() => setSheet(null)}
+        />
+      )}
 
     </div>
   );
