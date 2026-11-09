@@ -388,6 +388,17 @@ drivers hand back strings, which is what a SQL console will show you. The
 `Number()` coercion in KomaView is cheap insurance, not a workaround for the
 app's actual behaviour.
 
+### Frames to Google Maps (2026-11-09)
+
+`GET /api/koma/kml?trip=<slug>` returns the trip's frames as KML for Google My
+Maps (Import at mymaps.google.com; the map then shows in the Maps app under
+Saved → Maps). Field report from England: the frame sheet went mostly unused
+because finding the spot meant leaving koji for Maps and coming back for the
+direction; on Japan 2025 plain saved pins in Google Maps got used. So the pins
+go where navigation already happens. Only frames with a standing point are
+exported, one folder per day, coloured by priority; skipped frames are left
+out. Public like the shots themselves.
+
 ### Cloud, and absent meaning absent (2026-09-19)
 
 The day card carries a forecast flag off the daily WMO code the trip page
