@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import type { Trip, Day, Stop, Logistics } from '@/lib/supabase';
+import type { Trip, Day, Stop, Logistics, Stay } from '@/lib/supabase';
+import StaysEditor from './StaysEditor';
 
 const TAG_COLOR_OPTIONS = [
   'green','navy','amber','pink','sky','emerald','gray','brass',
@@ -331,13 +332,22 @@ function StopEditor({
     tag_color:  stop.tag_color,
     title:      stop.title,
     body_md:    stop.body_md,
+    duration_label: stop.duration_label ?? '',
+    fit_label:  stop.fit_label ?? '',
+    is_optional: !!stop.is_optional,
   });
 
-  const set = (k: string, v: string) => setData(d => ({ ...d, [k]: v }));
+  const set = (k: string, v: string | boolean) => setData(d => ({ ...d, [k]: v }));
 
   async function save() {
     setSaving(true);
-    await onSave(data);
+    await onSave({
+      ...data,
+      duration_label: data.duration_label.trim() || null,
+      fit_label: data.fit_label.trim() || null,
+      // A stop that stops being optional is simply in the plan.
+      ...(data.is_optional ? {} : { added: false }),
+    });
     setSaving(false);
     setOpen(false);
   }
@@ -379,8 +389,8 @@ function StopEditor({
         }}>
           {data.tag}
         </span>
-        <span style={{ fontSize: 13, fontWeight: 500, flex: 1, color: 'var(--ink)' }}>
-          {data.title}
+        <span style={{ fontSize: 13, fontWeight: 500, flex: 1, color: 'var(--ink)', fontStyle: data.is_optional ? 'italic' : 'normal' }}>
+          {data.title}{data.is_optional ? ' · maybe' : ''}
         </span>
         <span style={{ fontSize: 12, color: 'var(--ink-4)' }}>{open ? '▲' : '▼'}</span>
       </div>
@@ -394,6 +404,14 @@ function StopEditor({
           <Field label="Tag" value={data.tag} onChange={v => set('tag', v)} />
           <Field label="Title" value={data.title} onChange={v => set('title', v)} />
           <Field label="Body (Markdown)" value={data.body_md} onChange={v => set('body_md', v)} rows={4} />
+          <Field label="Travel time (e.g. 2 h · 1 change)" value={data.duration_label} onChange={v => set('duration_label', v)} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}>
+            <input type="checkbox" checked={data.is_optional} onChange={e => set('is_optional', e.target.checked)} />
+            Optional (goes in &ldquo;if there&rsquo;s time&rdquo;)
+          </label>
+          {data.is_optional && (
+            <Field label="Where it fits (e.g. +1½ h · after lunch)" value={data.fit_label} onChange={v => set('fit_label', v)} />
+          )}
 
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <button
@@ -454,6 +472,7 @@ function DayEditor({
   const [lat, setLat] = useState(day.lat != null ? String(day.lat) : '');
   const [lng, setLng] = useState(day.lng != null ? String(day.lng) : '');
   const [locationLabel, setLocationLabel] = useState(day.location_label ?? '');
+  const [icon, setIcon] = useState(day.icon ?? '');
 
   async function addStop() {
     setAdding(true);
@@ -465,8 +484,9 @@ function DayEditor({
     const newLat = lat.trim() ? parseFloat(lat) : null;
     const newLng = lng.trim() ? parseFloat(lng) : null;
     const newLabel = locationLabel.trim() || null;
-    if (newLat === day.lat && newLng === day.lng && newLabel === day.location_label) return;
-    await onSaveDay(day.id, { lat: newLat, lng: newLng, location_label: newLabel });
+    const newIcon = icon.trim() || null;
+    if (newLat === day.lat && newLng === day.lng && newLabel === day.location_label && newIcon === (day.icon ?? null)) return;
+    await onSaveDay(day.id, { lat: newLat, lng: newLng, location_label: newLabel, icon: newIcon });
   }
 
   return (
@@ -509,12 +529,33 @@ function DayEditor({
             onBlur={saveCoords}
             placeholder="City (e.g. Rome)"
             style={{
-              width: '100%',
+              flex: 3,
+              minWidth: 0,
               border: '0.5px solid var(--border)',
               borderRadius: 6,
               padding: '5px 8px',
               fontSize: 11,
               fontFamily: 'var(--font-mono)',
+              background: 'var(--bg)',
+              color: 'var(--ink-2)',
+              outline: 'none',
+              marginBottom: 6,
+            }}
+          />
+          <input
+            value={icon}
+            onChange={e => setIcon(e.target.value)}
+            onBlur={saveCoords}
+            placeholder="Icon"
+            aria-label="Day icon (one emoji on the day pill)"
+            style={{
+              width: 52,
+              flexShrink: 0,
+              textAlign: 'center',
+              border: '0.5px solid var(--border)',
+              borderRadius: 6,
+              padding: '5px 6px',
+              fontSize: 13,
               background: 'var(--bg)',
               color: 'var(--ink-2)',
               outline: 'none',
@@ -1035,10 +1076,12 @@ export default function TripEditor({
   trip: initialTrip,
   logistics: initialLogistics,
   days: initialDays,
+  stays = [],
 }: {
   trip: Trip;
   logistics: Logistics[];
   days: Day[];
+  stays?: Stay[];
 }) {
   const [trip, setTrip]         = useState(initialTrip);
   const [logistics, setLogistics] = useState(initialLogistics);
@@ -1379,6 +1422,8 @@ export default function TripEditor({
             />
           </div>
         </div>
+
+        <StaysEditor tripId={trip.id} dateStart={trip.date_start} initial={stays} />
 
         {/* Days + Stops */}
         <div style={{

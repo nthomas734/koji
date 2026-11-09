@@ -77,6 +77,8 @@ export interface Day {
   lng:            number | null;
   tz:             string | null;
   location_label: string | null;
+  /** One emoji on the day pill, for the days that matter. */
+  icon?:          string | null;
   stops?:         Stop[];
 }
 
@@ -90,8 +92,38 @@ export interface Stop {
   body_md:     string;
   is_optional: boolean;
   sort_order:  number;
+  /** "3½ h · 2 changes", shown on a travel stop's pill. */
+  duration_label?: string | null;
+  /** On an optional stop: how long it takes or where it fits. */
+  fit_label?:  string | null;
+  /** An optional stop moved into the plan from the "if there's time" list. */
+  added?:      boolean;
   /** Dinner choices. A stop with options renders the vote cards. */
   options?:    DinnerOption[];
+}
+
+// ── STAYS ───────────────────────────────────────────────────────────────────
+// One row per place you sleep. Drives the stays strip in the hero, the town
+// colour under each day pill, and the chapter heading before each town's first
+// day. A stay covers the nights check_in .. check_in + nights - 1.
+export type StayColor = 'blue' | 'green' | 'violet' | 'rose' | 'teal' | 'red' | 'amber' | 'olive';
+export const STAY_COLORS: StayColor[] = ['blue', 'green', 'violet', 'rose', 'teal', 'red', 'amber', 'olive'];
+
+export interface Stay {
+  id:          number;
+  trip_id:     number;
+  place:       string;
+  local_name:  string | null;
+  check_in:    string;
+  nights:      number;
+  color:       StayColor;
+  hotel:       string | null;
+  hotel_query: string | null;
+  booked:      boolean;
+  desk_hours:  string | null;
+  intro_md:    string | null;
+  photo_url:   string | null;
+  sort_order:  number;
 }
 
 // ── DINNER VOTES ────────────────────────────────────────────────────────────
@@ -365,6 +397,7 @@ export async function getTripBySlug(slug: string): Promise<{
   days: Day[];
   shots: Shot[];
   carry: Carry[];
+  stays: Stay[];
 } | null> {
   const { data: trip, error } = await supabase
     .from('koji_trips')
@@ -423,12 +456,21 @@ export async function getTripBySlug(slug: string): Promise<{
     ? await supabase.from('koma_carry').select('*').in('day_id', dayIds)
     : { data: [] };
 
+  // A missing table or a blip here should cost the strip, not the page.
+  const { data: stays } = await supabase
+    .from('koji_stays')
+    .select('*')
+    .eq('trip_id', trip.id)
+    .order('check_in')
+    .order('sort_order');
+
   return {
     trip,
     logistics: logistics ?? [],
     days: (days as Day[]) ?? [],
     shots: (shots as Shot[]) ?? [],
     carry: (carry as Carry[]) ?? [],
+    stays: (stays as Stay[]) ?? [],
   };
 }
 

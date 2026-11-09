@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Carry, Day, Logistics, Shot, Stop, Trip } from '@/lib/supabase';
+import type { Carry, Day, Logistics, Shot, Stay, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { KojiMark } from '@/components/KojiMark';
 import { KomaView } from '@/components/KomaView';
@@ -13,6 +13,7 @@ import { useQueueDrain } from '@/lib/komaQueue';
 import { mapsSearchUrl } from '@/lib/supabase';
 import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
+import { MaybeShelf, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
 const THEMES: Record<string, { bg: string; fg: string }> = {
@@ -829,10 +830,14 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
 // ── STOP ROW ────────────────────────────────────────────────────────────────
 // 3px accent bar on left matches the tag pill's color family.
 // Time label tinted in the pill's dark text color to tie everything together.
-function StopRow({ stop, stamp }: { stop: Stop; stamp?: React.ReactNode }) {
+function StopRow({ stop, stamp, footer }: { stop: Stop; stamp?: React.ReactNode; footer?: React.ReactNode }) {
   const tagColor = TAG_COLORS[stop.tag_color] ?? TAG_COLORS.gray;
   const bodyHtml = renderMd(stop.body_md);
-  const tagText = stop.is_optional && !/optional/i.test(stop.tag) ? `${stop.tag} · optional` : stop.tag;
+  // An optional stop only reaches the timeline once it has been added from the
+  // maybes; then it is part of the plan and no longer reads as optional.
+  const faded = stop.is_optional && !stop.added;
+  const baseTag = faded && !/optional/i.test(stop.tag) ? `${stop.tag} · optional` : stop.tag;
+  const tagText = stop.duration_label ? `${baseTag} · ${stop.duration_label}` : baseTag;
   return (
     <article id={`stop-${stop.id}`} style={{
       position: 'relative',
@@ -856,7 +861,7 @@ function StopRow({ stop, stamp }: { stop: Stop; stamp?: React.ReactNode }) {
         width: 3,
         background: tagColor.bar,
         borderRadius: 4,
-        opacity: stop.is_optional ? 0.4 : 1,
+        opacity: faded ? 0.4 : 1,
       }} />
       <div className="num" style={{
         fontFamily: 'var(--font-mono)',
@@ -884,7 +889,7 @@ function StopRow({ stop, stamp }: { stop: Stop; stamp?: React.ReactNode }) {
         }}>
           {tagText}
         </span>
-        <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.35, marginBottom: 4, fontStyle: stop.is_optional ? 'italic' : 'normal' }}>
+        <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.35, marginBottom: 4, fontStyle: faded ? 'italic' : 'normal' }}>
           {stop.title}
         </h3>
         {bodyHtml && (
@@ -894,6 +899,7 @@ function StopRow({ stop, stamp }: { stop: Stop; stamp?: React.ReactNode }) {
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
         )}
+        {footer}
       </div>
       {stamp && <div style={{ paddingTop: 1 }}>{stamp}</div>}
     </article>
@@ -921,7 +927,18 @@ function DayBlock({
   onToday,
   stampFor,
   afterStops,
+  stay,
+  stops,
+  footerFor,
+  shelf,
 }: {
+  /** Where you sleep tonight: names the town and colours the accent. */
+  stay?: Stay | null;
+  /** The timeline, already without the maybes. Defaults to all of the day's stops. */
+  stops?: Stop[];
+  footerFor?: (stop: Stop) => React.ReactNode;
+  /** The "if there's time" list, under the timeline. */
+  shelf?: React.ReactNode;
   stampFor?: (stop: Stop) => React.ReactNode;
   /** The owner's unplanned places and the add button. Absent for everyone else. */
   afterStops?: React.ReactNode;
@@ -939,7 +956,7 @@ function DayBlock({
   onToday: () => void;
 }) {
   const { headline, subtitle } = parseDayLabel(day.label);
-  const accent = isToday ? 'var(--brass)' : themeColor.bg;
+  const accent = isToday ? 'var(--brass)' : stay ? stayTone(stay, null) : themeColor.bg;
   const folded = pinned;
 
   const weatherPill = weather && (
@@ -1095,7 +1112,7 @@ function DayBlock({
                 alignItems: 'center',
                 gap: 8,
               }}>
-                <span>Day {dayIndex + 1} of {dayTotal}</span>
+                <span>Day {dayIndex + 1} of {dayTotal}{stay ? ` · ${stay.place}` : ''}</span>
                 {isToday && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brass)', boxShadow: '0 0 0 3px rgba(184,148,78,0.22)' }} />
@@ -1131,7 +1148,8 @@ function DayBlock({
         </div>
       </div>
       <div style={{ padding: '0 12px' }}>
-        {(day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} stamp={stampFor?.(stop)} />)}
+        {(stops ?? day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />)}
+        {shelf}
         {afterStops}
       </div>
     </section>
@@ -1377,7 +1395,9 @@ type Tab = 'itinerary' | 'logistics' | 'weather';
 // ── DAY RAIL ─────────────────────────────────────────────────────────────────
 // One row of day chips. Lives in the dark hero and drops out of a pinned day header;
 // the variant only changes the colours.
-function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme }: {
+function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme, toneFor }: {
+  /** The town colour under each pill, from where you sleep that night. */
+  toneFor?: (i: number) => string | null;
   days: Day[];
   dateStart: string;
   active: number;
@@ -1405,7 +1425,10 @@ function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme }: 
         const on = i === active;
         const today = i === todayIdx;
         const fg = dark ? theme.fg : 'var(--ink)';
+        const tone = toneFor?.(i) ?? null;
         const style: React.CSSProperties = {
+          position: 'relative',
+          overflow: 'hidden',
           flexShrink: 0,
           minHeight: 34,
           padding: '0 11px',
@@ -1432,6 +1455,10 @@ function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme }: 
           >
             {today && <span style={{ width: 5, height: 5, borderRadius: '50%', background: on ? 'var(--brass)' : 'var(--brass)' }} />}
             {chipLabel(dateStart, i)}
+            {day.icon && <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>{day.icon}</span>}
+            {tone && (
+              <span aria-hidden style={{ position: 'absolute', left: 10, right: 10, bottom: 0, height: 3, borderRadius: '3px 3px 0 0', background: tone }} />
+            )}
           </button>
         );
       })}
@@ -1491,11 +1518,12 @@ interface TripViewProps {
   days: Day[];
   shots: Shot[];
   carry: Carry[];
+  stays?: Stay[];
 }
 
 const TAB_HASHES: Record<string, Tab> = { logistics: 'logistics', weather: 'weather', itinerary: 'itinerary' };
 
-export function TripView({ trip, logistics, days, shots: initialShots, carry }: TripViewProps) {
+export function TripView({ trip, logistics, days, shots: initialShots, carry, stays = [] }: TripViewProps) {
   const router = useRouter();
   // Above koma on purpose: a frame marked underground has to keep trying once
   // there is signal, whether or not the mode is still open. See komaQueue.
@@ -1561,6 +1589,35 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
   // asks the API, and only a phone holding the admin cookie gets `owner`.
   const verdicts = useVerdicts(trip.id);
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
+
+  // ── maybes ─────────────────────────────────────────────────────────────────
+  // Optional stops sit in an "if there's time" list under their day. The owner
+  // can move one into the plan; the flip is saved on the stop (`added`) and
+  // shown here at once, since the public page only revalidates every minute.
+  const [addedOverride, setAddedOverride] = useState<Record<number, boolean>>({});
+  const isAdded = (stop: Stop) => addedOverride[stop.id] ?? !!stop.added;
+  const setAdded = useCallback(async (stop: Stop, added: boolean) => {
+    setAddedOverride(cur => ({ ...cur, [stop.id]: added }));
+    try {
+      const res = await fetch(`/api/admin/stops?id=${stop.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ added }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      setAddedOverride(cur => ({ ...cur, [stop.id]: !added }));
+    }
+  }, []);
+
+  // ── stays ──────────────────────────────────────────────────────────────────
+  const stayFor = (i: number): Stay | null =>
+    trip.date_start && stays.length ? stayForDate(stays, dateForDay(trip.date_start, i)) : null;
+  const firstDayOf = (stay: Stay): number => {
+    if (!trip.date_start) return -1;
+    for (let i = 0; i < days.length; i++) if (dateForDay(trip.date_start, i) === stay.check_in) return i;
+    return -1;
+  };
 
   const dayContext = (i: number) => {
     const date = trip.date_start ? dateForDay(trip.date_start, i) : null;
@@ -2004,12 +2061,19 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
           />
         )}
 
+        {stays.length > 0 && trip.date_start && (
+          <div style={{ marginTop: 12 }}>
+            <StaysStrip stays={stays} theme={theme} onPick={st => { const i = firstDayOf(st); if (i >= 0) pickDay(i); }} />
+          </div>
+        )}
+
         <div style={{ marginTop: 14 }}>
           <HeroTabs active={activeTab} onChange={setActiveTab} theme={theme} />
         </div>
         {showRail && activeTab === 'itinerary' && (
           <div style={{ marginTop: 10 }}>
-            <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme} />
+            <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme}
+              toneFor={i => { const st = stayFor(i); return st ? stayTone(st, theme) : null; }} />
           </div>
         )}
       </div>
@@ -2039,10 +2103,21 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
           {tripUpcoming && <TripAlerts slug={trip.slug} title={trip.title} theme={theme} />}
           <QuickStrip logistics={logistics} theme={theme} />
           <main>
-            {days.map((day, i) => (
+            {days.map((day, i) => {
+              const stay = stayFor(i);
+              const opens = !!stay && !!trip.date_start && dateForDay(trip.date_start, i) === stay.check_in;
+              const all = day.stops ?? [];
+              const timeline = all.filter(st => !st.is_optional || isAdded(st)).map(st => (st.is_optional ? { ...st, added: true } : st));
+              const maybes = all.filter(st => st.is_optional && !isAdded(st));
+              return (
+              <Fragment key={day.id}>
+              {opens && stay && <StayHeading stay={stay} />}
               <DayBlock
-                key={day.id}
                 day={day}
+                stay={stay}
+                stops={timeline}
+                footerFor={verdicts.owner ? (st => (st.is_optional ? <RemoveFromPlan onRemove={() => setAdded(st, false)} /> : null)) : undefined}
+                shelf={<MaybeShelf stops={maybes} owner={verdicts.owner} onAdd={st => setAdded(st, true)} />}
                 weather={hasCoords ? weatherForDay(i) : null}
                 dayIndex={i}
                 dayTotal={days.length}
@@ -2078,10 +2153,13 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry }: 
                   </>
                 ) : undefined}
                 rail={showRail ? (
-                  <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} />
+                  <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme}
+                    toneFor={j => { const st = stayFor(j); return st ? stayTone(st, null) : null; }} />
                 ) : null}
               />
-            ))}
+              </Fragment>
+              );
+            })}
           </main>
         </>
       )}

@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase';
-import type { Trip, Day, Stop, Logistics } from '@/lib/supabase';
+import type { Trip, Day, Logistics, Stay } from '@/lib/supabase';
 import TripEditor from './TripEditor';
 
 export default async function AdminTripPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,8 +36,16 @@ export default async function AdminTripPage({ params }: { params: Promise<{ id: 
     .order('sort_order')
     .order('sort_order', { referencedTable: 'koji_stops' });
 
+  const { data: stays } = await sb
+    .from('koji_stays')
+    .select('*')
+    .eq('trip_id', id)
+    .order('check_in')
+    .order('sort_order');
+
   return (
     <TripEditor
+      stays={(stays ?? []) as Stay[]}
       trip={trip as Trip}
       logistics={(logistics ?? []) as Logistics[]}
       days={(days as Day[]) ?? []}
