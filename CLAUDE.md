@@ -399,6 +399,32 @@ go where navigation already happens. Only frames with a standing point are
 exported, one folder per day, coloured by priority; skipped frames are left
 out. Public like the shots themselves.
 
+### Near me, and the frame as an idea (2026-11-09)
+
+The other half of the England field report: a frame is an idea for a trip
+that is for fun first, not a step in a shot list. koma opens on **Near me**
+during a trip (`KomaNearby`): every frame with a standing point, closest
+first, grouped walkable (≤1.6km) / a short ride (≤8km) / elsewhere, with a
+north-up arrow, distance and walk time. **Light is a label on the row, not
+the sort order** — "golden 4:30pm", "blue now", filled copper when the light
+is here or within the hour. Morning or evening comes from the frame's
+`at_time`; without that a dusk frame read "blue 6:09am" before dawn.
+`light` is typed as an enum but later trips wrote prose ("golden 5:23-5:57",
+"sunset 5:58, blue till 6:23"), so `lightKind` reads the kind out of the text.
+
+Location is asked for by a tap the first time (iOS will not re-prompt after a
+refusal) and is watched only while the list is mounted; `koma:loc` remembers
+the grant. Without it the view shows today's frames by time. By day is the
+plan and stays one tap away; the choice sticks in `koma:view`.
+
+The sheet became the idea card: picture, title, one sentence (`subtitle`, else
+the first sentence of `position_md`), light / lens / face, and a pinned bar of
+**Open spot in Maps** + Got it. Everything else — the full where-to-stand,
+coordinates, Street View, technical, notes, the itinerary stop, Missed — is
+under More. The stepper moved to the header. Nathan keeps his own Google Maps
+list of photo spots, so the Maps button is the bridge and the KML export
+stays unadvertised.
+
 ### Cloud, and absent meaning absent (2026-09-19)
 
 The day card carries a forecast flag off the daily WMO code the trip page

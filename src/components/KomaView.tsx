@@ -12,6 +12,7 @@ import {
 } from '@/lib/sun';
 import { usePendingStatus, queueStatus, flush } from '@/lib/komaQueue';
 import { solarPosition, sunRelation } from '@/lib/sun';
+import { KomaNearby, compass, firstSentence, type NearbyPick } from './KomaNearby';
 
 // ── FRAME MODEL ──────────────────────────────────────────────────────────────
 // A "frame" is a shot placed in the day's running order. Numbering runs 1..n
@@ -183,8 +184,10 @@ function cloudFlag(c: DayCloud): string | null {
 export type SheetGeo = { lat: number; lng: number; dateISO: string; offset: number } | null;
 
 function FrameSheet({
-  frame, total, sun, geo, onClose, onStatus, pending, dated, onStep,
+  frame, total, sun, geo, onClose, onStatus, pending, dated, onStep, lightNote = null,
 }: {
+  /** "golden 5:23" from the Near me list, shown as a chip. */
+  lightNote?: string | null;
   frame: Frame;
   total: number;
   sun: SunDay | null;
@@ -201,11 +204,12 @@ function FrameSheet({
 }) {
   const s = frame.shot;
   const [zoom, setZoom] = useState(false);
+  const [more, setMore] = useState(false);
   const scroller = useRef<HTMLDivElement | null>(null);
 
   // Stepping kept the previous scroll position, so "next" from the bottom bar
   // landed you mid-page with the reference photograph off-screen above.
-  useEffect(() => { scroller.current?.scrollTo({ top: 0 }); }, [s.id]);
+  useEffect(() => { scroller.current?.scrollTo({ top: 0 }); setMore(false); }, [s.id]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -249,6 +253,17 @@ function FrameSheet({
   const spot = lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)
     ? { lat, lng } : null;
 
+  const oneLine = s.subtitle ?? firstSentence(s.position_md);
+  // A pin on the standing point if there is one, else the hand-written venue
+  // link — which names a building, and several frames share one.
+  const mapsHref = spot
+    ? `https://www.google.com/maps/search/?api=1&query=${spot.lat},${spot.lng}`
+    : s.scout_url;
+  const hasMore = Boolean(
+    (s.position_md && s.position_md.trim() !== (oneLine ?? '').trim()) || spot || s.tech_md || s.notes_md
+    || frame.stop?.body_md || s.status === 'planned',
+  );
+
   return (
     <div ref={scroller} role="dialog" aria-modal="true" aria-label={s.title} style={{
       position: 'fixed', inset: 0, zIndex: 60, background: 'var(--k-bg)',
@@ -277,12 +292,22 @@ function FrameSheet({
         <span className="koma-label" style={{
           flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
-          Frame <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{frame.n}</b> of {total}
+          {total > 1
+            ? <>Frame <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{frame.n}</b> of {total}</>
+            : 'Idea'}
           {/* the frame's own time, not the stop's — they differ by 30 min on
               the Slaughters loop, and the frame's is the one you shoot to */}
           {frame.hour != null ? ` · ${fmtHour(frame.hour)}` : ''}
           {frame.stop ? ` · ${frame.stop.title}` : ''}
         </span>
+        {/* The stepper moved up here when the pinned bar became Maps + Got it:
+            from the street, the spot is the action, not the next frame. */}
+        {total > 1 && (
+          <>
+            <StepBtn dir={-1} disabled={frame.n <= 1} onStep={onStep} />
+            <StepBtn dir={1} disabled={frame.n >= total} onStep={onStep} />
+          </>
+        )}
       </div>
 
       <div style={{
@@ -293,7 +318,7 @@ function FrameSheet({
           <>
             <img
               src={s.ref_url} alt="Reference" onClick={() => setZoom(true)}
-              style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 13,
+              style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 13,
                        border: 'var(--k-bw) solid var(--k-border-2)', display: 'block', cursor: 'zoom-in' }}
             />
             <div className="koma-label" style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', letterSpacing: '0.06em' }}>
@@ -318,29 +343,59 @@ function FrameSheet({
               <span>composition sketch</span><span>no photo yet</span>
             </div>
           </>
-        ) : (
-          <div className="koma-refx" style={{ width: '100%', height: 90, borderRadius: 13 }}>no reference image yet</div>
-        )}
+        ) : null}
 
-        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 20, fontWeight: 500,
-                     lineHeight: 1.2, margin: '13px 0 0', letterSpacing: '-0.015em', color: 'var(--k-ink)' }}>
+        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 500,
+                     lineHeight: 1.18, margin: '13px 0 0', letterSpacing: '-0.015em', color: 'var(--k-ink)' }}>
           {s.title}
         </h2>
-        {s.subtitle && (
-          <p style={{ fontSize: 13, color: 'var(--k-ink-3)', lineHeight: 1.5, marginTop: 5 }}>{s.subtitle}</p>
+
+        {/* The idea in one sentence. Most frames were written with the idea
+            buried in "where to stand", so that note's first sentence stands in
+            when there is no subtitle, and the full note waits under More. */}
+        {oneLine && (
+          <p style={{ fontSize: 15, color: 'var(--k-ink)', lineHeight: 1.45, margin: '6px 0 0' }}>{oneLine}</p>
         )}
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 11 }}>
           {s.priority === 'must' && <span className="koma-chip must" style={{ fontSize: 10, padding: '4px 8px' }}>must</span>}
-          {s.lens && (
-            <span className="koma-chip lens" style={{ fontSize: 10, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <LensMark lens={s.lens} color="#EDE6DA" height={12} />
-              {lensLabel(s.lens, s.focal_hint)}
+          {lightNote && (
+            <span className="koma-chip" style={{ fontSize: 10, padding: '4px 8px', background: 'var(--k-copper-tint)',
+                                                 color: 'var(--k-copper)', borderColor: 'var(--k-copper-mid)' }}>
+              {lightNote}
             </span>
           )}
-          {s.shot_type && <span className="koma-chip" style={{ fontSize: 10, padding: '4px 8px' }}>{s.shot_type}</span>}
-          {s.light && s.light !== 'any' && <span className="koma-chip" style={{ fontSize: 10, padding: '4px 8px' }}>{s.light}</span>}
+          {s.status !== 'planned' && <span className="koma-chip" style={{ fontSize: 10, padding: '4px 8px' }}>{s.status}</span>}
         </div>
+
+        <dl style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr)', gap: '6px 14px',
+                     margin: '14px 0 0', fontSize: 13.5, lineHeight: 1.4, color: 'var(--k-ink-2)' }}>
+          {(s.light && s.light !== 'any') || frame.hour != null ? (
+            <>
+              <dt className="koma-label" style={{ paddingTop: 2 }}>Light</dt>
+              <dd style={{ margin: 0 }}>
+                {[s.light && s.light !== 'any' ? s.light : null, frame.hour != null ? `planned ${fmtHour(frame.hour)}` : null]
+                  .filter(Boolean).join(' · ')}
+                {facing && <><br /><span style={{ color: 'var(--k-copper)' }}>☀</span> {facing.text}</>}
+              </dd>
+            </>
+          ) : null}
+          {s.lens && (
+            <>
+              <dt className="koma-label" style={{ paddingTop: 2 }}>Lens</dt>
+              <dd style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <LensMark lens={s.lens} color="var(--k-ink-2)" height={11} />
+                {lensLabel(s.lens, s.focal_hint)}
+              </dd>
+            </>
+          )}
+          {s.bearing != null && (
+            <>
+              <dt className="koma-label" style={{ paddingTop: 2 }}>Face</dt>
+              <dd style={{ margin: 0 }}>{compass(s.bearing)} · {s.bearing}°</dd>
+            </>
+          )}
+        </dl>
 
         {conflict && (
           <div style={{ marginTop: 12, padding: '9px 11px', borderRadius: 9, background: '#FBEFD9',
@@ -357,108 +412,75 @@ function FrameSheet({
           </div>
         )}
 
-        <Block label="Where to stand" md={s.position_md} />
-
-        {facing && (
-          <div style={{
-            marginTop: 8, padding: '8px 11px', borderRadius: 10,
-            background: 'var(--k-subtle)', border: 'var(--k-bw) solid var(--k-border)',
-            fontSize: 12.5, lineHeight: 1.5, color: 'var(--k-ink-2)',
+        {hasMore && (
+          <button type="button" onClick={() => setMore(m => !m)} aria-expanded={more} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+            marginTop: 16, padding: '12px 0 4px', minHeight: 44, background: 'none', border: 'none',
+            borderTop: '1px dashed var(--k-border-2)', cursor: 'pointer',
+            fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+            color: 'var(--k-copper)',
           }}>
-            <span style={{ color: 'var(--k-copper)' }}>☀</span>{' '}
-            {facing.text}
-          </div>
+            <span>{more ? 'Less' : 'More · where to stand, settings, notes'}</span>
+            <span aria-hidden>{more ? '▴' : '▾'}</span>
+          </button>
         )}
 
-        {/* The standing point, when the frame has one. A coordinate beats the
-            prose only because it cannot be vague — so print it, rather than
-            hiding it behind the button. */}
-        {spot && (
-          <div style={{
-            marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-            fontFamily: 'var(--font-mono)', fontSize: 10.5,
-            letterSpacing: '0.03em', color: 'var(--k-ink-3)',
-          }}>
-            <span>{spot.lat.toFixed(4)}, {spot.lng.toFixed(4)}</span>
-            {s.bearing != null && (
-              <>
-                <span style={{ opacity: 0.45 }}>·</span>
-                <span style={{ color: 'var(--k-copper)' }}>look {s.bearing}°</span>
-              </>
+        {more && (
+          <>
+            <Block label="Where to stand" md={s.position_md} />
+
+            {spot && (
+              <div style={{
+                marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                fontFamily: 'var(--font-mono)', fontSize: 10.5,
+                letterSpacing: '0.03em', color: 'var(--k-ink-3)',
+              }}>
+                <span>{spot.lat.toFixed(4)}, {spot.lng.toFixed(4)}</span>
+              </div>
             )}
-          </div>
+
+            {/* Needs all three. A pano facing the wrong way looks authoritative,
+                and an uncovered coordinate is worse still — Google answers it
+                with the nearest user photosphere rather than nothing, which for
+                the Tower Bridge span was The O2, 6km east. So the gate is a
+                pano_id somebody loaded and confirmed, not merely a coordinate.
+                viewpoint rides along so a retired pano still lands nearby. */}
+            {spot && s.bearing != null && s.pano_id && (
+              <SpotPill
+                href={`https://www.google.com/maps/@?api=1&map_action=pano&pano=${encodeURIComponent(s.pano_id)}&viewpoint=${spot.lat},${spot.lng}&heading=${s.bearing}&pitch=0`}
+                label={`Street view · ${s.bearing}°`}
+                icon={
+                  <>
+                    <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.4" />
+                    <path d="M8 2.6l2.4 5.6L8 7.1 5.6 8.2z" fill="currentColor" />
+                  </>
+                }
+              />
+            )}
+
+            <Block label="Technical" md={s.tech_md} mono />
+            <Block label="Notes" md={s.notes_md} />
+
+            {frame.stop?.body_md && (
+              <div style={{ marginTop: 13, background: 'var(--k-subtle)', borderRadius: 10, padding: '10px 11px' }}>
+                <div className="koma-label" style={{ marginBottom: 5 }}>From the itinerary</div>
+                <div className="body-content" style={{ fontSize: 12, color: 'var(--k-ink-2)', lineHeight: 1.55 }}
+                     dangerouslySetInnerHTML={{ __html: renderMd(frame.stop.body_md) }} />
+              </div>
+            )}
+
+            {/* Missed stays down here on purpose: it is the rarer mark and does
+                not need to hold a permanent 58px of a phone screen. */}
+            {s.status === 'planned' && (
+              <div style={{ marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--k-border)' }}>
+                <button type="button" className="koma-btn sec" onClick={() => onStatus('missed')}>
+                  Missed it
+                </button>
+              </div>
+            )}
+          </>
         )}
 
-        <div>
-          {/* A pin on the point if we have one, otherwise the hand-written
-              venue link — which names a building, and several frames share one. */}
-          {spot ? (
-            <SpotPill
-              href={`https://www.google.com/maps/search/?api=1&query=${spot.lat},${spot.lng}`}
-              filled
-              label="Stand here"
-              icon={
-                <>
-                  <path d="M8 1.6c-2.3 0-4.1 1.8-4.1 4.1 0 3 4.1 8.7 4.1 8.7s4.1-5.7 4.1-8.7c0-2.3-1.8-4.1-4.1-4.1z"
-                        stroke="currentColor" strokeWidth="1.4" />
-                  <circle cx="8" cy="5.7" r="1.5" fill="currentColor" />
-                </>
-              }
-            />
-          ) : s.scout_url ? (
-            <SpotPill
-              href={s.scout_url}
-              label="Scout"
-              icon={
-                <>
-                  <circle cx="6.6" cy="6.6" r="4.4" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M10 10L14 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </>
-              }
-            />
-          ) : null}
-
-          {/* Needs all three. A pano facing the wrong way looks authoritative,
-              and an uncovered coordinate is worse still — Google answers it
-              with the nearest user photosphere rather than nothing, which for
-              the Tower Bridge span was The O2, 6km east. So the gate is a
-              pano_id somebody loaded and confirmed, not merely a coordinate.
-              viewpoint rides along so a retired pano still lands nearby. */}
-          {spot && s.bearing != null && s.pano_id && (
-            <SpotPill
-              href={`https://www.google.com/maps/@?api=1&map_action=pano&pano=${encodeURIComponent(s.pano_id)}&viewpoint=${spot.lat},${spot.lng}&heading=${s.bearing}&pitch=0`}
-              label={`Street view · ${s.bearing}°`}
-              icon={
-                <>
-                  <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.4" />
-                  <path d="M8 2.6l2.4 5.6L8 7.1 5.6 8.2z" fill="currentColor" />
-                </>
-              }
-            />
-          )}
-        </div>
-
-        <Block label="Technical" md={s.tech_md} mono />
-        <Block label="Notes" md={s.notes_md} />
-
-        {frame.stop?.body_md && (
-          <div style={{ marginTop: 13, background: 'var(--k-subtle)', borderRadius: 10, padding: '10px 11px' }}>
-            <div className="koma-label" style={{ marginBottom: 5 }}>From the itinerary</div>
-            <div className="body-content" style={{ fontSize: 12, color: 'var(--k-ink-2)', lineHeight: 1.55 }}
-                 dangerouslySetInnerHTML={{ __html: renderMd(frame.stop.body_md) }} />
-          </div>
-        )}
-
-        {/* "Got it" lives in the pinned bar; Missed stays down here on purpose.
-            It is the rarer mark and does not need to hold a permanent 58px of a
-            phone screen. */}
-        {s.status === 'planned' && (
-          <div style={{ marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--k-border)' }}>
-            <button type="button" className="koma-btn sec" onClick={() => onStatus('missed')}>
-              Missed it
-            </button>
-          </div>
-        )}
         {pending && (
           <div style={{ marginTop: 12, fontFamily: 'var(--font-mono)', fontSize: 9.5,
                         letterSpacing: '0.05em', color: 'var(--k-warn-ink)', lineHeight: 1.5 }}>
@@ -468,33 +490,35 @@ function FrameSheet({
       </div>
 
       {/* ── the pinned bar ─────────────────────────────────────────────────
-          The sheet is information first — sketch, title, lens, where to stand —
-          so the mark was at the foot of the content and below the fold on every
-          frame. Pinning it keeps the reading order and puts the one action you
-          reach for at the bottom right, where the thumb already is. It carries
-          the stepper too, which used to be drawn twice. */}
+          Maps and Got it. From the street the one thing worth a thumb is "take
+          me to the spot", so it is the big copper button; the frame stepper
+          went up to the header. A frame with no standing point falls back to
+          its hand-written venue link, and with neither, Got it fills the bar. */}
       <div style={{
         position: 'sticky', bottom: 0, zIndex: 3, flex: '0 0 auto',
         display: 'flex', alignItems: 'center', gap: 9,
         padding: '9px 16px calc(env(safe-area-inset-bottom, 0px) + 11px)',
         background: 'var(--k-bg)', borderTop: 'var(--k-bw) solid var(--k-border)',
       }}>
-        <StepBtn dir={-1} disabled={frame.n <= 1} onStep={onStep} />
-        <span className="koma-label" style={{ flexShrink: 0 }}>{frame.n} / {total}</span>
-        <StepBtn dir={1} disabled={frame.n >= total} onStep={onStep} />
+        {mapsHref && (
+          <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="koma-btn pri"
+             style={{ flex: 2, padding: '15px 12px', textDecoration: 'none' }}>
+            {spot ? 'Open spot in Maps' : 'Find in Maps'}
+          </a>
+        )}
         {s.status === 'planned' ? (
-          <button type="button" className="koma-btn pri" style={{ flex: 1, marginLeft: 2, padding: '15px 12px' }}
+          <button type="button" className={mapsHref ? 'koma-btn sec' : 'koma-btn pri'}
+                  style={{ flex: 1, padding: '15px 12px' }}
                   onClick={() => onStatus('got')}>
             Got it
           </button>
         ) : (
-          <button type="button" className="koma-btn sec" style={{ flex: 1, marginLeft: 2, padding: '15px 12px' }}
+          <button type="button" className="koma-btn sec" style={{ flex: 1, padding: '15px 12px' }}
                   onClick={() => onStatus('planned')}>
             Undo {s.status}
           </button>
         )}
       </div>
-
       {zoom && s.ref_url && (
         <div onClick={() => setZoom(false)} style={{
           position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(12,10,8,0.94)',
@@ -999,10 +1023,24 @@ export function KomaView({
   onShotChange: (shot: Shot) => void;
 }) {
   const [open, setOpen] = useState<
-    { frame: Frame; frames: Frame[]; sun: SunDay | null; dated: boolean; geo: SheetGeo } | null
+    { frame: Frame; frames: Frame[]; sun: SunDay | null; dated: boolean; geo: SheetGeo; lightNote?: string | null } | null
   >(null);
   const pending = usePendingStatus();
   const [now, setNow] = useState<Date>(() => new Date());
+
+  // Near me is the way in during the trip; By day is the plan, for the desk.
+  // The choice sticks per phone.
+  const [mode, setMode] = useState<'near' | 'day'>(todayIdx >= 0 ? 'near' : 'day');
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('koma:view');
+      if (v === 'near' || v === 'day') setMode(v);
+    } catch { /* private mode */ }
+  }, []);
+  const pickMode = (m: 'near' | 'day') => {
+    setMode(m);
+    try { localStorage.setItem('koma:view', m); } catch { /* private mode */ }
+  };
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30000);
@@ -1052,7 +1090,40 @@ export function KomaView({
 
   return (
     <main className={sunMode ? 'koma sun' : 'koma'} style={{ background: 'var(--k-bg)', minHeight: '50vh' }}>
-      {days.map((day, i) => (
+      <div role="tablist" aria-label="View" style={{ display: 'flex', gap: 6, padding: '14px 12px 0' }}>
+        {([['near', 'Near me'], ['day', 'By day']] as const).map(([m, label]) => (
+          <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => pickMode(m)}
+            style={{
+              minHeight: 36, padding: '0 14px', borderRadius: 999, cursor: 'pointer',
+              fontFamily: 'var(--font-mono)', fontSize: 'calc(10.5px + var(--k-fs))',
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              border: `var(--k-bw) solid ${mode === m ? 'var(--k-ink)' : 'var(--k-border-2)'}`,
+              background: mode === m ? 'var(--k-ink)' : 'transparent',
+              color: mode === m ? 'var(--k-bg)' : 'var(--k-ink-2)',
+            }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'near' && (
+        <KomaNearby
+          trip={trip} days={days} shots={shotsView} dateForDay={dateForDay}
+          todayIdx={todayIdx} now={now}
+          onOpen={(pick: NearbyPick) => {
+            const day = days.find(d => d.id === pick.shot.day_id);
+            const frame = (day ? buildFrames(day, shotsView).find(f => f.shot.id === pick.shot.id) : undefined)
+              ?? { shot: pick.shot, n: 1, stop: null, hour: parseClock(pick.shot.at_time) };
+            const lat = Number(pick.shot.lat), lng = Number(pick.shot.lng);
+            setOpen({
+              frame, frames: [frame], sun: pick.sun, dated: true, lightNote: pick.lightNote,
+              geo: pick.offset != null && pick.dateISO ? { lat, lng, dateISO: pick.dateISO, offset: pick.offset } : null,
+            });
+          }}
+        />
+      )}
+
+      {mode === 'day' && days.map((day, i) => (
         <KomaDay
           key={day.id}
           day={day} index={i}
@@ -1076,6 +1147,7 @@ export function KomaView({
           <FrameSheet
             frame={open.frame}
             total={open.frames.length}
+            lightNote={open.lightNote ?? null}
             sun={open.sun}
             geo={open.geo}
             pending={pending.has(open.frame.shot.id)}
