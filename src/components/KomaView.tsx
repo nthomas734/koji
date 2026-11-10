@@ -12,7 +12,7 @@ import {
 } from '@/lib/sun';
 import { usePendingStatus, queueStatus, flush } from '@/lib/komaQueue';
 import { solarPosition, sunRelation } from '@/lib/sun';
-import { KomaNearby, compass, firstSentence, type NearbyPick } from './KomaNearby';
+import { KomaNearby, compass, firstSentence, lookFor, areaSize, type NearbyPick } from './KomaNearby';
 
 // ── FRAME MODEL ──────────────────────────────────────────────────────────────
 // A "frame" is a shot placed in the day's running order. Numbering runs 1..n
@@ -185,9 +185,13 @@ export type SheetGeo = { lat: number; lng: number; dateISO: string; offset: numb
 
 function FrameSheet({
   frame, total, sun, geo, onClose, onStatus, pending, dated, onStep, lightNote = null,
+  inside = [], onPick,
 }: {
   /** "golden 5:23" from the Near me list, shown as a chip. */
   lightNote?: string | null;
+  /** An area's spots, from the Near me list; tapping one opens it. */
+  inside?: NearbyPick[];
+  onPick?: (pick: NearbyPick) => void;
   frame: Frame;
   total: number;
   sun: SunDay | null;
@@ -253,6 +257,10 @@ function FrameSheet({
   const spot = lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)
     ? { lat, lng } : null;
 
+  // An area is somewhere to wander, so its card is why, what to look for and
+  // when, and the Maps pin is its middle rather than a place to stand.
+  const area = s.kind === 'area';
+  const look = area ? lookFor(s.look_md) : [];
   const oneLine = s.subtitle ?? firstSentence(s.position_md);
   // A pin on the standing point if there is one, else the hand-written venue
   // link — which names a building, and several frames share one.
@@ -293,8 +301,8 @@ function FrameSheet({
           flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
           {total > 1
-            ? <>Frame <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{frame.n}</b> of {total}</>
-            : 'Idea'}
+            ? <>{area ? 'Area' : 'Frame'} <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{frame.n}</b> of {total}</>
+            : area ? `Area${s.radius_m ? ` · ${areaSize(s.radius_m)}` : ''}` : 'Idea'}
           {/* the frame's own time, not the stop's — they differ by 30 min on
               the Slaughters loop, and the frame's is the one you shoot to */}
           {frame.hour != null ? ` · ${fmtHour(frame.hour)}` : ''}
@@ -365,14 +373,28 @@ function FrameSheet({
               {lightNote}
             </span>
           )}
-          {s.status !== 'planned' && <span className="koma-chip" style={{ fontSize: 10, padding: '4px 8px' }}>{s.status}</span>}
+          {s.status !== 'planned' && <span className="koma-chip" style={{ fontSize: 10, padding: '4px 8px' }}>{area && s.status === 'got' ? 'been' : s.status}</span>}
         </div>
+
+        {look.length > 0 && (
+          <>
+            <div className="koma-label" style={{ marginTop: 16, marginBottom: 6 }}>Look for</div>
+            <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 7, fontSize: 14.5, lineHeight: 1.42, color: 'var(--k-ink)' }}>
+              {look.map((l, i) => (
+                <li key={i}>
+                  {l.prompt}
+                  {l.tip && <span style={{ color: 'var(--k-ink-3)' }}> {l.tip}</span>}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
 
         <dl style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr)', gap: '6px 14px',
                      margin: '14px 0 0', fontSize: 13.5, lineHeight: 1.4, color: 'var(--k-ink-2)' }}>
           {(s.light && s.light !== 'any') || frame.hour != null ? (
             <>
-              <dt className="koma-label" style={{ paddingTop: 2 }}>Light</dt>
+              <dt className="koma-label" style={{ paddingTop: 2 }}>{area ? 'Best' : 'Light'}</dt>
               <dd style={{ margin: 0 }}>
                 {[s.light && s.light !== 'any' ? s.light : null, frame.hour != null ? `planned ${fmtHour(frame.hour)}` : null]
                   .filter(Boolean).join(' · ')}
@@ -382,7 +404,7 @@ function FrameSheet({
           ) : null}
           {s.lens && (
             <>
-              <dt className="koma-label" style={{ paddingTop: 2 }}>Lens</dt>
+              <dt className="koma-label" style={{ paddingTop: 2 }}>{area ? 'Bring' : 'Lens'}</dt>
               <dd style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <LensMark lens={s.lens} color="var(--k-ink-2)" height={11} />
                 {lensLabel(s.lens, s.focal_hint)}
@@ -396,6 +418,26 @@ function FrameSheet({
             </>
           )}
         </dl>
+
+        {inside.length > 0 && (
+          <>
+            <div className="koma-label" style={{ marginTop: 16, marginBottom: 6 }}>Spots inside</div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {inside.map(p => (
+                <button key={p.shot.id} type="button" onClick={() => onPick?.(p)} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 44, textAlign: 'left',
+                  padding: '8px 11px', borderRadius: 10, cursor: 'pointer', font: 'inherit',
+                  border: 'var(--k-bw) solid var(--k-border)', background: 'var(--k-surface)', color: 'var(--k-ink)',
+                }}>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: 'var(--font-serif)', fontSize: 14 }}>{p.shot.title}</span>
+                  {p.lightNote && <span className="koma-chip">{p.lightNote}</span>}
+                  {p.shot.status === 'got' && <span className="koma-chip">got it</span>}
+                  <span aria-hidden style={{ color: 'var(--k-copper)' }}>›</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         {conflict && (
           <div style={{ marginTop: 12, padding: '9px 11px', borderRadius: 9, background: '#FBEFD9',
@@ -420,14 +462,14 @@ function FrameSheet({
             fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
             color: 'var(--k-copper)',
           }}>
-            <span>{more ? 'Less' : 'More · where to stand, settings, notes'}</span>
+            <span>{more ? 'Less' : area ? 'More · where to start, notes' : 'More · where to stand, settings, notes'}</span>
             <span aria-hidden>{more ? '▴' : '▾'}</span>
           </button>
         )}
 
         {more && (
           <>
-            <Block label="Where to stand" md={s.position_md} />
+            <Block label={area ? 'Where to start' : 'Where to stand'} md={s.position_md} />
 
             {spot && (
               <div style={{
@@ -503,19 +545,19 @@ function FrameSheet({
         {mapsHref && (
           <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="koma-btn pri"
              style={{ flex: 2, padding: '15px 12px', textDecoration: 'none' }}>
-            {spot ? 'Open spot in Maps' : 'Find in Maps'}
+            {area ? 'Open area in Maps' : spot ? 'Open spot in Maps' : 'Find in Maps'}
           </a>
         )}
         {s.status === 'planned' ? (
           <button type="button" className={mapsHref ? 'koma-btn sec' : 'koma-btn pri'}
                   style={{ flex: 1, padding: '15px 12px' }}
                   onClick={() => onStatus('got')}>
-            Got it
+            {area ? 'Been' : 'Got it'}
           </button>
         ) : (
           <button type="button" className="koma-btn sec" style={{ flex: 1, padding: '15px 12px' }}
                   onClick={() => onStatus('planned')}>
-            Undo {s.status}
+            Undo {area && s.status === 'got' ? 'been' : s.status}
           </button>
         )}
       </div>
@@ -1023,7 +1065,8 @@ export function KomaView({
   onShotChange: (shot: Shot) => void;
 }) {
   const [open, setOpen] = useState<
-    { frame: Frame; frames: Frame[]; sun: SunDay | null; dated: boolean; geo: SheetGeo; lightNote?: string | null } | null
+    { frame: Frame; frames: Frame[]; sun: SunDay | null; dated: boolean; geo: SheetGeo;
+      lightNote?: string | null; inside?: NearbyPick[]; pick?: NearbyPick; back?: NearbyPick } | null
   >(null);
   const pending = usePendingStatus();
   const [now, setNow] = useState<Date>(() => new Date());
@@ -1066,6 +1109,20 @@ export function KomaView({
       setOpen(o => (o ? { ...o, frame: { ...o.frame, shot: fresh } } : o));
     }
   }, [shotsView, open]);
+
+  /** Open an idea from the Near me list. `back` is the area it was opened
+   *  from, so closing the spot returns to the area rather than the list. */
+  const openPick = (pick: NearbyPick, back?: NearbyPick) => {
+    const day = days.find(d => d.id === pick.shot.day_id);
+    const frame = (day ? buildFrames(day, shotsView).find(f => f.shot.id === pick.shot.id) : undefined)
+      ?? { shot: pick.shot, n: 1, stop: null, hour: parseClock(pick.shot.at_time) };
+    const lat = Number(pick.shot.lat), lng = Number(pick.shot.lng);
+    setOpen({
+      frame, frames: [frame], sun: pick.sun, dated: true, lightNote: pick.lightNote,
+      inside: pick.inside, pick, back,
+      geo: pick.offset != null && pick.dateISO ? { lat, lng, dateISO: pick.dateISO, offset: pick.offset } : null,
+    });
+  };
 
   // The tap is the truth: state moves now, the write is queued, and the queue
   // drains whenever there is signal. Waiting on `res.ok` meant a failed write
@@ -1110,16 +1167,7 @@ export function KomaView({
         <KomaNearby
           trip={trip} days={days} shots={shotsView} dateForDay={dateForDay}
           todayIdx={todayIdx} now={now}
-          onOpen={(pick: NearbyPick) => {
-            const day = days.find(d => d.id === pick.shot.day_id);
-            const frame = (day ? buildFrames(day, shotsView).find(f => f.shot.id === pick.shot.id) : undefined)
-              ?? { shot: pick.shot, n: 1, stop: null, hour: parseClock(pick.shot.at_time) };
-            const lat = Number(pick.shot.lat), lng = Number(pick.shot.lng);
-            setOpen({
-              frame, frames: [frame], sun: pick.sun, dated: true, lightNote: pick.lightNote,
-              geo: pick.offset != null && pick.dateISO ? { lat, lng, dateISO: pick.dateISO, offset: pick.offset } : null,
-            });
-          }}
+          onOpen={openPick}
         />
       )}
 
@@ -1148,11 +1196,14 @@ export function KomaView({
             frame={open.frame}
             total={open.frames.length}
             lightNote={open.lightNote ?? null}
+            inside={open.inside}
+            onPick={p => openPick(p, open.pick)}
             sun={open.sun}
             geo={open.geo}
             pending={pending.has(open.frame.shot.id)}
             dated={open.dated}
-            onClose={() => setOpen(null)}
+            // A spot opened from inside an area goes back to the area.
+            onClose={() => (open.back ? openPick(open.back) : setOpen(null))}
             onStatus={st => setStatus(open.frame.shot, st)}
             onStep={d => setOpen(o => {
               if (!o) return o;

@@ -425,6 +425,25 @@ under More. The stepper moved to the header. Nathan keeps his own Google Maps
 list of photo spots, so the Maps button is the bridge and the KML export
 stays unadvertised.
 
+### Areas, not a shot list (2026-11-09)
+
+Nathan is a casual photographer on a trip for fun: "go walk around nearby and
+see what shots pop up" beats a pinned frame for most places. So `koma_shots`
+has `kind` ('spot' | 'area'). **An area** is a neighbourhood: lat/lng is its
+middle (from OSM, same rule as standing points), `radius_m` its reach,
+`look_md` three or four "- thing to look for — how to get it" lines,
+`subtitle` why it is worth the walk, `light`/`lens` read as Best/Bring, and
+`bearing` stays null. **A spot** stays only where the exact spot is the photo
+(a viewpoint, a ferry crossing, a lantern lined up with its reflection).
+
+Near me measures an area to its edge. Standing inside one opens it at the
+top as the dark "You're in…" card with its first three prompts; areas and
+spots share the list below. The area card lists the spots inside its radius,
+and a spot opened from there closes back to the area. Maps opens the
+middle, and Got it reads "Been". Write new trips mostly as 2–4 areas per
+city, and put his own Google Maps pins inside them as prompts ("your pin")
+rather than duplicating them as spots.
+
 ### Cloud, and absent meaning absent (2026-09-19)
 
 The day card carries a forecast flag off the daily WMO code the trip page

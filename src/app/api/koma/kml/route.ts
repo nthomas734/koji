@@ -52,8 +52,12 @@ function placemark(s: Shot) {
   const head = [clock(s.at_time), s.priority, s.lens, s.focal_hint && `@ ${s.focal_hint}`]
     .filter(Boolean).join(' · ');
   const lines = [
+    s.kind === 'area' ? `Area to wander, about ${(s.radius_m ?? 0) * 2} m across` : '',
     head,
     plain(s.subtitle),
+    s.kind === 'area' && s.look_md
+      ? 'Look for:\n' + s.look_md.split('\n').filter(l => /^[-*]\s/.test(l.trim())).map(l => '• ' + plain(l.trim().slice(2))).join('\n')
+      : '',
     plain(s.position_md),
     s.bearing != null ? `Face ${compass(s.bearing)} (${Math.round(s.bearing)}°).` : '',
     plain(s.tech_md),

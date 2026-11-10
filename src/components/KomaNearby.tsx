@@ -21,6 +21,11 @@ import { sunDay, zoneOffsetSec, fmtHour, parseClock, type SunDay } from '@/lib/s
 // Location is asked for only while this view is open, and only after a tap the
 // first time (iOS will not re-prompt once refused, so the ask has to be
 // deliberate). Without it the view falls back to today's frames by time.
+//
+// Most ideas are areas, not spots: a neighbourhood to wander with the camera
+// out and a few things to look for, which is how a trip that is for fun
+// actually gets photographed. Standing inside one opens it at the top. The
+// pinned spots stay for the places where the exact spot is the photo.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface NearbyPick {
@@ -30,7 +35,25 @@ export interface NearbyPick {
   sun: SunDay | null;
   dateISO: string;
   offset: number | null;
+  /** For an area, the spots inside it, closest to its middle first. */
+  inside: NearbyPick[];
 }
+
+/** An area's look_md, one idea per "- " line, split at " — " into the thing
+ *  to look for and how to get it. */
+export function lookFor(md: string | null): { prompt: string; tip: string | null }[] {
+  if (!md) return [];
+  return md.split('\n')
+    .map(l => l.trim())
+    .filter(l => /^[-*]\s/.test(l))
+    .map(l => {
+      const [prompt, ...rest] = l.replace(/^[-*]\s+/, '').split(' — ');
+      return { prompt: prompt.trim(), tip: rest.join(' — ').trim() || null };
+    });
+}
+
+/** "about 600 m across" from a radius. */
+export const areaSize = (r: number) => `about ${fmtDist(r * 2)} across`;
 
 type Pos = { lat: number; lng: number };
 
@@ -127,12 +150,19 @@ function lightFor(shot: Shot, sun: SunDay | null, h: number): { text: string; so
     : { text: 'mornings', soon: false };
 }
 
-function Arrow({ deg, color }: { deg: number; color: string }) {
+/** North-up arrow toward the idea. An area's arrow is a dashed ring pushed
+ *  toward it: a direction to wander off in, not a pin. */
+function Arrow({ deg, color, area }: { deg: number; color: string; area?: boolean }) {
   return (
     <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden>
       <circle cx="15" cy="15" r="13" fill="none" stroke="var(--k-border)" strokeWidth="1" />
       <text x="15" y="6.4" textAnchor="middle" fontSize="5" fontFamily="var(--font-mono)" fill="var(--k-ink-3)">N</text>
-      <path d="M15 5 L20 20 L15 17 L10 20 Z" fill={color} transform={`rotate(${deg} 15 15)`} />
+      {area
+        ? <g transform={`rotate(${deg} 15 15)`}>
+            <circle cx="15" cy="12" r="6" fill="none" stroke={color} strokeWidth="2" strokeDasharray="3 2" />
+            <path d="M15 21 L15 25" stroke={color} strokeWidth="1.5" />
+          </g>
+        : <path d="M15 5 L20 20 L15 17 L10 20 Z" fill={color} transform={`rotate(${deg} 15 15)`} />}
     </svg>
   );
 }
@@ -197,10 +227,14 @@ export function KomaNearby({
         const di = s.day_id != null ? dayIdx.get(s.day_id) ?? null : null;
         const plannedOther = di != null && di !== todayIdx;
         const dayName = di != null ? days[di].label.split(/\s[-–—]\s/)[0].split(',')[0] : null;
+        const area = s.kind === 'area' && s.radius_m != null;
+        const centre = pos ? haversine(pos, spot) : null;
         return {
           shot: s, spot, sun, offset, dateISO: there?.iso ?? (di != null ? dateForDay(di) : null) ?? '',
-          light, plannedOther, dayName,
-          dist: pos ? haversine(pos, spot) : null,
+          light, plannedOther, dayName, area,
+          // An area is as far away as its edge, and you are in it inside the edge.
+          dist: centre == null ? null : area ? Math.max(0, centre - (s.radius_m ?? 0)) : centre,
+          here: area && centre != null && centre <= (s.radius_m ?? 0),
           dir:  pos ? bearingTo(pos, spot) : null,
         };
       });
@@ -212,14 +246,25 @@ export function KomaNearby({
     if (done(a) !== done(b)) return done(a) - done(b);
     return (a.dist ?? 0) - (b.dist ?? 0);
   };
-  const walk = rows.filter(r => r.dist != null && r.dist <= WALK_M).sort(rank);
-  const ride = rows.filter(r => r.dist != null && r.dist > WALK_M && r.dist <= RIDE_M).sort(rank);
-  const far  = rows.filter(r => r.dist != null && r.dist > RIDE_M).sort(rank);
+  // The areas you are standing in, the nearest middle first. They open at the
+  // top, so they leave the list.
+  const hereAreas = rows.filter(r => r.here && r.shot.status !== 'got')
+    .sort((a, b) => haversine(pos ?? a.spot, a.spot) - haversine(pos ?? b.spot, b.spot));
+  const listed = rows.filter(r => !hereAreas.includes(r));
+  const walk = listed.filter(r => r.dist != null && r.dist <= WALK_M).sort(rank);
+  const ride = listed.filter(r => r.dist != null && r.dist > WALK_M && r.dist <= RIDE_M).sort(rank);
+  const far  = listed.filter(r => r.dist != null && r.dist > RIDE_M).sort(rank);
   const unpinned = shots.filter(s => s.status !== 'skipped' && (s.lat == null || s.lng == null)).length;
 
-  const open = (r: Row) => onOpen({
+  const pickOf = (r: Row): NearbyPick => ({
     shot: r.shot, lightNote: r.light?.text ?? null, sun: r.sun, dateISO: r.dateISO, offset: r.offset,
+    inside: r.area
+      ? rows.filter(o => !o.area && haversine(o.spot, r.spot) <= (r.shot.radius_m ?? 0))
+          .sort((a, b) => haversine(a.spot, r.spot) - haversine(b.spot, r.spot))
+          .map(pickOf)
+      : [],
   });
+  const open = (r: Row) => onOpen(pickOf(r));
 
   const Item = ({ r }: { r: Row }) => {
     const s = r.shot;
@@ -231,7 +276,7 @@ export function KomaNearby({
         style={{ alignItems: 'flex-start', opacity: r.plannedOther && s.status !== 'got' ? 0.86 : undefined }}>
         {r.dir != null && r.dist != null && (
           <span style={{ width: 52, flex: '0 0 auto', display: 'grid', justifyItems: 'center', gap: 1 }}>
-            <Arrow deg={r.dir} color={color} />
+            <Arrow deg={r.dir} color={color} area={r.area} />
             <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--k-ink)' }}>{fmtDist(r.dist)}</span>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--k-ink-3)' }}>
               {compass(r.dir)}{r.dist <= WALK_M ? ` · ${walkMin(r.dist)}m` : ''}
@@ -244,6 +289,7 @@ export function KomaNearby({
             <span style={{ display: 'block', fontSize: 12, color: 'var(--k-ink-2)', lineHeight: 1.4, marginTop: 3 }}>{line}</span>
           )}
           <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+            {r.area && <span className="koma-chip">area</span>}
             {s.priority === 'must' && <span className="koma-chip must">must</span>}
             {r.light && (
               <span className="koma-chip" style={r.light.soon
@@ -302,12 +348,13 @@ export function KomaNearby({
 
   return (
     <div style={{ padding: '14px 12px 28px', display: 'grid', gap: 16 }}>
-      {!walk.length && !ride.length && (
+      {hereAreas.map(r => <Here key={r.shot.id} r={r} onOpen={() => open(r)} />)}
+      {!walk.length && !ride.length && !hereAreas.length && (
         <p className="koma-label" style={{ lineHeight: 1.7, margin: 0 }}>
           Nothing within {RIDE_M / 1000} km.
         </p>
       )}
-      <Group label="Walkable · about 20 min" list={walk} />
+      <Group label={hereAreas.length ? 'Also near you' : 'Walkable · about 20 min'} list={walk} />
       <Group label={`A short ride · under ${RIDE_M / 1000} km`} list={ride} />
       {far.length > 0 && (showFar
         ? <Group label="Elsewhere on the trip" list={far} />
@@ -322,6 +369,46 @@ export function KomaNearby({
         </p>
       )}
     </div>
+  );
+}
+
+/** "You're in …": the area you are standing in, with the first few things to
+ *  look for, so the glance is the whole read. Tap for the card. */
+function Here({ r, onOpen }: {
+  r: { shot: Shot; light: { text: string; soon: boolean } | null; spot: Pos };
+  onOpen: () => void;
+}) {
+  const s = r.shot;
+  const look = lookFor(s.look_md).slice(0, 3);
+  return (
+    <button type="button" onClick={onOpen} style={{
+      display: 'grid', gap: 8, textAlign: 'left', font: 'inherit', cursor: 'pointer', width: '100%',
+      background: 'var(--k-ink)', color: '#EDE6DA', border: 'none', borderRadius: 13, padding: '13px 14px 12px',
+    }}>
+      <span className="koma-label" style={{ color: 'var(--k-copper-lite)' }}>You’re in · {s.title}</span>
+      {s.subtitle && (
+        <span style={{ fontFamily: 'var(--font-serif)', fontSize: 18, lineHeight: 1.2, color: '#F5EEE2' }}>
+          {s.subtitle}
+        </span>
+      )}
+      {look.length > 0 && (
+        <ul style={{ margin: 0, paddingLeft: 17, display: 'grid', gap: 4, fontSize: 13, lineHeight: 1.4, color: '#D9CFBE' }}>
+          {look.map((l, i) => <li key={i}>{l.prompt}</li>)}
+        </ul>
+      )}
+      <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
+                     fontFamily: 'var(--font-mono)', fontSize: 10, color: '#B5AA97' }}>
+        {r.light && (
+          <span className="koma-chip" style={r.light.soon
+            ? { background: 'var(--k-copper)', color: '#fff', borderColor: 'var(--k-copper)' }
+            : { background: 'transparent', color: 'var(--k-copper-lite)', borderColor: 'var(--k-copper-lite)' }}>
+            {r.light.text}
+          </span>
+        )}
+        {s.lens && <span>{lensLabel(s.lens, s.focal_hint)}</span>}
+        <span style={{ marginLeft: 'auto', color: 'var(--k-copper-lite)' }}>More ›</span>
+      </span>
+    </button>
   );
 }
 

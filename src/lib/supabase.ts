@@ -269,6 +269,12 @@ export interface Shot {
   status:      ShotStatus;
   status_note: string | null;
   sort_order:  number;
+  /** 'spot' is a place to stand. 'area' is a neighbourhood to wander with the
+   *  camera out: lat/lng is its middle, radius_m its reach, look_md a few
+   *  things to look for, and bearing stays null. */
+  kind:        'spot' | 'area';
+  radius_m:    number | null;
+  look_md:     string | null;
 }
 
 /**
