@@ -1,12 +1,11 @@
 'use client';
 
-// The booking-window board: every reservation and ticket, sorted by urgency.
-// Open now → opens within 30 days → later → no date yet → booked/skipped.
-// Phone: cards with a countdown and a status switch. Desktop (≥1000px): the
-// same rows as a table across trips. Private: admin cookie only.
+// The booking-window board. The trip's own hero (three counts and a To book /
+// Booked / All switch), then a timeline: Open now, each month, No date yet,
+// with a dot per booking coloured by kind. Tap a row to open notes, links and
+// the status switch in place. Private: admin cookie only.
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { OwnerNav } from '@/components/OwnerNav';
 import {
   type Booking, type BookingKind, type BookingStatus, type WindowType, BOOKING_KINDS, statusLabel,
@@ -21,24 +20,6 @@ export interface BoardTrip {
 const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
 const STATUSES: BookingStatus[] = ['not_open', 'open', 'booked', 'skipped'];
 const DAY = 86400000;
-
-type Group = 'open' | 'soon' | 'later' | 'undated' | 'done';
-const GROUPS: { key: Group; label: string }[] = [
-  { key: 'open', label: 'Open now' },
-  { key: 'soon', label: 'Opens soon · 30 days' },
-  { key: 'later', label: 'Later' },
-  { key: 'undated', label: 'No date yet' },
-  { key: 'done', label: 'Booked or skipped' },
-];
-
-function groupOf(b: Booking, now: Date): Group {
-  const s = effectiveStatus(b, now);
-  if (s === 'booked' || s === 'skipped') return 'done';
-  if (s === 'open') return 'open';
-  const at = opensAt(b);
-  if (!at) return 'undated';
-  return at.getTime() - now.getTime() <= 30 * DAY ? 'soon' : 'later';
-}
 
 function todayIso(): string {
   const d = new Date();
@@ -165,20 +146,60 @@ function StatusSwitch({ value, onChange, deadline }: { value: BookingStatus; onC
   );
 }
 
-function Pill({ b, s }: { b: Booking; s: BookingStatus }) {
-  return <span className={`bk-pill bk-pill-${s}`}>{statusLabel(b, s)}</span>;
-}
-
-function Links({ b }: { b: Booking }) {
-  if (!b.maps_query && !b.booking_url) return null;
+function Links({ b, onEdit }: { b: Booking; onEdit: () => void }) {
   let host = '';
   try { host = b.booking_url ? new URL(b.booking_url).hostname.replace(/^www\./, '') : ''; } catch { host = 'Book'; }
   return (
     <div className="bk-links">
-      {b.maps_query && <a href={mapsUrl(b.maps_query)} target="_blank" rel="noopener noreferrer">Maps</a>}
-      {b.booking_url && <a href={b.booking_url} target="_blank" rel="noopener noreferrer">{host || 'Book'}</a>}
+      {b.maps_query && <a className="maps" href={mapsUrl(b.maps_query)} target="_blank" rel="noopener noreferrer">Maps</a>}
+      {b.booking_url && <a href={b.booking_url} target="_blank" rel="noopener noreferrer" title={host}>Book ↗</a>}
+      <button onClick={onEdit}>Edit</button>
     </div>
   );
+}
+
+// ── Timeline ────────────────────────────────────────────────────────────────
+
+type View = 'todo' | 'done' | 'all';
+
+/** Dot colour: the itinerary's tag colours, by kind. Deadlines are pink. */
+function dotOf(b: Booking): string {
+  if (b.window_type === 'deadline') return 'var(--pink-mid)';
+  switch (b.kind) {
+    case 'restaurant': return 'var(--amber-mid)';
+    case 'train': case 'flight': return 'var(--navy-mid)';
+    case 'ticket': case 'tour': return 'var(--emerald-mid)';
+    case 'hotel': return 'var(--brass-tag-mid)';
+    default: return 'var(--gray-tag-mid)';
+  }
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** Heading key: open-and-not-booked first, then each month, then undated. */
+function sectionOf(b: Booking, now: Date): string {
+  const s = effectiveStatus(b, now);
+  if (s === 'open') return 'open';
+  return b.opens_on ? b.opens_on.slice(0, 7) : 'undated';
+}
+
+function sectionLabel(key: string, thisYear: number): string {
+  if (key === 'open') return 'Open now';
+  if (key === 'undated') return 'No date yet';
+  const [y, m] = key.split('-').map(Number);
+  return y === thisYear ? MONTHS[m - 1] : `${MONTHS[m - 1]} ${y}`;
+}
+
+// Hero themes whose background is light take ink text on tinted controls.
+const LIGHT_THEMES = new Set(['linen', 'stone', 'pewter', 'marigold']);
+
+function fmtRange(a: string | null, b: string | null): string {
+  if (!a) return '';
+  const [, m1, d1] = a.split('-').map(Number);
+  const mo = (m: number) => MONTHS[m - 1].slice(0, 3);
+  if (!b || b === a) return `${mo(m1)} ${d1}`;
+  const [, m2, d2] = b.split('-').map(Number);
+  return m1 === m2 ? `${mo(m1)} ${d1}–${d2}` : `${mo(m1)} ${d1} – ${mo(m2)} ${d2}`;
 }
 
 // ── Board ───────────────────────────────────────────────────────────────────
@@ -189,13 +210,14 @@ export default function BookingsBoard({ initial, trips, feedHttp, feedWebcal }: 
   const [rows, setRows] = useState<Booking[]>(initial);
   const [now, setNow] = useState(() => new Date());
   const [tripFilter, setTripFilter] = useState<string>('upcoming');
+  const [view, setView] = useState<View>('todo');
+  const [open, setOpen] = useState<number | null>(null);
   const [editing, setEditing] = useState<number | 'new' | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [showDone, setShowDone] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Countdowns, grouping and "your time" depend on the clock and the phone's
+  // Countdowns, sections and "your time" depend on the clock and the phone's
   // zone, which the server (UTC on Vercel) doesn't share, so they render
   // client-side only.
   const [mounted, setMounted] = useState(false);
@@ -209,21 +231,40 @@ export default function BookingsBoard({ initial, trips, feedHttp, feedWebcal }: 
   const tripById = useMemo(() => new Map(trips.map(t => [t.id, t])), [trips]);
   const upcomingIds = useMemo(() => new Set(trips.filter(t => !(t.date_end ?? t.date_start) || (t.date_end ?? t.date_start)! >= today).map(t => t.id)), [trips, today]);
 
-  const visible = rows.filter(b =>
+  const inTrip = rows.filter(b =>
     tripFilter === 'all' ? true : tripFilter === 'upcoming' ? upcomingIds.has(b.trip_id) : String(b.trip_id) === tripFilter);
+  const isDone = (b: Booking) => b.status === 'booked' || b.status === 'skipped';
+  const visible = inTrip.filter(b => view === 'all' || (view === 'done') === isDone(b));
 
   const sorted = [...visible].sort((a, b) => {
     const ta = opensAt(a)?.getTime() ?? Infinity, tb = opensAt(b)?.getTime() ?? Infinity;
     return ta - tb || a.sort_order - b.sort_order || a.id - b.id;
   });
-  const grouped = new Map<Group, Booking[]>(GROUPS.map(g => [g.key, []]));
-  for (const b of sorted) grouped.get(groupOf(b, now))!.push(b);
+  const sections = new Map<string, Booking[]>();
+  if (view !== 'done') sections.set('open', []);
+  for (const b of sorted) {
+    const k = isDone(b) ? (b.opens_on ? b.opens_on.slice(0, 7) : 'undated') : sectionOf(b, now);
+    if (!sections.has(k)) sections.set(k, []);
+    sections.get(k)!.push(b);
+  }
+  const order = [...sections.keys()].sort((a, b) => (a === 'open' ? -1 : b === 'open' ? 1 : a === 'undated' ? 1 : b === 'undated' ? -1 : a.localeCompare(b)));
 
-  const openCount = grouped.get('open')!.length;
-  const toBook = visible.filter(b => b.status !== 'booked' && b.status !== 'skipped').length;
-  const bookedCount = visible.filter(b => b.status === 'booked').length;
-  const oneTrip = tripFilter !== 'all' && tripFilter !== 'upcoming' ? tripById.get(Number(tripFilter)) : null;
+  // The hero takes the trip's colours when the list is one trip's.
+  const tripIdsInView = new Set(inTrip.map(b => b.trip_id));
+  const oneTrip = tripFilter !== 'all' && tripFilter !== 'upcoming'
+    ? tripById.get(Number(tripFilter)) ?? null
+    : tripIdsInView.size === 1 ? tripById.get([...tripIdsInView][0]) ?? null : null;
+  const theme = oneTrip?.header_theme ?? null;
+  const heroBg = theme ? `var(--trip-${theme})` : 'var(--ink)';
+  const heroFg = theme ? `var(--trip-${theme}-fg)` : 'var(--bg)';
+  const light = theme ? LIGHT_THEMES.has(theme) : false;
   const defaultTrip = oneTrip?.id ?? trips.find(t => upcomingIds.has(t.id))?.id ?? trips[0]?.id;
+
+  const active = inTrip.filter(b => !isDone(b));
+  const openNow = active.filter(b => b.window_type !== 'deadline' && effectiveStatus(b, now) === 'open').length;
+  const opening = active.filter(b => b.window_type !== 'deadline' && effectiveStatus(b, now) === 'not_open').length;
+  const deadlines = active.filter(b => b.window_type === 'deadline').length;
+  const tripChoices = trips.filter(t => rows.some(r => r.trip_id === t.id));
 
   async function save(d: Draft) {
     setSaving(true); setErr(null);
@@ -254,163 +295,144 @@ export default function BookingsBoard({ initial, trips, feedHttp, feedWebcal }: 
     setEditing(null);
   }
 
-  const card = (b: Booking, g: Group) => {
+  /** The mono line above the title: when it opens (or is due), and how long until. */
+  function dateLine(b: Booking, s: BookingStatus, done: boolean) {
+    const w = whenLines(b);
+    const cd = !done && s === 'not_open' ? countdown(b, now) : null;
+    const dl = b.window_type === 'deadline';
+    const parts: React.ReactNode[] = [];
+    if (dl) parts.push(<span key="dl" className="dl">{s === 'open' && !done ? 'overdue' : 'deadline'}</span>);
+    if (w.main) parts.push(<span key="w">{dl ? 'by ' : ''}{w.main}</span>);
+    else if (!done && s === 'open') parts.push(<span key="o">open now</span>);
+    else parts.push(<span key="n">no date yet</span>);
+    if (cd) parts.push(<i key="cd">{b.opens_approx ? '~' : ''}{cd.n} {cd.unit}{dl ? ' left' : ''}</i>);
+    return parts.flatMap((p, i) => i ? [<i key={`s${i}`}> · </i>, p] : [p]);
+  }
+
+  const row = (b: Booking) => {
     if (editing === b.id) {
-      return <BookingForm key={b.id} draft={{ ...b }} trips={trips} saving={saving} onSave={save} onCancel={() => setEditing(null)} onDelete={() => remove(b.id)} />;
+      return <div key={b.id} className="bk-ev" style={{ ['--dot' as string]: dotOf(b) }}>
+        <BookingForm draft={{ ...b }} trips={trips} saving={saving} onSave={save} onCancel={() => setEditing(null)} onDelete={() => remove(b.id)} />
+      </div>;
     }
     const s = effectiveStatus(b, now);
+    const done = isDone(b);
     const w = whenLines(b);
-    const cd = g === 'soon' || g === 'later' ? countdown(b, now) : null;
     const trip = tripById.get(b.trip_id);
     const lead = leadText(b);
+    const isOpen = open === b.id;
+    const sub = [b.what, b.for_date ? `for ${fmtDate(b.for_date)}` : null, !oneTrip && trip ? trip.title : null].filter(Boolean).join(' · ');
     return (
-      <div key={b.id} className={`bk-card${g === 'open' ? ' hot' : ''}${g === 'done' ? ' done' : ''}`}>
-        <div className="bk-ct">
-          <div style={{ minWidth: 0 }}>
-            <button className="bk-title" onClick={() => setEditing(b.id)} title="Edit">{b.title}</button>
-            <div className="bk-what">
-              {[b.what, b.for_date ? fmtDate(b.for_date) : null, !oneTrip && trip ? trip.title : null].filter(Boolean).join(' · ')}
-            </div>
-          </div>
-          {cd ? (
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div className={`bk-cd${g === 'soon' ? ' soon' : ''}`}>{b.opens_approx ? '~' : ''}{cd.n}</div>
-              <div className="bk-cdl">{b.window_type === 'deadline' ? `${cd.unit} left` : cd.unit}</div>
-            </div>
-          ) : <Pill b={b} s={s} />}
-        </div>
-        {(w.main || lead) && (
-          <div className="bk-when">
-            {g === 'done' || !w.main ? (b.window_type === 'deadline' && w.main ? 'Due ' : '') : (opensAt(b)?.getTime() ?? 0) <= now.getTime() ? (b.window_type === 'deadline' ? 'Was due ' : 'Opened ') : (b.window_type === 'deadline' ? 'Due ' : 'Opens ')}{w.main}
-            {w.local && <em> · {w.local}</em>}
-            {lead && b.window_type !== 'deadline' && <em> · {lead}</em>}
+      <div key={b.id} className={`bk-ev${!done && s === 'open' ? ' hot' : ''}${done ? ' done' : ''}`} style={{ ['--dot' as string]: dotOf(b) }}>
+        <button className="bk-row" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : b.id)}>
+          <div className="bk-dt">{dateLine(b, s, done)}</div>
+          <div className="bk-title">{b.title}</div>
+          {sub && <div className="bk-what">{sub}</div>}
+        </button>
+        {isOpen && (
+          <div className="bk-x">
+            <dl className="bk-kv">
+              {w.main && <><dt>{b.window_type === 'deadline' ? 'Due' : 'Opens'}</dt><dd>{w.main}{w.local && <><br />{w.local}</>}</dd></>}
+              {b.for_date && <><dt>For</dt><dd>{fmtDate(b.for_date)}</dd></>}
+              {lead && b.window_type !== 'deadline' && <><dt>Lead</dt><dd>{lead}</dd></>}
+              {!oneTrip && trip && <><dt>Trip</dt><dd>{trip.title}</dd></>}
+            </dl>
+            {b.notes && <div className="bk-note">{b.notes}</div>}
+            <Links b={b} onEdit={() => setEditing(b.id)} />
+            {done
+              ? <button className="bk-undo" onClick={() => setStatus(b, 'not_open')}>Undo</button>
+              : <StatusSwitch value={b.status === 'not_open' && s === 'open' ? 'open' : b.status} deadline={b.window_type === 'deadline'} onChange={st => setStatus(b, st)} />}
           </div>
         )}
-        <Links b={b} />
-        {b.notes && <div className="bk-note">{b.notes}</div>}
-        {g !== 'done' && <StatusSwitch value={b.status === 'not_open' && s === 'open' ? 'open' : b.status} deadline={b.window_type === 'deadline'} onChange={st => setStatus(b, st)} />}
-        {g === 'done' && <button className="bk-undo" onClick={() => setStatus(b, 'not_open')}>Undo</button>}
       </div>
     );
   };
 
+  const views: { v: View; l: string }[] = [{ v: 'todo', l: 'To book' }, { v: 'done', l: 'Booked' }, { v: 'all', l: 'All' }];
+  const thisYear = now.getFullYear();
+
   return (
     <div className="bk-page" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 80px' }}>
       <OwnerNav here="bookings" />
-      <header style={{ padding: '20px var(--px) 16px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ ...mono, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--brass)', marginBottom: 6 }}>
-          <Link href="/">koji</Link> · <Link href="/admin">admin</Link>
+
+      <section className={`bk-hero${light ? ' light' : ''}`} style={{ background: heroBg, color: heroFg }}>
+        <div className="bk-hero-top">
+          <div className="bk-eyebrow">Bookings · {active.length} to make</div>
+          <button className="bk-add" style={{ color: heroFg }} onClick={() => { setEditing('new'); setOpen(null); }}>+ Add</button>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
-          <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 26, color: 'var(--ink)' }}>
-            {oneTrip ? oneTrip.title : 'Booking windows'}
-          </h1>
-          <button className="bk-btn bk-btn-ink" onClick={() => setEditing('new')}>+ Add</button>
+        <h1>{oneTrip ? oneTrip.title : tripFilter === 'all' ? 'All trips' : 'Upcoming trips'}</h1>
+        {oneTrip && <div className="bk-hero-sub">{[oneTrip.subtitle, fmtRange(oneTrip.date_start, oneTrip.date_end)].filter(Boolean).join(' · ')}</div>}
+        <div className="bk-tiles" style={{ visibility: mounted ? 'visible' : 'hidden' }}>
+          <div className="bk-tile" style={{ borderColor: 'var(--amber-bg)' }}><b>{openNow}</b><span>open now</span></div>
+          <div className="bk-tile" style={{ borderColor: 'var(--navy-bg)' }}><b>{opening}</b><span>opening</span></div>
+          <div className="bk-tile" style={{ borderColor: 'var(--pink-bg)' }}><b>{deadlines}</b><span>{deadlines === 1 ? 'deadline' : 'deadlines'}</span></div>
         </div>
-        <div className="num" style={{ ...mono, fontSize: 10, color: 'var(--ink-4)', letterSpacing: '0.06em', marginTop: 4 }}>
-          {toBook} to book{mounted ? ` · ${openCount} open now` : ''} · {bookedCount} booked
+        <div className="bk-htabs" role="tablist">
+          {views.map(o => (
+            <button key={o.v} role="tab" aria-selected={view === o.v} className={view === o.v ? 'on' : ''}
+              style={view === o.v ? { background: heroFg, color: heroBg } : { color: heroFg }}
+              onClick={() => { setView(o.v); setOpen(null); }}>{o.l}</button>
+          ))}
         </div>
-        <div style={{ display: 'flex', gap: 6, marginTop: 14, flexWrap: 'wrap' }}>
-          {[{ v: 'upcoming', l: 'Upcoming trips' }, ...trips.filter(t => upcomingIds.has(t.id) || rows.some(r => r.trip_id === t.id)).map(t => ({ v: String(t.id), l: t.title })), { v: 'all', l: 'All' }]
+      </section>
+
+      {tripChoices.length > 1 && (
+        <div className="bk-trips">
+          {[{ v: 'upcoming', l: 'Upcoming' }, ...tripChoices.map(t => ({ v: String(t.id), l: t.title })), { v: 'all', l: 'All' }]
             .map(o => <button key={o.v} className={`bk-chip${tripFilter === o.v ? ' on' : ''}`} onClick={() => setTripFilter(o.v)}>{o.l}</button>)}
         </div>
-      </header>
+      )}
 
-      <main style={{ padding: '4px var(--px) 0' }}>
-        {err && <div style={{ margin: '12px 0', padding: '10px 12px', background: '#FBEDE7', color: '#7A2A12', borderRadius: 8, fontSize: 13 }}>{err}</div>}
+      <main style={{ paddingTop: 4 }}>
+        {err && <div style={{ margin: '12px var(--px)', padding: '10px 12px', background: '#FBEDE7', color: '#7A2A12', borderRadius: 8, fontSize: 13 }}>{err}</div>}
         {editing === 'new' && defaultTrip != null && (
-          <div style={{ marginTop: 14 }}>
+          <div style={{ margin: '14px var(--px) 0' }}>
             <BookingForm draft={blank(defaultTrip)} trips={trips} saving={saving} onSave={save} onCancel={() => setEditing(null)} />
           </div>
         )}
 
-        {!mounted && <div className="shimmer-anim" style={{ height: 120, marginTop: 20, borderRadius: 10, backgroundImage: 'linear-gradient(90deg, var(--bg-subtle), var(--surface), var(--bg-subtle))' }} />}
+        {!mounted && <div className="shimmer-anim" style={{ height: 160, margin: '24px var(--px) 0', borderRadius: 12, backgroundImage: 'linear-gradient(90deg, var(--bg-subtle), var(--surface), var(--bg-subtle))' }} />}
 
         {mounted && visible.length === 0 && editing !== 'new' && (
-          <div style={{ textAlign: 'center', padding: '48px 12px' }}>
-            <div style={{ fontFamily: 'var(--font-serif)', fontSize: 19, fontWeight: 300, color: 'var(--ink-2)' }}>Nothing to book yet</div>
-            <p style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.5 }}>
-              Add each reservation or ticket with the day booking opens.<br />koji will put it on your calendar and remind you.
-            </p>
+          <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+            <div style={{ fontFamily: 'var(--font-serif)', fontSize: 19, fontWeight: 300, color: 'var(--ink-2)' }}>
+              {view === 'done' ? 'Nothing booked yet' : view === 'todo' && inTrip.length ? 'All booked' : 'Nothing to book yet'}
+            </div>
+            {view !== 'done' && !inTrip.length && (
+              <p style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.5 }}>
+                Add each reservation or ticket with the day booking opens.<br />koji will put it on your calendar and remind you.
+              </p>
+            )}
           </div>
         )}
 
-        {/* Phone: grouped cards */}
-        {mounted && <>
-        <div className="bk-cards">
-          {GROUPS.map(({ key, label }) => {
-            const list = grouped.get(key)!;
-            if (!list.length) return null;
-            const collapsed = key === 'done' && !showDone;
-            return (
-              <section key={key}>
-                <div className={`bk-group${key === 'open' ? ' hot' : ''}`}>
-                  <span>{label}</span>
-                  {key === 'done'
-                    ? <button className="bk-undo" style={{ margin: 0 }} onClick={() => setShowDone(v => !v)}>{showDone ? 'hide' : `show ${list.length}`}</button>
-                    : <span className="num">{list.length}</span>}
-                </div>
-                {!collapsed && list.map(b => card(b, key))}
-              </section>
-            );
-          })}
-        </div>
-
-        {/* Desktop: one table across trips */}
-        {visible.length > 0 && (
-          <table className="bk-table">
-            <thead><tr><th>Booking</th><th>Opens</th><th>Lead</th><th>For</th><th>Links</th><th>Status</th></tr></thead>
-            <tbody>
-              {GROUPS.flatMap(({ key }) => (key === 'done' && !showDone ? [] : grouped.get(key)!).map(b => {
-                if (editing === b.id) return <tr key={b.id}><td colSpan={6}>{card(b, key)}</td></tr>;
-                const s = effectiveStatus(b, now);
-                const w = whenLines(b);
-                const cd = s === 'not_open' ? countdown(b, now) : null;
-                const trip = tripById.get(b.trip_id);
-                return (
-                  <tr key={b.id} className={`${key === 'open' ? 'hot' : ''}${key === 'done' ? ' done' : ''}`}>
-                    <td>
-                      {!oneTrip && trip && <span className="bk-trip">{trip.title}</span>}
-                      <button className="bk-title" onClick={() => setEditing(b.id)}>{b.title}</button>
-                      {(b.what || b.notes) && <div className="bk-what">{[b.what, b.notes].filter(Boolean).join(' · ')}</div>}
-                    </td>
-                    <td className="m">{b.window_type === 'deadline' && w.main ? 'Due ' : ''}{w.main || '—'}{w.local && <em>{w.local}</em>}{cd && <em>{b.window_type === 'deadline' ? `${cd.n} ${cd.unit} left` : `in ${cd.n} ${cd.unit}`}</em>}</td>
-                    <td className="m">{b.window_type === 'deadline' ? 'deadline' : leadText(b) || '—'}</td>
-                    <td className="m">{b.for_date ? fmtDate(b.for_date) : '—'}</td>
-                    <td><Links b={b} /></td>
-                    <td>
-                      <select className="bk-select" value={b.status === 'not_open' && s === 'open' ? 'open' : b.status} onChange={e => setStatus(b, e.target.value as BookingStatus)}>
-                        {STATUSES.filter(st => b.window_type !== 'deadline' || st !== 'open' || s === 'open').map(st => <option key={st} value={st}>{statusLabel(b, st)}</option>)}
-                      </select>
-                    </td>
-                  </tr>
-                );
-              }))}
-            </tbody>
-          </table>
-        )}
-        {visible.length > 0 && grouped.get('done')!.length > 0 && (
-          <button className="bk-undo bk-table-toggle" onClick={() => setShowDone(v => !v)}>
-            {showDone ? 'Hide booked and skipped' : `Show ${grouped.get('done')!.length} booked or skipped`}
-          </button>
-        )}
-
-        </>}
+        {mounted && order.map(k => {
+          const list = sections.get(k)!;
+          if (!list.length) return null;
+          return (
+            <section key={k}>
+              <div className={`bk-month${k === 'open' ? ' hot' : ''}`}>
+                {sectionLabel(k, thisYear)}<span>{list.length}</span>
+              </div>
+              <div className="bk-line">{list.map(row)}</div>
+            </section>
+          );
+        })}
 
         {/* Calendar feed */}
-        <section style={{ marginTop: 36, padding: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '3px solid var(--brass)', borderRadius: 8 }}>
-          <div style={{ ...mono, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--brass)' }}>Reminders</div>
-          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 400, margin: '4px 0 6px' }}>Subscribe in Apple Calendar</div>
-          <p style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.55 }}>
-            Each window becomes an event with alerts the day before and when it opens, plus a Sunday list of everything open and not booked.
-            Booked and skipped items drop off at the next refresh. On a Mac, untick <b>Remove: Alerts</b> when subscribing, and set refresh to every hour.
-            The link has a private key in it, so don&apos;t share it.
-          </p>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-            <a className="bk-btn bk-btn-ink" href={feedWebcal}>Subscribe</a>
-            <button className="bk-btn" onClick={() => { navigator.clipboard?.writeText(feedHttp).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}>
-              {copied ? 'Copied' : 'Copy link'}
-            </button>
+        <section className="bk-feed">
+          <div className="bk-feed-ic" style={{ background: heroBg, color: heroFg }}>◷</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Alerts on your calendar</div>
+            <p style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5, marginTop: 3 }}>
+              The day before and when each window opens, plus a Sunday list of what&apos;s open. On a Mac, untick <b>Remove: Alerts</b> and refresh hourly. The link has a private key, so don&apos;t share it.
+            </p>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              <a className="bk-btn bk-btn-ink" href={feedWebcal}>Subscribe</a>
+              <button className="bk-btn" onClick={() => { navigator.clipboard?.writeText(feedHttp).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}>
+                {copied ? 'Copied' : 'Copy link'}
+              </button>
+            </div>
           </div>
         </section>
       </main>

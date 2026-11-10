@@ -730,9 +730,25 @@ the table never holds confirmation or seat numbers.
   whose opening has passed *shows* as open (`effectiveStatus` in
   `lib/bookings.ts`), so nothing needs flipping at 10:00 JST. Opening instants
   come from `zonedToUtc` (Intl, two passes for DST).
-- **Board.** Grouped Open now → Opens within 30 days → Later → No date →
-  Booked/skipped, cards on a phone, one table at ≥1000px. Countdown, grouping
-  and "your time" render client-side only, because the server runs in UTC.
+- **Board (redesigned 2026-11-10, Nathan's pick: A's header + B's timeline).**
+  A hero in the trip's own `--trip-<theme>` colours (ink when the list spans
+  several trips) with three counts (open now / opening / deadlines) and a To
+  book / Booked / All capsule. Below it a timeline: Open now, then one heading
+  per month of `opens_on`, then No date yet, with a dot per booking coloured by
+  kind (restaurant amber, train/flight navy, ticket/tour emerald, hotel brass,
+  deadline pink). Tapping a row opens notes, Maps / Book / Edit and the status
+  switch in place. One 720px column at every width (the old ≥1000px table is
+  gone). Countdown, sections and "your time" render client-side only, because
+  the server runs in UTC.
+- **Home page (same day).** The next trip is a hero card: countdown (or "day N
+  of M" while on it), its stays as town chips in their `STAY_PALETTE` colours
+  (`lib/stayColors.ts`, shared with the client `Stays.tsx`), nights and stays
+  chips, and for the owner an amber "N bookings open" chip
+  (`OpenBookingsChip`, asks `/api/admin/bookings` only when `verdicts:owner`
+  is set; it's a span, not a link, because it sits inside the card's link).
+  Other upcoming trips and past trips are two-column tile grids; an odd count
+  makes the last tile full width. At ≥900px the hero and past grid sit side by
+  side.
 - **Reminders = a calendar feed**, not push or email (Nathan's pick).
   `GET /api/bookings/ics?k=<token>` — one event per unbooked window (timed
   windows alarm the day before, 15 min before and at opening; all-day ones at

@@ -1,6 +1,8 @@
 import Link from 'next/link';
-import { getTrips } from '@/lib/supabase';
-import type { Trip } from '@/lib/supabase';
+import { getTrips, getStays } from '@/lib/supabase';
+import type { Stay, Trip } from '@/lib/supabase';
+import { STAY_PALETTE, heroIsLight } from '@/lib/stayColors';
+import { OpenBookingsChip } from '@/components/OpenBookingsChip';
 import { KojiMark } from '@/components/KojiMark';
 import { OwnerNav } from '@/components/OwnerNav';
 
@@ -27,65 +29,81 @@ const THEME_COLORS: Record<string, { bg: string; fg: string }> = {
   stone:    { bg: '#E8E3D8', fg: '#2A2418' },
 };
 
-function TripCard({ trip }: { trip: Trip }) {
-  const theme = THEME_COLORS[trip.header_theme] ?? THEME_COLORS.forest;
-  const dateStr = trip.date_start
-    ? new Date(trip.date_start + 'T00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-    : null;
+type Theme = { bg: string; fg: string };
+const themeOf = (t: Trip): Theme => THEME_COLORS[t.header_theme] ?? THEME_COLORS.forest;
+const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+function dayDiff(a: string, b: string): number {
+  return Math.round((Date.parse(b + 'T00:00Z') - Date.parse(a + 'T00:00Z')) / 86400000);
+}
+
+/** "Feb 11–27, 2027", "May 24 – Jun 1, 2026" */
+function range(a: string | null, b: string | null): string {
+  if (!a) return '';
+  const [y1, m1, d1] = a.split('-').map(Number);
+  if (!b || b === a) return `${MO[m1 - 1]} ${d1}, ${y1}`;
+  const [y2, m2, d2] = b.split('-').map(Number);
+  if (y1 !== y2) return `${MO[m1 - 1]} ${d1}, ${y1} – ${MO[m2 - 1]} ${d2}, ${y2}`;
+  return m1 === m2 ? `${MO[m1 - 1]} ${d1}–${d2}, ${y1}` : `${MO[m1 - 1]} ${d1} – ${MO[m2 - 1]} ${d2}, ${y1}`;
+}
+
+function monthYear(iso: string | null): string {
+  if (!iso) return 'Planning';
+  const [y, m] = iso.split('-').map(Number);
+  return `${MO[m - 1]} ${y}`;
+}
+
+/** The next trip, big: countdown, its towns in their stay colours, chips. */
+function NextTrip({ trip, stays, today }: { trip: Trip; stays: Stay[]; today: string }) {
+  const theme = themeOf(trip);
+  const light = heroIsLight(theme.bg);
+  const start = trip.date_start, end = trip.date_end ?? trip.date_start;
+  const under = start ? dayDiff(today, start) : null;
+  const onTrip = start && end && under !== null && under <= 0 && today <= end;
+  const count = onTrip
+    ? { n: dayDiff(start!, today) + 1, l: `of ${dayDiff(start!, end!) + 1} days` }
+    : under !== null && under > 0 ? { n: under, l: under === 1 ? 'day to go' : 'days to go' } : null;
+  const nights = stays.reduce((n, st) => n + st.nights, 0) || (start && end ? dayDiff(start, end) : 0);
   return (
-    <Link href={`/trips/${trip.slug}`} className="pressable" style={{ display: 'block' }}>
-      <div style={{
-        background: theme.bg,
-        color: theme.fg,
-        borderRadius: 18,
-        padding: '22px 22px 20px',
-        marginBottom: 12,
-        transition: 'opacity 0.15s',
-      }}>
-        <div style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9,
-          letterSpacing: '0.22em',
-          textTransform: 'uppercase',
-          opacity: 0.55,
-          marginBottom: 8,
-        }}>
-          {trip.eyebrow}
-          {trip.companion && ` · ${trip.companion}`}
-          {dateStr && ` · ${dateStr}`}
+    <Link href={`/trips/${trip.slug}`} className={`home-feature pressable${light ? ' light' : ''}`} style={{ background: theme.bg, color: theme.fg }}>
+      <div className="e">{onTrip ? 'On the road' : 'Next trip'}{start ? ` · ${range(start, trip.date_end)}` : ''}</div>
+      {count && <div className="home-count"><b>{count.n}</b><span>{count.l}</span></div>}
+      <h2>{trip.title}</h2>
+      {trip.subtitle && <div className="s">{trip.subtitle}</div>}
+      {stays.length > 0 ? (
+        <div className="home-route">
+          {stays.map((st, i) => (
+            <span key={st.id} style={{ borderColor: (STAY_PALETTE[st.color] ?? STAY_PALETTE.blue)[light ? 'ink' : 'light'] }}>
+              {st.place}<small>{st.nights}{i === 0 ? (st.nights === 1 ? ' night' : ' nights') : ''}</small>
+            </span>
+          ))}
         </div>
-        <div style={{
-          fontFamily: 'var(--font-serif)',
-          fontWeight: 300,
-          fontSize: 22,
-          letterSpacing: '-0.01em',
-          lineHeight: 1.2,
-          marginBottom: 6,
-        }}>
-          {trip.title}
-        </div>
-        <div style={{
-          fontFamily: 'var(--font-serif)',
-          fontWeight: 300,
-          fontStyle: 'italic',
-          fontSize: 15,
-          opacity: 0.75,
-          marginBottom: 10,
-        }}>
-          {trip.subtitle}
-        </div>
-        <div style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 12,
-          fontWeight: 300,
-          lineHeight: 1.5,
-          opacity: 0.65,
-        }}>
-          {trip.meta}
-        </div>
+      ) : trip.meta ? <div className="home-meta">{trip.meta}</div> : null}
+      <div className="home-foot">
+        <OpenBookingsChip />
+        {nights > 0 && <span className="home-chip">{nights} nights</span>}
+        {stays.length > 1 && <span className="home-chip">{stays.length} stays</span>}
       </div>
     </Link>
+  );
+}
+
+function TripTile({ trip, wide }: { trip: Trip; wide?: boolean }) {
+  const theme = themeOf(trip);
+  return (
+    <Link href={`/trips/${trip.slug}`} className={`home-tile pressable${wide ? ' wide' : ''}`} style={{ background: theme.bg, color: theme.fg }}>
+      <div className="e">{monthYear(trip.date_start)}</div>
+      <div className="t">{trip.title}</div>
+      {trip.subtitle && <div className="s">{trip.subtitle}</div>}
+    </Link>
+  );
+}
+
+function TileGrid({ trips }: { trips: Trip[] }) {
+  return (
+    <div className="home-grid">
+      {trips.map((t, i) => <TripTile key={t.id} trip={t} wide={trips.length % 2 === 1 && i === trips.length - 1} />)}
+    </div>
   );
 }
 
@@ -106,99 +124,45 @@ function splitTrips(trips: Trip[]): { upcoming: Trip[]; past: Trip[] } {
   return { upcoming, past };
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{
-      fontFamily: 'var(--font-mono)',
-      fontSize: 9.5,
-      letterSpacing: '0.22em',
-      textTransform: 'uppercase',
-      color: 'var(--ink-4)',
-      padding: '18px 4px 10px',
-    }}>
-      {children}
-    </div>
-  );
-}
-
 export default async function HomePage() {
   const trips = await getTrips();
   const { upcoming, past } = splitTrips(trips);
-  const counts = [
-    upcoming.length > 0 && `${upcoming.length} upcoming`,
-    past.length > 0 && `${past.length} past`,
-  ].filter(Boolean).join(' · ');
+  const next = upcoming.find(t => t.date_start) ?? upcoming[0] ?? null;
+  const later = upcoming.filter(t => t !== next);
+  const stays = next ? await getStays(next.id) : [];
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 60px' }}>
-      {/* Signed in only: Bookings, Admin and Rolls (the long-press on the
-          koma mark that used to lead to /koma is gone) */}
+    <div className="home-page" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 60px' }}>
+      {/* Signed in only: Trips, Bookings, Admin and Rolls */}
       <OwnerNav here="trips" ownerOnly />
-      <header style={{
-        padding: '40px var(--px) 24px',
-        borderBottom: '1px solid var(--border)',
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          marginBottom: 14,
-        }}>
-          <KojiMark size={36} />
-          <div style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9,
-            letterSpacing: '0.22em',
-            textTransform: 'uppercase',
-            color: 'var(--brass)',
-            flex: 1,
-          }}>
+      <header style={{ padding: '40px var(--px) 6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <KojiMark size={32} />
+          <h1 style={{ fontFamily: 'var(--font-mono)', fontWeight: 400, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--brass)' }}>
             koji · 行程
-          </div>
-        </div>
-        <h1 style={{
-          fontFamily: 'var(--font-serif)',
-          fontWeight: 300,
-          fontSize: 30,
-          letterSpacing: '-0.01em',
-          color: 'var(--ink)',
-          lineHeight: 1.1,
-          marginBottom: 8,
-        }}>
-          Itineraries
-        </h1>
-        <div style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          letterSpacing: '0.1em',
-          color: 'var(--ink-4)',
-        }}>
-          {trips.length === 0 ? 'no trips' : counts}
+          </h1>
         </div>
       </header>
 
       <main style={{ padding: '16px var(--px) 0' }}>
         {trips.length === 0 ? (
-          <div style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            color: 'var(--ink-4)',
-            textAlign: 'center',
-            padding: '40px 0',
-            letterSpacing: '0.1em',
-          }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-4)', textAlign: 'center', padding: '40px 0', letterSpacing: '0.1em' }}>
             no trips yet
           </div>
         ) : (
-          <>
-            {upcoming.map(trip => <TripCard key={trip.id} trip={trip} />)}
+          <div className="home-cols">
+            <div>
+              {next && <NextTrip trip={next} stays={stays} today={today} />}
+              {later.length > 0 && <><div className="home-lbl">Also coming up</div><TileGrid trips={later} /></>}
+            </div>
             {past.length > 0 && (
-              <>
-                <SectionLabel>past trips</SectionLabel>
-                {past.map(trip => <TripCard key={trip.id} trip={trip} />)}
-              </>
+              <div className="home-side">
+                <div className="home-lbl">Past trips · {past.length}</div>
+                <TileGrid trips={past} />
+              </div>
             )}
-          </>
+          </div>
         )}
       </main>
 
@@ -211,7 +175,7 @@ export default async function HomePage() {
         textTransform: 'uppercase',
         color: 'var(--ink-4)',
         borderTop: '1px solid var(--border)',
-        marginTop: 24,
+        marginTop: 28,
       }}>
         <Link href="/admin" style={{ color: 'var(--ink-4)' }}>admin</Link>
       </footer>

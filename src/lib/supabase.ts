@@ -411,6 +411,17 @@ export async function getTrips(): Promise<Trip[]> {
   return data ?? [];
 }
 
+/** One trip's stays, for the home page's next-trip card. Empty on any error. */
+export async function getStays(tripId: number): Promise<Stay[]> {
+  const { data } = await supabase
+    .from('koji_stays')
+    .select('*')
+    .eq('trip_id', tripId)
+    .order('check_in')
+    .order('sort_order');
+  return (data as Stay[]) ?? [];
+}
+
 export async function getTripBySlug(slug: string): Promise<{
   trip: Trip;
   logistics: Logistics[];
