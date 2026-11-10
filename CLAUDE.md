@@ -710,3 +710,31 @@ dinner to vote on; the itinerary itself is unchanged.
 - **Family picks first.** `source = 'family'` options lead; Claude's ideas show
   below as quieter dashed cards, never hidden.
 - Once a dinner is decided and booked, write it into the itinerary stop by hand.
+
+## Booking windows (2026-11-10)
+
+`/admin/bookings` is an owner-only list of every reservation and ticket per
+trip: when booking opens (date, optional time, IANA zone), how far out, a
+Google Maps search link plus an optional official booking link, a status and
+notes. koji only tracks and reminds — it never books or pays for anything, and
+the table never holds confirmation or seat numbers.
+
+- **Table.** `koji_bookings` (`sql/2026-11-10-koji-bookings.sql`), RLS on and
+  **no policies**, same as verdicts. Only `/api/admin/bookings` (admin cookie)
+  and the calendar feed read it. It is separate from the public
+  `column_key = 'book'` logistics rows, which stay free-text on the trip page.
+- **Status.** Stored `not_open | open | booked | skipped`. A `not_open` row
+  whose opening has passed *shows* as open (`effectiveStatus` in
+  `lib/bookings.ts`), so nothing needs flipping at 10:00 JST. Opening instants
+  come from `zonedToUtc` (Intl, two passes for DST).
+- **Board.** Grouped Open now → Opens within 30 days → Later → No date →
+  Booked/skipped, cards on a phone, one table at ≥1000px. Countdown, grouping
+  and "your time" render client-side only, because the server runs in UTC.
+- **Reminders = a calendar feed**, not push or email (Nathan's pick).
+  `GET /api/bookings/ics?k=<token>` — one event per unbooked window (timed
+  windows alarm the day before, 15 min before and at opening; all-day ones at
+  9am the day before and the day of) plus a Sunday "N still to book" event for
+  everything open and unbooked. Booked/skipped drop out on the next refresh.
+  The token is an HMAC of `ADMIN_PASSWORD` (`lib/bookingsFeed.ts`), so there is
+  no extra env var and changing the password rotates the subscription URL. On
+  a Mac, subscribing must untick "Remove: Alerts" or the alarms are dropped.

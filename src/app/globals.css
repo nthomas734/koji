@@ -527,3 +527,55 @@ input, textarea, select {
 .koma-note table { display: block; overflow-x: auto; }
 .koma-note tbody, .koma-note thead { display: table; width: 100%; }
 .koma-note tr:last-child td { border-bottom: none; }
+
+/* ── Booking windows (/admin/bookings) ───────────────────────────────────
+   Phone: grouped cards. Desktop (≥1000px): the same rows as one table. */
+.bk-group { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-4); margin: 22px 0 8px; }
+.bk-group.hot { color: #B23A1C; }
+.bk-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 12px 11px; margin-bottom: 8px; }
+.bk-card.hot { border-color: #E4B9A6; box-shadow: inset 3px 0 0 #B23A1C; }
+.bk-card.done { opacity: 0.62; }
+.bk-ct { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.bk-title { all: unset; cursor: pointer; font-family: var(--font-serif); font-weight: 400; font-size: 17px; color: var(--ink); line-height: 1.25; }
+.bk-title:hover { text-decoration: underline; text-decoration-color: var(--border-mid); text-underline-offset: 3px; }
+.bk-what { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; line-height: 1.4; }
+.bk-when { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-2); margin-top: 8px; line-height: 1.55; }
+.bk-when em { font-style: normal; color: var(--ink-4); }
+.bk-note { font-size: 12px; color: var(--ink-3); margin-top: 6px; font-style: italic; line-height: 1.45; }
+.bk-links { display: flex; gap: 12px; margin-top: 8px; font-size: 12px; font-weight: 600; flex-wrap: wrap; }
+.bk-links a { color: var(--green-mid); border-bottom: 1px solid var(--green-bg); }
+.bk-cd { font-family: var(--font-mono); font-size: 22px; line-height: 1; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.bk-cd.soon { color: #B23A1C; }
+.bk-cdl { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-4); margin-top: 3px; }
+.bk-pill { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 7px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
+.bk-pill-not_open { background: var(--bg-subtle); color: var(--ink-3); }
+.bk-pill-open { background: var(--amber-bg); color: var(--amber); }
+.bk-pill-booked { background: var(--green-bg); color: var(--green); }
+.bk-pill-skipped { background: var(--gray-tag-bg); color: var(--gray-tag); }
+.bk-seg { display: flex; margin-top: 10px; border: 1px solid var(--border-mid); border-radius: 7px; overflow: hidden; }
+.bk-seg button { all: unset; cursor: pointer; flex: 1; text-align: center; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; padding: 8px 0; color: var(--ink-3); border-right: 1px solid var(--border); }
+.bk-seg button:last-child { border-right: 0; }
+.bk-seg button.on { background: var(--ink); color: var(--bg); }
+.bk-chip { all: unset; cursor: pointer; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 10px; border-radius: 99px; border: 1px solid var(--border-mid); color: var(--ink-3); }
+.bk-chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.bk-btn { all: unset; cursor: pointer; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--border-mid); color: var(--ink); }
+.bk-btn-ink { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.bk-btn:disabled { opacity: 0.45; cursor: default; }
+.bk-undo { all: unset; cursor: pointer; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); margin-top: 8px; border-bottom: 1px solid var(--border-mid); }
+.bk-table, .bk-table-toggle { display: none; }
+.bk-trip { display: inline-block; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; background: var(--ink); color: var(--bg); padding: 2px 6px; border-radius: 4px; margin-right: 8px; vertical-align: 2px; }
+.bk-select { font-family: var(--font-mono); font-size: 11px; padding: 4px 6px; border: 1px solid var(--border-mid); border-radius: 5px; background: var(--surface); color: var(--ink); }
+@media (min-width: 1000px) {
+  .bk-page { --max-w: 1080px; }
+  .bk-cards { display: none; }
+  .bk-table { display: table; width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 13px; }
+  .bk-table-toggle { display: inline-block; margin-top: 14px; }
+  .bk-table th { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-4); text-align: left; font-weight: 400; padding: 0 10px 8px; border-bottom: 1px solid var(--border-mid); }
+  .bk-table td { padding: 11px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .bk-table td.m { font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); white-space: nowrap; }
+  .bk-table td.m em { display: block; font-style: normal; color: var(--ink-4); font-size: 10px; margin-top: 2px; }
+  .bk-table tr.hot td:first-child { box-shadow: inset 3px 0 0 #B23A1C; }
+  .bk-table tr.done { opacity: 0.55; }
+  .bk-table .bk-links { margin-top: 0; }
+  .bk-table .bk-title { font-size: 15.5px; }
+}

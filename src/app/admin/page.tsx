@@ -46,6 +46,22 @@ export default async function AdminPage() {
             Trips
           </h1>
         </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+        <Link
+          href="/admin/bookings"
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--ink)',
+            border: '1px solid var(--border-mid)',
+            padding: '8px 14px',
+            borderRadius: 6,
+          }}
+        >
+          Bookings
+        </Link>
         <Link
           href="/admin/trips/new"
           style={{
@@ -61,6 +77,7 @@ export default async function AdminPage() {
         >
           + New trip
         </Link>
+        </div>
       </header>
 
       <main style={{ padding: '12px var(--px) 0' }}>
