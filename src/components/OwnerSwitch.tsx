@@ -20,9 +20,9 @@ import { useEffect, useState } from 'react';
 export type OwnerMode = 'plan' | 'shoot' | 'verdicts';
 
 const MODES: { key: OwnerMode; label: string; sub: string }[] = [
-  { key: 'plan', label: 'Plan', sub: 'What Dez sees' },
-  { key: 'shoot', label: 'Shoot', sub: 'koma frames' },
-  { key: 'verdicts', label: 'Verdicts', sub: 'Go back · once · skip' },
+  { key: 'plan', label: 'Plan', sub: 'The itinerary, exactly as Dez sees it' },
+  { key: 'shoot', label: 'Shoot', sub: 'koma: frames and areas near you' },
+  { key: 'verdicts', label: 'Verdicts', sub: 'Go back, fine once or skip, on every stop' },
 ];
 
 const COPPER = '#B83C01';
@@ -30,17 +30,17 @@ const COPPER = '#B83C01';
 function Glyph({ mode, color }: { mode: OwnerMode; color: string }) {
   const p = { fill: 'none', stroke: color, strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   if (mode === 'plan') return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden><path {...p} d="M4 6h16M4 12h16M4 18h10" /></svg>
+    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden><path {...p} d="M4 6h16M4 12h16M4 18h10" /></svg>
   );
   if (mode === 'shoot') return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
       <path {...p} d="M8.8 6.2 L9.7 4.4 H14.3 L15.2 6.2" />
       <rect {...p} x="2.4" y="6.2" width="19.2" height="13.4" rx="3.2" />
       <circle {...p} cx="12" cy="12.9" r="4.3" />
     </svg>
   );
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
       <circle {...p} cx="12" cy="12" r="8" />
       <path d="M12 4a8 8 0 0 1 0 16z" fill={color} />
     </svg>
@@ -83,14 +83,13 @@ export function OwnerSwitch({ mode, onMode, tripId, hasShots }: {
     <>
       <button
         type="button"
-        className="owner-pill"
+        className={`owner-pill pressable${shoot ? ' cu' : ''}`}
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        style={{ background: shoot ? COPPER : 'var(--ink)' }}
       >
-        {label}
-        <svg width="9" height="9" viewBox="0 0 24 24" aria-hidden style={{ marginLeft: 1 }}>
+        <span className="owner-pill-in">{label}</span>
+        <svg width="9" height="9" viewBox="0 0 24 24" aria-hidden style={{ margin: '0 6px 0 2px' }}>
           <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
@@ -101,26 +100,25 @@ export function OwnerSwitch({ mode, onMode, tripId, hasShots }: {
           <div className="owner-sheet">
             <div className="owner-grab" />
             <div className="owner-lbl">This trip</div>
-            <div className="owner-modes" style={{ gridTemplateColumns: `repeat(${modes.length}, 1fr)` }}>
+            <div className="seg-track" role="tablist" aria-label="Mode">
               {modes.map(m => {
                 const on = m.key === mode;
-                const accent = m.key === 'shoot' ? COPPER : 'var(--ink)';
                 return (
                   <button
                     key={m.key}
                     type="button"
-                    className={`owner-mode${on ? ' on' : ''}`}
-                    aria-pressed={on}
-                    style={on ? { background: accent, borderColor: accent } : undefined}
+                    role="tab"
+                    aria-selected={on}
+                    className={`seg-btn pressable${on ? ' on' : ''}${m.key === 'shoot' ? ' cu' : ''}`}
                     onClick={() => { onMode(m.key); setOpen(false); }}
                   >
-                    <Glyph mode={m.key} color={on ? 'var(--bg)' : m.key === 'shoot' ? COPPER : 'var(--ink-2)'} />
-                    <span className="owner-mode-m">{m.label}</span>
-                    <span className="owner-mode-s">{m.sub}</span>
+                    <Glyph mode={m.key} color={on ? 'var(--bg)' : m.key === 'shoot' ? COPPER : 'var(--ink-3)'} />
+                    {m.label}
                   </button>
                 );
               })}
             </div>
+            <div className="owner-mode-note">{MODES.find(m => m.key === mode)!.sub}</div>
             <div className="owner-lbl">Owner</div>
             <a className="owner-link" href="/admin/bookings">
               Bookings

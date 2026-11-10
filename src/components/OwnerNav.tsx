@@ -38,9 +38,9 @@ export function OwnerNav({ here, ownerOnly = false }: { here: Here; ownerOnly?: 
       {last && here !== 'trips' && (
         <a className="owner-nav-back" href={`/trips/${last.slug}`}>← {last.title}</a>
       )}
-      <span className="owner-nav-chips">
+      <span className="seg-track">
         {links.map(l => (
-          <a key={l.key} href={l.href} className={`bk-chip${l.key === here ? ' on' : ''}`} aria-current={l.key === here ? 'page' : undefined}>{l.label}</a>
+          <a key={l.key} href={l.href} className={`seg-btn pressable${l.key === here ? ' on' : ''}`} aria-current={l.key === here ? 'page' : undefined}>{l.label}</a>
         ))}
       </span>
     </nav>

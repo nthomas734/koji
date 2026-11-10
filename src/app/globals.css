@@ -581,20 +581,23 @@ input, textarea, select {
 }
 
 /* ── Owner switcher (trip page) and owner nav (owner pages) ──────────────
-   Signed in only. See components/OwnerSwitch.tsx. */
-.owner-pill { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 99px; color: var(--bg); font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; -webkit-tap-highlight-color: transparent; }
-.owner-pill:active { transform: scale(0.96); }
+   Signed in only. See components/OwnerSwitch.tsx. The capsule is the hero's
+   Itinerary / Logistics / Weather switcher (HeroTabs) redrawn on parchment:
+   a tinted track, segments that share it equally, the active one filled. */
+.seg-track { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: rgba(28, 26, 22, 0.06); width: 100%; }
+.seg-btn { all: unset; box-sizing: border-box; cursor: pointer; flex: 1; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); text-align: center; transition: background 0.15s ease, color 0.15s ease; -webkit-tap-highlight-color: transparent; }
+.seg-btn.on { background: var(--ink); color: var(--bg); }
+.seg-btn.on.cu { background: #B83C01; }
+.owner-pill { all: unset; cursor: pointer; display: inline-flex; align-items: center; padding: 3px; border-radius: 999px; background: rgba(28, 26, 22, 0.06); color: var(--ink-3); -webkit-tap-highlight-color: transparent; }
+.owner-pill-in { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 999px; background: var(--ink); color: var(--bg); font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; }
+.owner-pill.cu { background: rgba(184, 60, 1, 0.1); color: #B83C01; }
+.owner-pill.cu .owner-pill-in { background: #B83C01; }
 .owner-layer { position: fixed; inset: 0; z-index: 60; }
 .owner-scrim { position: absolute; inset: 0; background: rgba(28, 26, 22, 0.38); animation: owner-fade 0.2s var(--ease-out); }
 .owner-sheet { position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto; max-width: 520px; background: var(--surface); border-radius: 18px 18px 0 0; padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); box-shadow: 0 -10px 30px -12px rgba(0,0,0,0.25); animation: owner-rise 0.28s var(--ease-out); }
 .owner-grab { width: 36px; height: 4px; border-radius: 2px; background: var(--border-mid); margin: 0 auto 10px; }
 .owner-lbl { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-4); margin: 12px 2px 8px; }
-.owner-modes { display: grid; gap: 8px; }
-.owner-mode { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 12px 6px 11px; border: 1px solid var(--border-mid); border-radius: 12px; text-align: center; color: var(--ink); -webkit-tap-highlight-color: transparent; }
-.owner-mode.on { color: var(--bg); }
-.owner-mode-m { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
-.owner-mode-s { font-size: 10.5px; color: var(--ink-4); line-height: 1.3; }
-.owner-mode.on .owner-mode-s { color: rgba(245, 240, 232, 0.72); }
+.owner-mode-note { font-family: var(--font-serif); font-style: italic; font-weight: 300; font-size: 14px; color: var(--ink-3); margin: 10px 4px 4px; }
 .owner-link { display: flex; justify-content: space-between; align-items: center; min-height: 46px; padding: 0 4px; border-bottom: 1px solid var(--border); font-size: 14.5px; color: var(--ink); }
 .owner-link:last-child { border-bottom: 0; }
 .owner-link span { color: var(--ink-4); display: inline-flex; gap: 8px; align-items: center; }
@@ -602,7 +605,11 @@ input, textarea, select {
 @keyframes owner-rise { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes owner-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .owner-sheet, .owner-scrim { animation: none; } }
-.owner-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: calc(env(safe-area-inset-top, 0px) + 10px) var(--px) 10px; border-bottom: 1px solid var(--border); }
-.owner-nav-back { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--brass); margin-right: auto; min-height: 28px; display: inline-flex; align-items: center; }
-.owner-nav-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.owner-nav-chips .bk-chip { text-decoration: none; }
+.owner-nav { display: flex; flex-direction: column; gap: 10px; padding: calc(env(safe-area-inset-top, 0px) + 12px) var(--px) 12px; border-bottom: 1px solid var(--border); }
+.owner-nav-back { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--brass); align-self: flex-start; min-height: 24px; display: inline-flex; align-items: center; }
+/* The home header pads 40px above the koji mark for the status bar; with the
+   owner row above it, that space is already taken. */
+.owner-nav + header { padding-top: 22px !important; }
+/* The booking status switch, in the same capsule as the trip tabs */
+.bk-seg { border: 0; border-radius: 999px; padding: 3px; gap: 4px; background: rgba(28, 26, 22, 0.06); }
+.bk-seg button { border-right: 0; border-radius: 999px; padding: 9px 0; transition: background 0.15s ease, color 0.15s ease; }
