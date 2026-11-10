@@ -16,6 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export type OwnerMode = 'plan' | 'shoot' | 'verdicts';
 
@@ -88,13 +89,14 @@ export function OwnerSwitch({ mode, onMode, tripId, hasShots }: {
         aria-haspopup="dialog"
         aria-expanded={open}
       >
-        <span className="owner-pill-in">{label}</span>
-        <svg width="9" height="9" viewBox="0 0 24 24" aria-hidden style={{ margin: '0 6px 0 2px' }}>
+        <Glyph mode={mode} color="currentColor" />
+        <span>{label}</span>
+        <svg width="9" height="9" viewBox="0 0 24 24" aria-hidden style={{ opacity: 0.6 }}>
           <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
 
-      {open && (
+      {open && typeof document !== 'undefined' && createPortal(
         <div className="owner-layer" role="dialog" aria-label="Owner views" aria-modal="true">
           <div className="owner-scrim" onClick={() => setOpen(false)} />
           <div className="owner-sheet">
@@ -129,7 +131,10 @@ export function OwnerSwitch({ mode, onMode, tripId, hasShots }: {
             <a className="owner-link" href="/koma">Rolls <span>›</span></a>
             <a className="owner-link" href="/">All trips <span>›</span></a>
           </div>
-        </div>
+        </div>,
+        // On <body>, not inside the header: a fixed layer under an ancestor
+        // with a transform or filter is positioned against that ancestor.
+        document.body,
       )}
     </>
   );

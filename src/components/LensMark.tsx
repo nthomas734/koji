@@ -17,10 +17,24 @@ const LENGTH_MM: Record<string, number> = {
   '70-200mm': 149, // FE 70-200mm F4 Macro G OSS II
   '24-50mm': 92,
   '24-70mm': 120,
+  '20-70mm': 99,   // FE 20-70mm F4 G
 };
 
+/** "20-70" and "85" → "20-70mm" and "85mm": frames typed without the unit
+ *  still find their length and weight, and read the same on the carry card. */
+export function lensName(lens: string): string {
+  const t = lens.trim();
+  return /^\d+(-\d+)?$/.test(t) ? `${t}mm` : t.replace(/\s+mm$/i, 'mm');
+}
+
+/** "70-200 + 20-70" and "20-70 / 35mm" → each lens on its own, named. A frame
+ *  that names two lenses (both, or either) puts both in the bag. */
+export function lensParts(lens: string): string[] {
+  return lens.split(/\s*[+/,&]\s*/).map(x => x.trim()).filter(Boolean).map(lensName);
+}
+
 export function lensLength(lens: string): number {
-  return LENGTH_MM[lens.trim()] ?? 70;
+  return LENGTH_MM[lensName(lens)] ?? 70;
 }
 
 export function LensMark({
@@ -77,10 +91,11 @@ const WEIGHT_G: Record<string, number> = {
   '70-200mm': 794, // FE 70-200mm F4 Macro G OSS II, collar off
   '24-50mm': 440,
   '24-70mm': 695,
+  '20-70mm': 488,  // FE 20-70mm F4 G
 };
 
 export function lensWeight(lens: string): number {
-  return WEIGHT_G[lens.trim()] ?? 0;
+  return WEIGHT_G[lensName(lens)] ?? 0;
 }
 
 /** Grams for a pocketable lens, kilos once it stops being one. */

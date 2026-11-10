@@ -772,7 +772,14 @@ koma, typing `/admin`, a link on admin to Bookings). Now there is one:
   pill naming the mode, e.g. "Plan ▾" (`OwnerSwitch`). Tapping it raises a
   sheet with **Plan / Shoot / Verdicts** for this trip, then Bookings (with an
   "N open" badge from `GET /api/admin/bookings`), Edit this trip, Admin, Rolls
-  and All trips. Option B of three mockups; Nathan picked it.
+  and All trips. Option B of three mockups; Nathan picked it. The pill is
+  one outlined capsule (mode glyph, label, chevron; copper in Shoot). The
+  black-inside-grey version read as awkward. The sheet is portalled to
+  <body> so no header ancestor can capture its fixed positioning.
+- **Lens names.** Frames type lenses loosely ("20-70", "70-200 + 20-70",
+  "20-70 / 35mm"). `lensParts` in `LensMark.tsx` splits and names them
+  ("20-70mm") before the carry card looks up length and weight. Add new
+  glass to both `LENGTH_MM` and `WEIGHT_G`.
 - **Plan is what Dez sees.** Verdict stamps and unplanned-place rows render
   only in Verdicts mode. The maybe shelf's add/remove buttons stay in Plan,
   since they are planning.

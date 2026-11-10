@@ -5,7 +5,7 @@ import type { Carry, Day, Roll, Shot, Stop, Trip } from '@/lib/supabase';
 import { renderMd, renderBlockMd } from '@/lib/markdown';
 import { SunTrack, type TrackFrame } from './SunTrack';
 import { KomaSketch } from './KomaSketch';
-import { LensMark, lensLabel, lensLength, lensWeight, fmtWeight } from './LensMark';
+import { LensMark, lensLabel, lensLength, lensWeight, lensParts, fmtWeight } from './LensMark';
 import {
   sunDay, utcOffsetFor, parseTimeLabel, parseClock, fmtHour, bandAt,
   type SunDay, type OffsetSource,
@@ -742,8 +742,8 @@ function KomaDay({
   const mustsLeft = musts.filter(f => f.shot.status === 'planned').length;
   // A written carry wins. The derived list only knows the frames that got
   // planned, so a thin day reads as "40mm" on a day that wants all three.
-  const derived = Array.from(new Set(frames.map(f => f.shot.lens).filter(Boolean))) as string[];
-  const lenses = carry?.lenses.length ? carry.lenses : derived;
+  const derived = Array.from(new Set(frames.flatMap(f => (f.shot.lens ? lensParts(f.shot.lens) : []))));
+  const lenses = carry?.lenses.length ? Array.from(new Set(carry.lenses.flatMap(lensParts))) : derived;
   const grams  = lenses.reduce((g, l) => g + lensWeight(l), 0);
 
   const trackFrames: TrackFrame[] = frames.map(f => ({
