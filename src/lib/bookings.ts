@@ -4,6 +4,7 @@
 // import server-only modules.
 
 export type BookingStatus = 'not_open' | 'open' | 'booked' | 'skipped';
+export type WindowType = 'opens' | 'deadline';
 export type BookingKind = 'restaurant' | 'train' | 'ticket' | 'tour' | 'hotel' | 'flight' | 'other';
 
 export const BOOKING_KINDS: BookingKind[] = ['restaurant', 'train', 'ticket', 'tour', 'hotel', 'flight', 'other'];
@@ -23,6 +24,7 @@ export interface Booking {
   maps_query:   string | null;
   booking_url:  string | null;
   status:       BookingStatus;
+  window_type:  WindowType;     // 'deadline' = act by this date (cancel-by, go/no-go)
   notes:        string | null;
   sort_order:   number;
 }
@@ -30,7 +32,7 @@ export interface Booking {
 /** Columns the admin API accepts on insert/update. Anything else is dropped. */
 export const BOOKING_FIELDS = [
   'trip_id', 'title', 'kind', 'what', 'for_date', 'opens_on', 'opens_time', 'opens_tz',
-  'opens_approx', 'lead', 'maps_query', 'booking_url', 'status', 'notes', 'sort_order',
+  'opens_approx', 'window_type', 'lead', 'maps_query', 'booking_url', 'status', 'notes', 'sort_order',
 ] as const;
 
 export function mapsUrl(query: string): string {
@@ -77,6 +79,15 @@ export function effectiveStatus(b: Booking, now: Date = new Date()): BookingStat
 export const STATUS_LABEL: Record<BookingStatus, string> = {
   not_open: 'Not yet', open: 'Open', booked: 'Booked', skipped: 'Skip',
 };
+
+/** Deadlines read as a to-do: past the date and not done means overdue. */
+export const DEADLINE_LABEL: Record<BookingStatus, string> = {
+  not_open: 'To do', open: 'Overdue', booked: 'Done', skipped: 'Skip',
+};
+
+export function statusLabel(b: Pick<Booking, 'window_type'>, s: BookingStatus): string {
+  return (b.window_type === 'deadline' ? DEADLINE_LABEL : STATUS_LABEL)[s];
+}
 
 /** Whole days between two YYYY-MM-DD dates (b − a). */
 export function daysBetween(a: string, b: string): number {

@@ -52,3 +52,14 @@ end $$;
 drop trigger if exists koji_bookings_touch on koji_bookings;
 create trigger koji_bookings_touch before update on koji_bookings
   for each row execute function koji_bookings_touch();
+
+-- window_type: 'opens' = the date booking opens (the default); 'deadline' =
+-- a date to act by (free-cancellation cut-off, a go/no-go call). A deadline
+-- row's date lives in opens_on/opens_time too; only the wording and alarms
+-- change. Its statuses read To do / Overdue / Done / Skip.
+alter table koji_bookings add column if not exists window_type text not null default 'opens';
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'koji_bookings_window_type_check') then
+    alter table koji_bookings add constraint koji_bookings_window_type_check check (window_type in ('opens','deadline'));
+  end if;
+end $$;

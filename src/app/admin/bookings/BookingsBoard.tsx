@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  type Booking, type BookingKind, type BookingStatus, BOOKING_KINDS, STATUS_LABEL,
+  type Booking, type BookingKind, type BookingStatus, type WindowType, BOOKING_KINDS, statusLabel,
   effectiveStatus, fmtDate, fmtTime, leadText, mapsUrl, opensAt, zoneAbbr,
 } from '@/lib/bookings';
 
@@ -78,7 +78,7 @@ type Draft = Omit<Booking, 'id' | 'sort_order'> & { id?: number };
 function blank(tripId: number): Draft {
   return {
     trip_id: tripId, title: '', kind: 'restaurant', what: '', for_date: '', opens_on: '', opens_time: '',
-    opens_tz: 'Asia/Tokyo', opens_approx: false, lead: '', maps_query: '', booking_url: '', status: 'not_open', notes: '',
+    opens_tz: 'Asia/Tokyo', opens_approx: false, lead: '', maps_query: '', booking_url: '', status: 'not_open', notes: '', window_type: 'opens',
   };
 }
 
@@ -113,10 +113,16 @@ function BookingForm({ draft, trips, onSave, onCancel, onDelete, saving }: {
             {BOOKING_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
           </select>
         </Field>
+        <Field label="Date means">
+          <select style={input} value={d.window_type} onChange={e => set('window_type', e.target.value as WindowType)}>
+            <option value="opens">Booking opens</option>
+            <option value="deadline">Deadline (act by)</option>
+          </select>
+        </Field>
         <Field label="What it is" wide><input style={input} value={str(d.what)} onChange={e => set('what', e.target.value)} placeholder="Shinjuku → Hakone, front observation seats" /></Field>
         <Field label="For (the day itself)"><input type="date" style={input} value={str(d.for_date)} onChange={e => set('for_date', e.target.value)} /></Field>
         <Field label="How far out"><input style={input} value={str(d.lead)} onChange={e => set('lead', e.target.value)} placeholder="1 month" /></Field>
-        <Field label="Booking opens"><input type="date" style={input} value={str(d.opens_on)} onChange={e => set('opens_on', e.target.value)} /></Field>
+        <Field label={d.window_type === 'deadline' ? 'Deadline' : 'Booking opens'}><input type="date" style={input} value={str(d.opens_on)} onChange={e => set('opens_on', e.target.value)} /></Field>
         <Field label="At (local time)"><input type="time" style={input} value={str(d.opens_time).slice(0, 5)} onChange={e => set('opens_time', e.target.value)} /></Field>
         <Field label="Time zone"><input style={input} value={d.opens_tz} onChange={e => set('opens_tz', e.target.value)} placeholder="Asia/Tokyo" /></Field>
         <Field label="Date is approximate">
@@ -131,7 +137,7 @@ function BookingForm({ draft, trips, onSave, onCancel, onDelete, saving }: {
           <textarea style={{ ...input, minHeight: 60, resize: 'vertical' }} value={str(d.notes)} onChange={e => set('notes', e.target.value)} />
         </Field>
         <Field label="Status" wide>
-          <StatusSwitch value={d.status} onChange={s => set('status', s)} />
+          <StatusSwitch value={d.status} deadline={d.window_type === 'deadline'} onChange={s => set('status', s)} />
         </Field>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 14, alignItems: 'center' }}>
@@ -144,20 +150,22 @@ function BookingForm({ draft, trips, onSave, onCancel, onDelete, saving }: {
   );
 }
 
-function StatusSwitch({ value, onChange }: { value: BookingStatus; onChange: (s: BookingStatus) => void }) {
+function StatusSwitch({ value, onChange, deadline }: { value: BookingStatus; onChange: (s: BookingStatus) => void; deadline?: boolean }) {
+  const opts = deadline ? STATUSES.filter(s => s !== 'open') : STATUSES;
+  const shown = deadline && value === 'open' ? 'not_open' : value;
   return (
     <div className="bk-seg" role="radiogroup">
-      {STATUSES.map(s => (
-        <button key={s} role="radio" aria-checked={value === s} className={value === s ? 'on' : ''} onClick={() => onChange(s)}>
-          {STATUS_LABEL[s]}
+      {opts.map(s => (
+        <button key={s} role="radio" aria-checked={shown === s} className={shown === s ? 'on' : ''} onClick={() => onChange(s)}>
+          {statusLabel({ window_type: deadline ? 'deadline' : 'opens' }, s)}
         </button>
       ))}
     </div>
   );
 }
 
-function Pill({ s }: { s: BookingStatus }) {
-  return <span className={`bk-pill bk-pill-${s}`}>{STATUS_LABEL[s]}</span>;
+function Pill({ b, s }: { b: Booking; s: BookingStatus }) {
+  return <span className={`bk-pill bk-pill-${s}`}>{statusLabel(b, s)}</span>;
 }
 
 function Links({ b }: { b: Booking }) {
@@ -266,20 +274,20 @@ export default function BookingsBoard({ initial, trips, feedHttp, feedWebcal }: 
           {cd ? (
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <div className={`bk-cd${g === 'soon' ? ' soon' : ''}`}>{b.opens_approx ? '~' : ''}{cd.n}</div>
-              <div className="bk-cdl">{cd.unit}</div>
+              <div className="bk-cdl">{b.window_type === 'deadline' ? `${cd.unit} left` : cd.unit}</div>
             </div>
-          ) : <Pill s={s} />}
+          ) : <Pill b={b} s={s} />}
         </div>
         {(w.main || lead) && (
           <div className="bk-when">
-            {g === 'done' || !w.main ? '' : (opensAt(b)?.getTime() ?? 0) <= now.getTime() ? 'Opened ' : 'Opens '}{w.main}
+            {g === 'done' || !w.main ? (b.window_type === 'deadline' && w.main ? 'Due ' : '') : (opensAt(b)?.getTime() ?? 0) <= now.getTime() ? (b.window_type === 'deadline' ? 'Was due ' : 'Opened ') : (b.window_type === 'deadline' ? 'Due ' : 'Opens ')}{w.main}
             {w.local && <em> · {w.local}</em>}
-            {lead && <em> · {lead}</em>}
+            {lead && b.window_type !== 'deadline' && <em> · {lead}</em>}
           </div>
         )}
         <Links b={b} />
         {b.notes && <div className="bk-note">{b.notes}</div>}
-        {g !== 'done' && <StatusSwitch value={b.status === 'not_open' && s === 'open' ? 'open' : b.status} onChange={st => setStatus(b, st)} />}
+        {g !== 'done' && <StatusSwitch value={b.status === 'not_open' && s === 'open' ? 'open' : b.status} deadline={b.window_type === 'deadline'} onChange={st => setStatus(b, st)} />}
         {g === 'done' && <button className="bk-undo" onClick={() => setStatus(b, 'not_open')}>Undo</button>}
       </div>
     );
@@ -364,13 +372,13 @@ export default function BookingsBoard({ initial, trips, feedHttp, feedWebcal }: 
                       <button className="bk-title" onClick={() => setEditing(b.id)}>{b.title}</button>
                       {(b.what || b.notes) && <div className="bk-what">{[b.what, b.notes].filter(Boolean).join(' · ')}</div>}
                     </td>
-                    <td className="m">{w.main || '—'}{w.local && <em>{w.local}</em>}{cd && <em>in {cd.n} {cd.unit}</em>}</td>
-                    <td className="m">{leadText(b) || '—'}</td>
+                    <td className="m">{b.window_type === 'deadline' && w.main ? 'Due ' : ''}{w.main || '—'}{w.local && <em>{w.local}</em>}{cd && <em>{b.window_type === 'deadline' ? `${cd.n} ${cd.unit} left` : `in ${cd.n} ${cd.unit}`}</em>}</td>
+                    <td className="m">{b.window_type === 'deadline' ? 'deadline' : leadText(b) || '—'}</td>
                     <td className="m">{b.for_date ? fmtDate(b.for_date) : '—'}</td>
                     <td><Links b={b} /></td>
                     <td>
                       <select className="bk-select" value={b.status === 'not_open' && s === 'open' ? 'open' : b.status} onChange={e => setStatus(b, e.target.value as BookingStatus)}>
-                        {STATUSES.map(st => <option key={st} value={st}>{STATUS_LABEL[st]}</option>)}
+                        {STATUSES.filter(st => b.window_type !== 'deadline' || st !== 'open' || s === 'open').map(st => <option key={st} value={st}>{statusLabel(b, st)}</option>)}
                       </select>
                     </td>
                   </tr>

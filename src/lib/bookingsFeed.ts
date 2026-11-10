@@ -52,11 +52,11 @@ function describe(b: Booking, trip?: FeedTrip): string {
     b.what,
     trip ? `Trip: ${trip.title}` : null,
     b.for_date ? `For: ${fmtDate(b.for_date)}` : null,
-    leadText(b) ? `Opens ${leadText(b)}` : null,
+    b.window_type !== 'deadline' && leadText(b) ? `Opens ${leadText(b)}` : null,
     b.notes,
     b.maps_query ? `Maps: ${mapsUrl(b.maps_query)}` : null,
     b.booking_url ? `Book: ${b.booking_url}` : null,
-    'Mark it booked in koji and this event goes away.',
+    b.window_type === 'deadline' ? 'Mark it done in koji and this event goes away.' : 'Mark it booked in koji and this event goes away.',
   ];
   return lines.filter(Boolean).join('\n');
 }
@@ -81,22 +81,34 @@ export function buildFeed(bookings: Booking[], trips: FeedTrip[], origin: string
     if (b.status === 'booked' || b.status === 'skipped' || !b.opens_on) continue;
     const trip = tripById.get(b.trip_id);
     const approx = b.opens_approx ? '~' : '';
-    const summary = `${approx}Opens: ${b.title}`;
+    const due = b.window_type === 'deadline';
+    const summary = `${approx}${due ? 'Deadline' : 'Opens'}: ${b.title}`;
     L.push('BEGIN:VEVENT', `UID:koji-booking-${b.id}@koji`, `DTSTAMP:${stamp}`, `SUMMARY:${esc(summary)}`);
     L.push(`DESCRIPTION:${esc(describe(b, trip))}`, `URL:${b.booking_url || adminUrl}`);
     if (b.opens_time && !b.opens_approx) {
       const at = opensAt(b)!;
       const local = `${fmtTime(b.opens_time)} ${zoneAbbr(b.opens_tz, at)}`;
       L.push(`DTSTART:${utcStamp(at)}`, 'DURATION:PT30M');
-      L.push(...alarm('-P1D', `${b.title} opens tomorrow (${local})`));
-      L.push(...alarm('-PT15M', `${b.title} opens in 15 minutes`));
-      L.push(...alarm('PT0S', `${b.title} is open now`));
+      if (due) {
+        L.push(...alarm('-P3D', `${b.title}: due in 3 days (${local})`));
+        L.push(...alarm('-P1D', `${b.title}: due tomorrow (${local})`));
+      } else {
+        L.push(...alarm('-P1D', `${b.title} opens tomorrow (${local})`));
+        L.push(...alarm('-PT15M', `${b.title} opens in 15 minutes`));
+        L.push(...alarm('PT0S', `${b.title} is open now`));
+      }
     } else {
       // All-day: floating date, so alarms land at 9am wherever the phone is
       L.push(`DTSTART;VALUE=DATE:${dateOnly(b.opens_on)}`, `DTEND;VALUE=DATE:${dateOnly(nextDay(b.opens_on))}`);
       L.push('TRANSP:TRANSPARENT');
-      L.push(...alarm('-PT15H', `${b.title} opens tomorrow`));
-      L.push(...alarm('PT9H', `${b.title} opens today`));
+      if (due) {
+        // 9am three days before, and 9am on the day
+        L.push(...alarm('-PT63H', `${b.title}: due in 3 days`));
+        L.push(...alarm('PT9H', `${b.title}: due today`));
+      } else {
+        L.push(...alarm('-PT15H', `${b.title} opens tomorrow`));
+        L.push(...alarm('PT9H', `${b.title} opens today`));
+      }
     }
     L.push('END:VEVENT');
   }
@@ -113,7 +125,7 @@ export function buildFeed(bookings: Booking[], trips: FeedTrip[], origin: string
     }).join('\n');
     L.push('BEGIN:VEVENT', `UID:koji-bookings-weekly-${dateOnly(iso)}@koji`, `DTSTAMP:${stamp}`,
       `SUMMARY:${esc(`koji · ${open.length} still to book`)}`,
-      `DESCRIPTION:${esc(`Open and not booked yet:\n${list}\n\n${adminUrl}`)}`, `URL:${adminUrl}`,
+      `DESCRIPTION:${esc(`Open and not booked yet, or overdue:\n${list}\n\n${adminUrl}`)}`, `URL:${adminUrl}`,
       `DTSTART;VALUE=DATE:${dateOnly(iso)}`, `DTEND;VALUE=DATE:${dateOnly(nextDay(iso))}`, 'TRANSP:TRANSPARENT',
       ...alarm('PT9H', `${open.length} booking${open.length === 1 ? '' : 's'} still to make`), 'END:VEVENT');
   }

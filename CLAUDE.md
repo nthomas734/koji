@@ -738,3 +738,7 @@ the table never holds confirmation or seat numbers.
   The token is an HMAC of `ADMIN_PASSWORD` (`lib/bookingsFeed.ts`), so there is
   no extra env var and changing the password rotates the subscription URL. On
   a Mac, subscribing must untick "Remove: Alerts" or the alarms are dropped.
+- **Deadlines.** `window_type = 'deadline'` reuses `opens_on`/`opens_time` as an
+  act-by date (free-cancellation cut-offs, go/no-go calls). The statuses read
+  To do / Overdue / Done / Skip, and the feed alarms 3 days before and on the
+  day. Japan 2027's rows are in `sql/2026-11-10-japan-2027-bookings.sql`.
