@@ -138,10 +138,13 @@ auth-gated on 2026-09-16 and was deliberately opened the same day: the gate
 depended on an admin cookie surviving on a phone mid-trip, and the mode was
 undiscoverable. Now `koma_shots` and `koma_rolls` have public read policies and
 the shots come down with the trip page, so koma works logged out and offline
-from the SW cache. Entry is a **350ms long-press on `KomaMark`**, which must
-stay an icon: a long-press on text raises iOS's Copy/Look Up callout and the
-gesture never reaches the handler. `-webkit-touch-callout` and `user-select`
-off are what actually stop Safari claiming it.
+from the SW cache. Entry used to be a **350ms long-press on `KomaMark`**; since
+2026-11-10 it is Shoot in the owner switcher (signed in) or a
+`/trips/<slug>#koma` link (anyone, offline) — see "Owner switcher" below.
+`KomaMark` keeps the long-press code (the roll page still uses it) and has a
+`tap` mode that is the logged-out way back out of koma. If a long-press ever
+returns, it must stay an icon: a long-press on text raises iOS's Copy/Look Up
+callout and the gesture never reaches the handler.
 
 Hidden applies to the entrance, not to every verb on a public URL.
 `/api/koma/shots` allows **GET and a PATCH of `status`/`status_note`
@@ -742,3 +745,29 @@ the table never holds confirmation or seat numbers.
   act-by date (free-cancellation cut-offs, go/no-go calls). The statuses read
   To do / Overdue / Done / Skip, and the feed alarms 3 days before and on the
   day. Japan 2027's rows are in `sql/2026-11-10-japan-2027-bookings.sql`.
+
+## Owner switcher (2026-11-10)
+
+Nathan's owner views had five different ways in (a public link, verdict
+circles that appeared by surprise after logging in, a hidden long-press for
+koma, typing `/admin`, a link on admin to Bookings). Now there is one:
+
+- **The pill.** Signed in (`useVerdicts().owner`), the trip header shows one
+  pill naming the mode, e.g. "Plan ▾" (`OwnerSwitch`). Tapping it raises a
+  sheet with **Plan / Shoot / Verdicts** for this trip, then Bookings (with an
+  "N open" badge from `GET /api/admin/bookings`), Edit this trip, Admin, Rolls
+  and All trips. Option B of three mockups; Nathan picked it.
+- **Plan is what Dez sees.** Verdict stamps and unplanned-place rows render
+  only in Verdicts mode. The maybe shelf's add/remove buttons stay in Plan,
+  since they are planning.
+- **Mode lives in the hash**, `#koma` or `#verdicts`, so a PWA resume keeps it.
+  Changing mode from another tab returns to the itinerary first.
+- **Logged out sees nothing new**, and lost the gear icon that used to send
+  everyone to the admin login. koma stays hidden-not-locked through the
+  `#koma` link; the camera mark appears only inside koma as the way out.
+  Accepted trade: a logged-out phone can no longer stumble into koma.
+- **The way back.** `OwnerNav` sits at the top of `/admin`, `/admin/bookings`
+  and (signed in only, from the `verdicts:owner` flag) the itineraries list:
+  "← <last trip>" (written by TripView to `koji:lastTrip`), then Trips ·
+  Bookings · Admin · Rolls. `KomaHomeMark` (long-press to `/koma`) is gone;
+  Rolls is in the nav and the sheet.

@@ -14,11 +14,14 @@ import { useRef, useState } from 'react';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function KomaMark({
-  on, onToggle, size = 21,
+  on, onToggle, size = 21, tap = false,
 }: {
   on: boolean;
   onToggle: () => void;
   size?: number;
+  /** A plain tap instead of the long-press: the way out of koma when it was
+   *  opened from a #koma link by someone who isn't signed in. */
+  tap?: boolean;
 }) {
   const [pressing, setPressing] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -44,12 +47,13 @@ export function KomaMark({
   return (
     <button
       type="button"
-      onPointerDown={startPress}
-      onPointerUp={cancelPress}
-      onPointerLeave={cancelPress}
-      onPointerCancel={cancelPress}
+      onClick={tap ? onToggle : undefined}
+      onPointerDown={tap ? undefined : startPress}
+      onPointerUp={tap ? undefined : cancelPress}
+      onPointerLeave={tap ? undefined : cancelPress}
+      onPointerCancel={tap ? undefined : cancelPress}
       onContextMenu={e => e.preventDefault()}
-      aria-label={on ? 'Leave koma (long press)' : 'koma (long press)'}
+      aria-label={tap ? (on ? 'Leave koma' : 'koma') : on ? 'Leave koma (long press)' : 'koma (long press)'}
       aria-pressed={on}
       style={{
         width: 44, height: 44, borderRadius: '50%',

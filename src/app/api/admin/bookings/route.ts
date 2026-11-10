@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabase';
-import { BOOKING_FIELDS } from '@/lib/bookings';
+import { BOOKING_FIELDS, effectiveStatus, type Booking } from '@/lib/bookings';
 
 // koji_bookings is private (RLS on, no policies); this route and the calendar
 // feed are the only ways in.
@@ -19,6 +19,17 @@ function pick(body: Record<string, unknown>) {
     out[k] = typeof v === 'string' && v.trim() === '' && k !== 'title' ? null : v;
   }
   return out;
+}
+
+// GET: how many windows are open and not booked, for the badge in the owner
+// switcher on the trip page.
+export async function GET() {
+  if (!await authed()) return new NextResponse('Unauthorized', { status: 401 });
+  const { data, error } = await supabaseAdmin().from('koji_bookings').select('*').in('status', ['not_open', 'open']);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const now = new Date();
+  const open = ((data ?? []) as Booking[]).filter(b => effectiveStatus(b, now) === 'open').length;
+  return NextResponse.json({ open }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(req: Request) {

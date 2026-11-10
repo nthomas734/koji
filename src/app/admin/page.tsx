@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { Trip } from '@/lib/supabase';
+import { OwnerNav } from '@/components/OwnerNav';
 
 export default async function AdminPage() {
   const store = await cookies();
@@ -19,8 +20,9 @@ export default async function AdminPage() {
 
   return (
     <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 60px' }}>
+      <OwnerNav here="admin" />
       <header style={{
-        padding: '32px var(--px) 20px',
+        padding: '20px var(--px) 20px',
         borderBottom: '1px solid var(--border)',
         display: 'flex',
         alignItems: 'flex-end',

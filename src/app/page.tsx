@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getTrips } from '@/lib/supabase';
 import type { Trip } from '@/lib/supabase';
 import { KojiMark } from '@/components/KojiMark';
-import { KomaHomeMark } from '@/components/KomaHomeMark';
+import { OwnerNav } from '@/components/OwnerNav';
 
 export const revalidate = 60;
 
@@ -131,6 +131,9 @@ export default async function HomePage() {
 
   return (
     <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 60px' }}>
+      {/* Signed in only: Bookings, Admin and Rolls (the long-press on the
+          koma mark that used to lead to /koma is gone) */}
+      <OwnerNav here="trips" ownerOnly />
       <header style={{
         padding: '40px var(--px) 24px',
         borderBottom: '1px solid var(--border)',
@@ -152,8 +155,6 @@ export default async function HomePage() {
           }}>
             koji · 行程
           </div>
-          {/* long-press → /koma, the rolls that are not attached to a trip */}
-          <KomaHomeMark />
         </div>
         <h1 style={{
           fontFamily: 'var(--font-serif)',

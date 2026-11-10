@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { OwnerNav } from '@/components/OwnerNav';
 import {
   type Booking, type BookingKind, type BookingStatus, type WindowType, BOOKING_KINDS, statusLabel,
   effectiveStatus, fmtDate, fmtTime, leadText, mapsUrl, opensAt, zoneAbbr,
@@ -295,7 +296,8 @@ export default function BookingsBoard({ initial, trips, feedHttp, feedWebcal }: 
 
   return (
     <div className="bk-page" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 80px' }}>
-      <header style={{ padding: '32px var(--px) 16px', borderBottom: '1px solid var(--border)' }}>
+      <OwnerNav here="bookings" />
+      <header style={{ padding: '20px var(--px) 16px', borderBottom: '1px solid var(--border)' }}>
         <div style={{ ...mono, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--brass)', marginBottom: 6 }}>
           <Link href="/">koji</Link> · <Link href="/admin">admin</Link>
         </div>

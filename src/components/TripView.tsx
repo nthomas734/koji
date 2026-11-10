@@ -7,6 +7,8 @@ import { renderMd } from '@/lib/markdown';
 import { KojiMark } from '@/components/KojiMark';
 import { KomaView } from '@/components/KomaView';
 import { KomaMark } from '@/components/KomaMark';
+import { OwnerSwitch, type OwnerMode } from '@/components/OwnerSwitch';
+import { LAST_TRIP_KEY } from '@/components/OwnerNav';
 import { TripAlerts } from '@/components/TripAlerts';
 import { TripSearch, type SearchTarget } from '@/components/TripSearch';
 import { useQueueDrain } from '@/lib/komaQueue';
@@ -1533,11 +1535,15 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
   const closeSearch = useCallback(() => setSearchOn(false), []);
 
   // ── koma ──────────────────────────────────────────────────────────────────
-  // Hidden, not locked — the same call daizu makes for /barista. The mode is
-  // reached by long-pressing the aperture mark in the header; the shots come
-  // down with the trip, so it works logged out and offline from the SW cache.
+  // Hidden, not locked — the same call daizu makes for /barista. Signed in,
+  // it's Shoot in the owner switcher; logged out, /trips/<slug>#koma opens it.
+  // The long-press that used to be the way in went on 2026-11-10. The shots
+  // come down with the trip, so it works logged out and offline from the SW
+  // cache.
   const [shots, setShots]     = useState<Shot[]>(initialShots);
   const [komaOn, setKomaOn]   = useState(false);
+  // Verdict circles show only in Verdicts mode, so Plan is what Dez sees.
+  const [verdictsOn, setVerdictsOn] = useState(false);
   const [sunMode, setSunMode] = useState(false);
 
   useEffect(() => { setShots(initialShots); }, [initialShots]);
@@ -1550,17 +1556,19 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
   // deep link was the only way in and toggling in the app left no trace.
   useEffect(() => {
     if (window.location.hash === '#koma') setKomaOn(true);
+    if (window.location.hash === '#verdicts') setVerdictsOn(true);
   }, []);
 
-  const toggleKoma = useCallback(() => {
-    setKomaOn(v => {
-      const next = !v;
-      try {
-        history.replaceState(null, '', next ? '#koma' : window.location.pathname);
-      } catch { /* history is unavailable in some embedded views */ }
-      return next;
-    });
+  // The mode lives in the hash (#koma / #verdicts) so a PWA resume keeps it.
+  const setMode = useCallback((m: OwnerMode) => {
+    setKomaOn(m === 'shoot');
+    setVerdictsOn(m === 'verdicts');
+    try {
+      history.replaceState(null, '', m === 'shoot' ? '#koma' : m === 'verdicts' ? '#verdicts' : window.location.pathname);
+    } catch { /* history is unavailable in some embedded views */ }
   }, []);
+  const toggleKoma = useCallback(() => setMode(komaOn ? 'plan' : 'shoot'), [komaOn, setMode]);
+  const mode: OwnerMode = komaOn ? 'shoot' : verdictsOn ? 'verdicts' : 'plan';
 
   useEffect(() => {
     try {
@@ -1589,6 +1597,13 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
   // asks the API, and only a phone holding the admin cookie gets `owner`.
   const verdicts = useVerdicts(trip.id);
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
+  const stamping = verdicts.owner && verdictsOn;
+
+  // Remember the trip so Bookings and Admin can offer the way back to it.
+  useEffect(() => {
+    if (!verdicts.owner) return;
+    try { localStorage.setItem(LAST_TRIP_KEY, JSON.stringify({ slug: trip.slug, title: trip.title })); } catch { /* private mode */ }
+  }, [verdicts.owner, trip.slug, trip.title]);
 
   // ── maybes ─────────────────────────────────────────────────────────────────
   // Optional stops sit in an "if there's time" list under their day. The owner
@@ -1793,11 +1808,12 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
       // trip to the weather tab and back lost the mode on the next resume.
       const target = t !== 'itinerary' ? `#${t}`
         : komaOn ? '#koma'
+        : verdictsOn ? '#verdicts'
         : window.location.pathname;
       history.replaceState(null, '', target);
     } catch { /* see above */ }
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-  }, [komaOn]);
+  }, [komaOn, verdictsOn]);
 
   const goToday = useCallback(() => {
     if (todayIdx < 0) return;
@@ -1824,7 +1840,7 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
     if (t.kind === 'day') { pickDay(t.index); return; }
     const tab: Tab = t.kind === 'log' ? 'logistics' : 'itinerary';
     if (activeTab !== tab) setActiveTab(tab);
-    if (tab === 'itinerary' && komaOn) toggleKoma();
+    if (tab === 'itinerary' && komaOn) setMode('plan');
     const id = t.kind === 'log' ? `log-${t.id}` : `stop-${t.id}`;
     let tries = 0;
     const go = () => {
@@ -1837,7 +1853,7 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
       );
     };
     requestAnimationFrame(() => requestAnimationFrame(go));
-  }, [activeTab, setActiveTab, pickDay, komaOn, toggleKoma]);
+  }, [activeTab, setActiveTab, pickDay, komaOn, setMode]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1961,65 +1977,51 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
           {!komaOn && <KojiMark size={22} />}
           <span>← {komaOn ? 'rolls' : 'koji'}</span>
         </a>
-        {shots.length > 0 && (
-          <span style={{ marginLeft: 'auto', display: 'flex', gap: 2, alignItems: 'center' }}>
-            {komaOn && (
-              <button
-                type="button" onClick={toggleSun}
-                aria-label="Sun mode" aria-pressed={sunMode}
-                style={{
-                  // 44px of target around a 30px face: the box is the tap
-                  // area, the border draws the smaller square inside it.
-                  width: 44, height: 44, padding: 0, borderRadius: 8, cursor: 'pointer',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  lineHeight: 1, background: 'transparent', border: 'none',
-                  color: sunMode ? '#FBE7D4' : 'var(--ink-3)', fontSize: 14,
-                }}
-              >
-                <span style={{
-                  width: 30, height: 30, borderRadius: 8,
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  border: `1px solid ${sunMode ? '#B83C01' : 'var(--border-mid)'}`,
-                  background: sunMode ? '#B83C01' : 'transparent',
-                }}>☀</span>
-              </button>
-            )}
-            <KomaMark on={komaOn} onToggle={toggleKoma} />
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={() => setSearchOn(true)}
-          className="tap"
-          aria-label="Search this trip"
-          style={{
-            marginLeft: shots.length > 0 ? 6 : 'auto',   // an array is never null
-            color: 'var(--ink-4)', background: 'transparent', border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, padding: 0,
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>
-          </svg>
-        </button>
-        <a
-          href={`/admin/trips/${trip.id}`}
-          className="tap"
-          style={{
-            color: 'var(--ink-4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: 44,
-            minHeight: 44,
-          }}
-          aria-label="Edit trip"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
-          </svg>
-        </a>
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 2, alignItems: 'center' }}>
+          {komaOn && shots.length > 0 && (
+            <button
+              type="button" onClick={toggleSun}
+              aria-label="Sun mode" aria-pressed={sunMode}
+              style={{
+                // 44px of target around a 30px face: the box is the tap
+                // area, the border draws the smaller square inside it.
+                width: 44, height: 44, padding: 0, borderRadius: 8, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                lineHeight: 1, background: 'transparent', border: 'none',
+                color: sunMode ? '#FBE7D4' : 'var(--ink-3)', fontSize: 14,
+              }}
+            >
+              <span style={{
+                width: 30, height: 30, borderRadius: 8,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                border: `1px solid ${sunMode ? '#B83C01' : 'var(--border-mid)'}`,
+                background: sunMode ? '#B83C01' : 'transparent',
+              }}>☀</span>
+            </button>
+          )}
+          {/* Logged out, koma is reached only by a #koma link; this is its
+              way back out. Signed in, the owner pill does both jobs. */}
+          {komaOn && !verdicts.owner && <KomaMark on tap onToggle={toggleKoma} />}
+          {verdicts.owner && (
+            <span style={{ marginRight: 2 }}>
+              <OwnerSwitch mode={mode} onMode={m => { if (activeTab !== 'itinerary') setActiveTab('itinerary'); setMode(m); }} tripId={trip.id} hasShots={shots.length > 0} />
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setSearchOn(true)}
+            className="tap"
+            aria-label="Search this trip"
+            style={{
+              color: 'var(--ink-4)', background: 'transparent', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, padding: 0,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>
+            </svg>
+          </button>
+        </span>
       </header>
 
       {/* Trip hero: rounded dark card with the title, dates, weather and day rail */}
@@ -2128,10 +2130,10 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
                 onToggleRail={() => setRailOpen(v => !v)}
                 showToday={tripActive && i !== todayIdx}
                 onToday={goToday}
-                stampFor={verdicts.owner ? (stop => (
+                stampFor={stamping ? (stop => (
                   <VerdictStamp row={verdicts.byStop.get(stop.id)} label={stop.title} onOpen={() => openStop(stop, i)} />
                 )) : undefined}
-                afterStops={verdicts.owner ? (
+                afterStops={stamping ? (
                   <>
                     {(verdicts.extras.get(day.id) ?? []).map(row => (
                       <ExtraPlaceRow
