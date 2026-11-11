@@ -441,8 +441,8 @@ function FrameSheet({
                         <span style={{ display: 'block', fontSize: 16, lineHeight: 1.38,
                                        textDecoration: done ? 'line-through' : 'none' }}>{l.prompt}</span>
                         {l.tip && (
-                          <span style={{ display: 'block', marginTop: 3, fontFamily: 'var(--font-mono)',
-                                         fontSize: 12, lineHeight: 1.45, color: 'var(--k-copper)' }}>{l.tip}</span>
+                          <span style={{ display: 'block', marginTop: 3, fontSize: 14, lineHeight: 1.4,
+                                         fontWeight: 500, color: 'var(--k-copper)' }}>{l.tip}</span>
                         )}
                       </span>
                     </button>
