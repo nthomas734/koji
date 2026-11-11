@@ -1675,7 +1675,8 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
       const i = shot ? days.findIndex(d => d.id === shot.day_id) : -1;
       const el = (shot?.stop_id != null && document.getElementById(`stop-${shot.stop_id}`))
         || (i >= 0 && document.getElementById(`day-${i}`));
-      if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior }));
+      // After the sheet has unmounted and given the body its scroll back.
+      if (el) setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior }), 60);
     }
   }, [focusShot, shots, days]);
 

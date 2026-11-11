@@ -13,3 +13,7 @@ update koma_shots set light = 'midday'  where light = 'midday, cloud is fine';
 alter table koma_shots drop constraint if exists koma_shots_light_check;
 alter table koma_shots add constraint koma_shots_light_check
   check (light is null or light in ('golden','blue','morning','midday','afternoon','night','any'));
+
+-- With light fixed, koma's light check runs again and flagged shot times that
+-- sat just outside their window. Moved inside it.
+update koma_shots k set at_time = v.t from (values (83,'17:25'),(94,'17:20'),(108,'17:40'),(87,'18:05'),(88,'06:45'),(96,'06:35'),(101,'16:50')) as v(id,t) where k.id=v.id;
