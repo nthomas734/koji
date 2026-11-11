@@ -248,6 +248,11 @@ export function KomaNearby({
   }, [shots, days, trip.tz, now, pos, todayIdx, dateForDay]);
 
   type Row = (typeof rows)[number];
+  const dayOrder = new Map(days.map((d, i) => [d.id, i] as [number, number]));
+  const byTrip = (a: Row, b: Row) =>
+    ((a.shot.day_id != null ? dayOrder.get(a.shot.day_id) : undefined) ?? 999)
+      - ((b.shot.day_id != null ? dayOrder.get(b.shot.day_id) : undefined) ?? 999)
+    || (a.shot.at_time ?? '99').localeCompare(b.shot.at_time ?? '99');
   const rank = (a: Row, b: Row) => {
     const done = (r: Row) => (r.shot.status === 'got' ? 1 : 0);
     if (done(a) !== done(b)) return done(a) - done(b);
@@ -351,6 +356,16 @@ export function KomaNearby({
         {todays.length > 0 && (
           <Group label="Today" list={[...todays].sort((a, b) => (a.shot.at_time ?? '99').localeCompare(b.shot.at_time ?? '99'))} />
         )}
+        {/* With no fix and nothing today (before the trip, or offline with no
+            GPS yet) this screen used to show no shots at all, which read as
+            "koma is empty". Everything stays one tap away, in trip order. */}
+        {todays.length === 0 && rows.length > 0 && (showFar
+          ? <Group label="Every idea on the trip" list={[...rows].sort(byTrip)} />
+          : (
+            <button type="button" className="koma-btn sec" style={{ flex: 'none' }} onClick={() => setShowFar(true)}>
+              Every idea on the trip · {rows.length}
+            </button>
+          ))}
       </div>
     );
   }
