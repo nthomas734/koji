@@ -7,12 +7,12 @@ import { SunTrack, type TrackFrame } from './SunTrack';
 import { KomaSketch } from './KomaSketch';
 import { LensMark, lensLabel, lensLength, lensWeight, lensParts, fmtWeight } from './LensMark';
 import {
-  sunDay, utcOffsetFor, parseTimeLabel, parseClock, fmtHour, bandAt,
+  sunDay, utcOffsetFor, parseTimeLabel, parseClock, fmtHour, bandAt, zoneOffsetSec,
   type SunDay, type OffsetSource,
 } from '@/lib/sun';
 import { usePendingStatus, queueStatus, flush } from '@/lib/komaQueue';
 import { solarPosition, sunRelation } from '@/lib/sun';
-import { KomaNearby, compass, firstSentence, lookFor, areaSize, type NearbyPick } from './KomaNearby';
+import { KomaNearby, compass, firstSentence, lookFor, areaSize, haversine, type NearbyPick } from './KomaNearby';
 
 // ── FRAME MODEL ──────────────────────────────────────────────────────────────
 // A "frame" is a shot placed in the day's running order. Numbering runs 1..n
@@ -1335,4 +1335,80 @@ function localToday(): string {
 function fmtRollDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+// ── ONE SHOT, FROM THE ITINERARY ─────────────────────────────────────────────
+// A big shot's footnote in the itinerary opens this: the same card koma shows,
+// over the itinerary, without switching the page into koma. #koma-<id> opens it
+// on load. Closing hands back to the itinerary (TripView keeps the day).
+// An area lists its spots; a spot opened from there closes back to the area.
+
+export function KomaShotCard({ trip, days, shots, shotId, dateForDay, sunMode, onClose, onShotChange }: {
+  trip: Trip;
+  days: Day[];
+  shots: Shot[];
+  shotId: number;
+  dateForDay: (i: number) => string | null;
+  sunMode: boolean;
+  onClose: () => void;
+  onShotChange: (shot: Shot) => void;
+}) {
+  const pending = usePendingStatus();
+  const [stack, setStack] = useState<number[]>([shotId]);
+  useEffect(() => { setStack([shotId]); }, [shotId]);
+
+  const view = useMemo(() => (
+    pending.size === 0 ? shots : shots.map(sh => {
+      const p = pending.get(sh.id);
+      return p && p !== sh.status ? { ...sh, status: p as Shot['status'] } : sh;
+    })
+  ), [shots, pending]);
+
+  const pickFor = useCallback((s: Shot): NearbyPick & { frame: Frame } => {
+    const i = days.findIndex(d => d.id === s.day_id);
+    const day = i >= 0 ? days[i] : null;
+    const dateISO = i >= 0 ? dateForDay(i) : null;
+    const tz = day?.tz ?? trip.tz;
+    const offset = dateISO && tz ? zoneOffsetSec(tz, dateISO) : null;
+    const lat = s.lat != null ? Number(s.lat) : null;
+    const lng = s.lng != null ? Number(s.lng) : null;
+    const sun = dateISO && offset != null && lat != null && lng != null ? sunDay(dateISO, lat, lng, offset) : null;
+    const frame = (day ? buildFrames(day, view).find(f => f.shot.id === s.id) : undefined)
+      ?? { shot: s, n: 1, stop: null, hour: parseClock(s.at_time) };
+    const inside = s.kind === 'area' && s.radius_m != null && lat != null && lng != null
+      ? view.filter(o => o.kind !== 'area' && o.lat != null && o.lng != null && o.status !== 'skipped'
+          && haversine({ lat, lng }, { lat: Number(o.lat), lng: Number(o.lng) }) <= (s.radius_m ?? 0))
+        .map(o => ({ shot: o, lightNote: null, sun: null, dateISO: dateISO ?? '', offset, inside: [] }))
+      : [];
+    return { shot: s, lightNote: null, sun, dateISO: dateISO ?? '', offset, inside, frame };
+  }, [days, dateForDay, trip.tz, view]);
+
+  const current = view.find(s => s.id === stack[stack.length - 1]);
+  if (!current) return null;
+  const pick = pickFor(current);
+  const lat = Number(current.lat), lng = Number(current.lng);
+  const geo: SheetGeo = pick.offset != null && pick.dateISO && current.lat != null && current.lng != null
+    ? { lat, lng, dateISO: pick.dateISO, offset: pick.offset } : null;
+
+  return (
+    <div className={sunMode ? 'koma sun' : 'koma'}>
+      <FrameSheet
+        frame={pick.frame}
+        total={1}
+        inside={pick.inside}
+        onPick={p => setStack(st => [...st, p.shot.id])}
+        sun={pick.sun}
+        geo={geo}
+        pending={pending.has(current.id)}
+        dated={pick.dateISO !== ''}
+        onClose={() => (stack.length > 1 ? setStack(st => st.slice(0, -1)) : onClose())}
+        onStatus={st => {
+          onShotChange({ ...current, status: st });
+          queueStatus(current.id, st);
+          void flush();
+        }}
+        onStep={() => {}}
+      />
+    </div>
+  );
 }

@@ -220,7 +220,9 @@ export type ShotType =
   | 'compression' | 'detail' | 'rhythm' | 'moment'
   | 'macro' | 'wildlife' | 'night' | 'portrait';
 
-export type ShotLight = 'golden' | 'blue' | 'morning' | 'midday' | 'night' | 'any';
+/** A fixed set (DB check constraint since 2026-11-11). Times are never stored:
+ *  lib/shotLight.ts works the window out from the sun for the place and date. */
+export type ShotLight = 'golden' | 'blue' | 'morning' | 'midday' | 'afternoon' | 'night' | 'any';
 export type ShotPriority = 'must' | 'want' | 'maybe';
 export type ShotStatus = 'planned' | 'got' | 'missed' | 'skipped';
 
@@ -256,6 +258,9 @@ export interface Shot {
   lens:        string | null;
   focal_hint:  string | null;
   light:       ShotLight | null;
+  /** One of the trip's big shots: shown in the owner's itinerary on its stop
+   *  (stop_id), or by its time when it has no stop. */
+  in_itinerary: boolean;
   at_time:     string | null;
   position_md: string | null;
   tech_md:     string | null;

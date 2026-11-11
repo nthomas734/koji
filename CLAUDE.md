@@ -168,6 +168,21 @@ included. Nathan closed it on 2026-11-11. Now:
 long-press ever returns, it must stay an icon: a long-press on text raises
 iOS's Copy/Look Up callout and the gesture never reaches the handler.
 
+**Big shots in the itinerary (2026-11-11).** A handful of shots per trip
+(`koma_shots.in_itinerary`) show in the owner's koji itinerary as a two-line
+copper footnote (`ShotNote`): name and arrow, then light window · lens ·
+"area". Owner only — they come from `useKomaData`, never the page payload. A
+shot shows on its main stop (`stop_id`, same day) only; one with no stop on its
+day is a `TimedShot` row placed after the last planned stop that starts at or
+before its `at_time`. "Got" goes grey with a ✓. A tap (or a `#koma-<id>` link)
+opens `KomaShotCard` — the koma card over the itinerary; closing returns to the
+same day. The light window is worked out by `lib/shotLight.ts` from `sunDay()`
+for the shot's coordinates and its day's date; `light` is a fixed set (DB check
+constraint) and no time is ever stored. After itinerary edits, check no big shot
+lost its stop:
+`select id, title from koma_shots k where in_itinerary and stop_id is null and id not in (98,104);`
+(98 and 104 are placed by time on purpose.)
+
 **Frames.** A shot is a named picture, not a location. `buildFrames` numbers a
 day's shots 1..n in itinerary order: shots inherit their stop's `sort_order`,
 and loose shots (`day_id` set, `stop_id` null) fall in at the end under

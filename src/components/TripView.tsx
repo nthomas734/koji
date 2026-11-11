@@ -1,17 +1,20 @@
 'use client';
 
-import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Day, Logistics, Shot, Stay, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { KojiMark } from '@/components/KojiMark';
-import { KomaView } from '@/components/KomaView';
+import { KomaView, KomaShotCard } from '@/components/KomaView';
+import { ShotNote, TimedShot } from '@/components/ShotNote';
+import { shotWindow } from '@/lib/shotLight';
+import { fmtHour, parseClock, parseTimeLabel } from '@/lib/sun';
 import { KomaMark } from '@/components/KomaMark';
 import { OwnerSwitch, type OwnerMode } from '@/components/OwnerSwitch';
 import { LAST_TRIP_KEY } from '@/components/OwnerNav';
 import { TripAlerts } from '@/components/TripAlerts';
 import { TripSearch, type SearchTarget } from '@/components/TripSearch';
-import { useQueueDrain } from '@/lib/komaQueue';
+import { useQueueDrain, usePendingStatus } from '@/lib/komaQueue';
 import { mapsSearchUrl } from '@/lib/supabase';
 import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
 import { useKomaData } from '@/lib/komaData';
@@ -939,12 +942,15 @@ function DayBlock({
   stops,
   footerFor,
   maybe,
+  afterStop,
 }: {
   /** Where you sleep tonight: names the town and colours the accent. */
   stay?: Stay | null;
   /** The timeline, maybes included in place. Defaults to all of the day's stops. */
   stops?: Stop[];
   footerFor?: (stop: Stop) => React.ReactNode;
+  /** Owner only: rows placed by time after a stop (null: before the first). */
+  afterStop?: (stop: Stop | null) => React.ReactNode;
   /** An un-added maybe, drawn where it would fit; null means "a normal stop". */
   maybe?: (stop: Stop, accent: string) => React.ReactNode | null;
   stampFor?: (stop: Stop) => React.ReactNode;
@@ -1161,6 +1167,7 @@ function DayBlock({
         </div>
       </div>
       <div style={{ padding: '0 12px' }}>
+        {afterStop?.(null)}
         {(stops ?? day.stops ?? []).map((stop, k, list) => {
           const m = maybe?.(stop, accent);
           if (m) {
@@ -1168,7 +1175,12 @@ function DayBlock({
             const startsRun = !prev || !maybe?.(prev, accent);
             return <Fragment key={stop.id}>{startsRun && <MaybeRunHead accent={accent} />}{m}</Fragment>;
           }
-          return <StopRow key={stop.id} stop={stop} accent={accent} tz={day.tz} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />;
+          return (
+            <Fragment key={stop.id}>
+              <StopRow stop={stop} accent={accent} tz={day.tz} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />
+              {afterStop?.(stop)}
+            </Fragment>
+          );
         })}
         {afterStops}
       </div>
@@ -1618,6 +1630,60 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   // asks the API, and only a phone holding the admin cookie gets `owner`.
   const verdicts = useVerdicts(trip.id);
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
+
+  // ── big shots ──────────────────────────────────────────────────────────────
+  // The trip's few big shots (koma `in_itinerary`) as footnotes on their stops,
+  // for the owner only: they come from useKomaData, which only a phone holding
+  // the admin cookie gets. A shot shows on its main stop (stop_id) only; one
+  // with no stop on its day gets a row of its own at its time. A tap opens the
+  // shot's koma card over the itinerary (#koma-<id>); closing it lands back on
+  // the same day. Light windows come from the sun (lib/shotLight.ts).
+  const bigShotsOn = verdicts.owner && koma.owner;
+  const pendingStatus = usePendingStatus();
+  const bigShots = useMemo(() => {
+    if (!bigShotsOn) return [] as Shot[];
+    return shots.filter(s => s.in_itinerary).map(s => {
+      const p = pendingStatus.get(s.id);
+      return p && p !== s.status ? { ...s, status: p as Shot['status'] } : s;
+    });
+  }, [bigShotsOn, shots, pendingStatus]);
+  const [focusShot, setFocusShot] = useState<{ id: number; fromLink: boolean } | null>(null);
+
+  useEffect(() => {
+    const read = () => {
+      const m = window.location.hash.match(/^#koma-(\d+)$/);
+      if (m) setFocusShot({ id: Number(m[1]), fromLink: true });
+    };
+    read();
+    window.addEventListener('hashchange', read);
+    return () => window.removeEventListener('hashchange', read);
+  }, []);
+
+  const openShot = useCallback((id: number) => {
+    setFocusShot({ id, fromLink: false });
+    try { history.replaceState(null, '', `#koma-${id}`); } catch { /* see setMode */ }
+  }, []);
+
+  const closeShot = useCallback(() => {
+    const was = focusShot;
+    setFocusShot(null);
+    try { history.replaceState(null, '', window.location.pathname); } catch { /* see setMode */ }
+    // Opened from the itinerary, the page underneath never moved. Opened from a
+    // link, put the shot's day on screen.
+    if (was?.fromLink) {
+      const shot = shots.find(s => s.id === was.id);
+      const i = shot ? days.findIndex(d => d.id === shot.day_id) : -1;
+      const el = (shot?.stop_id != null && document.getElementById(`stop-${shot.stop_id}`))
+        || (i >= 0 && document.getElementById(`day-${i}`));
+      if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior }));
+    }
+  }, [focusShot, shots, days]);
+
+  const noteFor = useCallback((s: Shot, dayIdx: number) => {
+    const day = days[dayIdx];
+    const dateISO = trip.date_start ? dateForDay(trip.date_start, dayIdx) : null;
+    return { shot: s, light: shotWindow(s, dateISO, day?.tz ?? trip.tz), onOpen: () => openShot(s.id) };
+  }, [days, trip.date_start, trip.tz, openShot]);
   const stamping = verdicts.owner && verdictsOn;
 
   // Remember the trip so Bookings and Admin can offer the way back to it.
@@ -2132,6 +2198,19 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         />
       )}
 
+      {focusShot && bigShotsOn && !komaOn && (
+        <KomaShotCard
+          trip={trip}
+          days={days}
+          shots={shots}
+          shotId={focusShot.id}
+          dateForDay={i => (trip.date_start ? dateForDay(trip.date_start, i) : null)}
+          sunMode={sunMode}
+          onClose={closeShot}
+          onShotChange={applyShot}
+        />
+      )}
+
       {activeTab === 'itinerary' && !komaOn && (
         <>
           {tripUpcoming && <TripAlerts slug={trip.slug} title={trip.title} theme={theme} hideWhenOn />}
@@ -2149,7 +2228,33 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
                 day={day}
                 stay={stay}
                 stops={timeline}
-                footerFor={verdicts.owner ? (st => (st.is_optional ? <RemoveFromPlan onRemove={() => setAdded(st, false)} /> : null)) : undefined}
+                footerFor={verdicts.owner ? (st => {
+                  const shot = bigShots.find(s => s.stop_id === st.id && s.day_id === day.id);
+                  const remove = st.is_optional ? <RemoveFromPlan onRemove={() => setAdded(st, false)} /> : null;
+                  if (!shot) return remove;
+                  return <>{remove}<ShotNote {...noteFor(shot, i)} /></>;
+                }) : undefined}
+                afterStop={bigShotsOn ? (st => {
+                  // Shots with no stop on this day, after the last planned stop
+                  // that starts at or before them (null: before the first).
+                  const planned = timeline.filter(t => !(t.is_optional && !t.added));
+                  const loose = bigShots.filter(s => s.day_id === day.id
+                    && !(s.stop_id != null && all.some(t => t.id === s.stop_id)));
+                  const here = loose.filter(s => {
+                    const h = parseClock(s.at_time);
+                    let anchor: Stop | null = null;
+                    for (const t of planned) {
+                      const th = parseTimeLabel(t.time_label);
+                      if (th != null && h != null && th <= h) anchor = t;
+                    }
+                    if (h == null) anchor = planned[planned.length - 1] ?? null;
+                    return (anchor?.id ?? null) === (st?.id ?? null);
+                  });
+                  if (!here.length) return null;
+                  return here.map(s => (
+                    <TimedShot key={s.id} time={s.at_time ? fmtHour(parseClock(s.at_time)) : ''} {...noteFor(s, i)} />
+                  ));
+                }) : undefined}
                 maybe={(st, accent) => (st.is_optional && !st.added ? <MaybeCard stop={st} owner={verdicts.owner} accent={accent} onAdd={s => setAdded(s, true)} /> : null)}
                 weather={hasCoords ? weatherForDay(i) : null}
                 dayIndex={i}

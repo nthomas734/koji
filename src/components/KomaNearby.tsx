@@ -67,7 +67,7 @@ type Pos = { lat: number; lng: number };
 const WALK_M  = 1600;   // about 20 minutes on foot
 const RIDE_M  = 8000;   // a short train or taxi
 
-function haversine(a: Pos, b: Pos): number {
+export function haversine(a: Pos, b: Pos): number {
   const R = 6371000, rad = Math.PI / 180;
   const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
