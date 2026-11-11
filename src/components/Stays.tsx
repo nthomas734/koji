@@ -5,7 +5,7 @@
 // all hang off koji_stays, plus the "if there's time" list for optional stops:
 //   - StaysStrip:   the band of towns in the hero; tap one to jump to its day
 //   - StayHeading:  the chapter heading before a town's first day
-//   - MaybeShelf:   optional stops at the foot of their day, tinted dashed cards
+//   - MaybeCard:    an optional stop, tinted and dashed, in place in its day
 // A trip with no stays renders none of the first two, exactly as before.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -150,100 +150,103 @@ function listItems(md: string | null): string[] | null {
   return lines.map(l => l.slice(2));
 }
 
-export function MaybeShelf({ stops, owner, onAdd, accent }: {
-  stops: Stop[];
+function maybeColors(accent: string) {
+  return {
+    tint: `color-mix(in srgb, ${accent} 15%, var(--surface))`,
+    deep: `color-mix(in srgb, ${accent} 62%, var(--ink))`,
+    edge: (pct: number) => `color-mix(in srgb, ${accent} ${pct}%, transparent)`,
+  };
+}
+
+/** Above the first maybe in a run: a quiet "if there's time" rule. */
+export function MaybeRunHead({ accent }: { accent: string }) {
+  const { deep, edge } = maybeColors(accent);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px', margin: '14px 0 -2px', color: deep }}>
+      <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 300, fontSize: 15, whiteSpace: 'nowrap' }}>
+        if there&apos;s time
+      </span>
+      <span aria-hidden style={{ flex: 1, borderTop: `1.5px dotted ${edge(50)}` }} />
+    </div>
+  );
+}
+
+/** One maybe, drawn in the day's colour where it would fit in the day. */
+export function MaybeCard({ stop, owner, onAdd, accent }: {
+  stop: Stop;
   owner: boolean;
   onAdd: (stop: Stop) => void;
   accent: string;
 }) {
-  if (stops.length === 0) return null;
-  const tint = `color-mix(in srgb, ${accent} 15%, var(--surface))`;
-  const deep = `color-mix(in srgb, ${accent} 62%, var(--ink))`;
-  const edge = (pct: number) => `color-mix(in srgb, ${accent} ${pct}%, transparent)`;
-  return (
-    <div style={{ marginTop: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px', color: deep }}>
-        <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 300, fontSize: 16, whiteSpace: 'nowrap' }}>
-          if there&apos;s time
-        </span>
-        <span aria-hidden style={{ flex: 1, borderTop: `1.5px dotted ${edge(50)}` }} />
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-          {stops.length} {stops.length === 1 ? 'maybe' : 'maybes'}
-        </span>
-      </div>
-      {stops.map(stop => {
-        // "Ideas: lunch on Naoshima" with a "- " list body: a short list of
-        // picks, not one stop. Show the list as a list and say so in the pill.
-        const ideas = /^ideas:\s*/i.test(stop.title);
-        const title = ideas ? stop.title.replace(/^ideas:\s*/i, '').replace(/^./, c => c.toUpperCase()) : stop.title;
-        const items = listItems(stop.body_md);
-        const body = items ? null : renderMd(stop.body_md);
-        const pill = stop.fit_label ?? (ideas ? (items && items.length > 1 ? `${items.length} ideas` : 'an idea') : null);
-        return (
-          <article
-            key={stop.id}
-            id={`stop-${stop.id}`}
+  const { tint, deep, edge } = maybeColors(accent);
+    // "Ideas: lunch on Naoshima" with a "- " list body: a short list of
+    // picks, not one stop. Show the list as a list and say so in the pill.
+    const ideas = /^ideas:\s*/i.test(stop.title);
+    const title = ideas ? stop.title.replace(/^ideas:\s*/i, '').replace(/^./, c => c.toUpperCase()) : stop.title;
+    const items = listItems(stop.body_md);
+    const body = items ? null : renderMd(stop.body_md);
+    const pill = stop.fit_label ?? (ideas ? (items && items.length > 1 ? `${items.length} ideas` : 'an idea') : null);
+    return (
+      <article
+        id={`stop-${stop.id}`}
+        style={{
+          background: tint,
+          border: `1.5px dashed ${edge(45)}`,
+          borderRadius: 16,
+          marginTop: 10,
+          overflow: 'hidden',
+          scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 64px)',
+        }}
+      >
+        <div style={{ padding: '11px 14px 11px' }}>
+          {pill && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'baseline', gap: 5, maxWidth: '100%', lineHeight: 1.35,
+              fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.06em', textTransform: 'uppercase',
+              color: deep, background: 'var(--surface)', borderRadius: 10, padding: '3px 9px', marginBottom: 7,
+            }}>
+              {stop.fit_label && <ClockGlyph />}
+              <span style={{ minWidth: 0 }}>{pill}</span>
+            </span>
+          )}
+          <h3 style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.3, color: deep, margin: 0 }}>
+            {title}
+            {!owner && stop.time_label && (
+              <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500, color: 'var(--ink-4)', marginLeft: 8 }}>{stop.time_label}</span>
+            )}
+          </h3>
+          {body && <div className="body-content" style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--ink-2)', marginTop: 3 }} dangerouslySetInnerHTML={{ __html: body }} />}
+          {items && (
+            <ul style={{ listStyle: 'none', margin: '5px 0 0', padding: 0, display: 'grid', gap: 6 }}>
+              {items.map((it, k) => (
+                <li key={k} style={{ display: 'grid', gridTemplateColumns: '12px minmax(0, 1fr)', gap: 6, alignItems: 'start' }}>
+                  <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: edge(70), marginTop: 7 }} />
+                  <div className="body-content" style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--ink-2)' }} dangerouslySetInnerHTML={{ __html: renderMd(it) }} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {owner && (
+          <button
+            type="button"
+            onClick={() => onAdd(stop)}
+            className="pressable"
+            aria-label={`Add ${stop.title} to the plan`}
             style={{
-              background: tint,
-              border: `1.5px dashed ${edge(45)}`,
-              borderRadius: 16,
-              marginTop: 8,
-              overflow: 'hidden',
-              scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 64px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', minHeight: 40,
+              border: 'none', borderTop: `1.5px dashed ${edge(35)}`,
+              background: `color-mix(in srgb, ${accent} 9%, var(--surface))`,
+              fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
+              color: deep, cursor: 'pointer',
             }}
           >
-            <div style={{ padding: '11px 14px 11px' }}>
-              {pill && (
-                <span style={{
-                  display: 'inline-flex', alignItems: 'baseline', gap: 5, maxWidth: '100%', lineHeight: 1.35,
-                  fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.06em', textTransform: 'uppercase',
-                  color: deep, background: 'var(--surface)', borderRadius: 10, padding: '3px 9px', marginBottom: 7,
-                }}>
-                  {stop.fit_label && <ClockGlyph />}
-                  <span style={{ minWidth: 0 }}>{pill}</span>
-                </span>
-              )}
-              <h3 style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.3, color: deep, margin: 0 }}>
-                {title}
-                {!owner && stop.time_label && (
-                  <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500, color: 'var(--ink-4)', marginLeft: 8 }}>{stop.time_label}</span>
-                )}
-              </h3>
-              {body && <div className="body-content" style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--ink-2)', marginTop: 3 }} dangerouslySetInnerHTML={{ __html: body }} />}
-              {items && (
-                <ul style={{ listStyle: 'none', margin: '5px 0 0', padding: 0, display: 'grid', gap: 6 }}>
-                  {items.map((it, k) => (
-                    <li key={k} style={{ display: 'grid', gridTemplateColumns: '12px minmax(0, 1fr)', gap: 6, alignItems: 'start' }}>
-                      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: edge(70), marginTop: 7 }} />
-                      <div className="body-content" style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--ink-2)' }} dangerouslySetInnerHTML={{ __html: renderMd(it) }} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            {owner && (
-              <button
-                type="button"
-                onClick={() => onAdd(stop)}
-                className="pressable"
-                aria-label={`Add ${stop.title} to the plan`}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', minHeight: 40,
-                  border: 'none', borderTop: `1.5px dashed ${edge(35)}`,
-                  background: `color-mix(in srgb, ${accent} 9%, var(--surface))`,
-                  fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
-                  color: deep, cursor: 'pointer',
-                }}
-              >
-                <PlusGlyph />
-                Add to the day{stop.time_label ? ` · ${stop.time_label}` : ''}
-              </button>
-            )}
-          </article>
-        );
-      })}
-    </div>
-  );
+            <PlusGlyph />
+            Add to the day{stop.time_label ? ` · ${stop.time_label}` : ''}
+          </button>
+        )}
+      </article>
+    );
 }
 
 /** Under a stop that came off the shelf: the owner's way to put it back. */

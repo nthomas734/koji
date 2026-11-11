@@ -16,7 +16,7 @@ import { mapsSearchUrl } from '@/lib/supabase';
 import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
 import { JourneyTicket, isJourney } from '@/components/JourneyTicket';
-import { MaybeShelf, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
+import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
 const THEMES: Record<string, { bg: string; fg: string }> = {
@@ -937,15 +937,15 @@ function DayBlock({
   stay,
   stops,
   footerFor,
-  shelf,
+  maybe,
 }: {
   /** Where you sleep tonight: names the town and colours the accent. */
   stay?: Stay | null;
-  /** The timeline, already without the maybes. Defaults to all of the day's stops. */
+  /** The timeline, maybes included in place. Defaults to all of the day's stops. */
   stops?: Stop[];
   footerFor?: (stop: Stop) => React.ReactNode;
-  /** The "if there's time" list, under the timeline. */
-  shelf?: (accent: string) => React.ReactNode;
+  /** An un-added maybe, drawn where it would fit; null means "a normal stop". */
+  maybe?: (stop: Stop, accent: string) => React.ReactNode | null;
   stampFor?: (stop: Stop) => React.ReactNode;
   /** The owner's unplanned places and the add button. Absent for everyone else. */
   afterStops?: React.ReactNode;
@@ -1160,8 +1160,15 @@ function DayBlock({
         </div>
       </div>
       <div style={{ padding: '0 12px' }}>
-        {(stops ?? day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} accent={accent} tz={day.tz} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />)}
-        {shelf?.(accent)}
+        {(stops ?? day.stops ?? []).map((stop, k, list) => {
+          const m = maybe?.(stop, accent);
+          if (m) {
+            const prev = list[k - 1];
+            const startsRun = !prev || !maybe?.(prev, accent);
+            return <Fragment key={stop.id}>{startsRun && <MaybeRunHead accent={accent} />}{m}</Fragment>;
+          }
+          return <StopRow key={stop.id} stop={stop} accent={accent} tz={day.tz} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />;
+        })}
         {afterStops}
       </div>
     </section>
@@ -2119,8 +2126,7 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
               const stay = stayFor(i);
               const opens = !!stay && !!trip.date_start && dateForDay(trip.date_start, i) === stay.check_in;
               const all = day.stops ?? [];
-              const timeline = all.filter(st => !st.is_optional || isAdded(st)).map(st => (st.is_optional ? { ...st, added: true } : st));
-              const maybes = all.filter(st => st.is_optional && !isAdded(st));
+              const timeline = all.map(st => (st.is_optional && isAdded(st) ? { ...st, added: true } : st));
               return (
               <Fragment key={day.id}>
               {opens && stay && <StayHeading stay={stay} />}
@@ -2129,7 +2135,7 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
                 stay={stay}
                 stops={timeline}
                 footerFor={verdicts.owner ? (st => (st.is_optional ? <RemoveFromPlan onRemove={() => setAdded(st, false)} /> : null)) : undefined}
-                shelf={accent => <MaybeShelf stops={maybes} owner={verdicts.owner} accent={accent} onAdd={st => setAdded(st, true)} />}
+                maybe={(st, accent) => (st.is_optional && !st.added ? <MaybeCard stop={st} owner={verdicts.owner} accent={accent} onAdd={s => setAdded(s, true)} /> : null)}
                 weather={hasCoords ? weatherForDay(i) : null}
                 dayIndex={i}
                 dayTotal={days.length}
