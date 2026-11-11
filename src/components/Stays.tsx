@@ -9,6 +9,7 @@
 // A trip with no stays renders none of the first two, exactly as before.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { useEffect, useState } from 'react';
 import type { Stay, Stop } from '@/lib/supabase';
 import { mapsSearchUrl } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
@@ -81,9 +82,46 @@ export function StaysStrip({ stays, theme, onPick }: {
 }
 
 // ── CHAPTER HEADING ─────────────────────────────────────────────────────────
-export function StayHeading({ stay }: { stay: Stay }) {
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Whole days from a to b, both YYYY-MM-DD. */
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(b + 'T00:00').getTime() - new Date(a + 'T00:00').getTime()) / 86400000);
+}
+
+/**
+ * What the tilted stamp on a stay heading says. Booking is a given by the time
+ * anyone reads the itinerary, so the stamp tells you where you are instead:
+ * which of the trip's nights this is before you go, "tonight" / "night 2 of 3"
+ * / "checkout day" while you're there, "stayed" once it's behind you. An
+ * unbooked stay keeps its dashed "not booked" until the stay has passed.
+ */
+function stampFor(stay: Stay, out: string, firstNight: number, today: string): { text: string; ghost: boolean } {
+  if (today > out) return { text: 'stayed', ghost: true };
+  if (!stay.booked) return { text: 'not booked', ghost: true };
+  if (today === out) return { text: 'checkout day', ghost: false };
+  if (today === stay.check_in) return { text: 'tonight', ghost: false };
+  if (today > stay.check_in) return { text: `night ${daysBetween(stay.check_in, today) + 1} of ${stay.nights}`, ghost: false };
+  const last = firstNight + stay.nights - 1;
+  return { text: stay.nights === 1 ? `night ${firstNight}` : `nights ${firstNight}–${last}`, ghost: false };
+}
+
+export function StayHeading({ stay, firstNight = 1 }: { stay: Stay; firstNight?: number }) {
   const ink = stayTone(stay, null);
   const out = addDays(stay.check_in, stay.nights);
+  // The page is prerendered, so "today" is only known in the browser. Read it
+  // after mount, and again when the phone wakes up on a new day.
+  const [today, setToday] = useState<string | null>(null);
+  useEffect(() => {
+    setToday(localToday());
+    const onVisible = () => { if (document.visibilityState === 'visible') setToday(localToday()); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+  const stamp = today ? stampFor(stay, out, firstNight, today) : null;
   const hotelUrl = stay.hotel ? mapsSearchUrl(stay.hotel_query || [stay.hotel, stay.place].join(' ')) : null;
   return (
     <header id={`stay-${stay.id}`} style={{ margin: '34px 12px 0', scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}>
@@ -109,15 +147,17 @@ export function StayHeading({ stay }: { stay: Stay }) {
         {stay.hotel && (
           <div style={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 10px', marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.03em', color: 'var(--ink-3)' }}>
             <a href={hotelUrl!} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-2)', borderBottom: '1px solid var(--border-mid)', textDecoration: 'none' }}>{stay.hotel}</a>
-            <span style={{
-              fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase',
-              padding: '2px 7px', borderRadius: 4, transform: 'rotate(-2deg)',
-              ...(stay.booked
-                ? { background: ink, color: 'var(--surface)' }
-                : { border: `1.5px dashed ${ink}`, color: ink }),
-            }}>
-              {stay.booked ? 'booked' : 'not booked'}
-            </span>
+            {stamp && (
+              <span style={{
+                fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                padding: '2px 7px', borderRadius: 4, transform: 'rotate(-2deg)',
+                ...(stamp.ghost
+                  ? { border: `1.5px dashed ${ink}`, color: ink }
+                  : { background: ink, color: 'var(--surface)' }),
+              }}>
+                {stamp.text}
+              </span>
+            )}
             {stay.desk_hours && <span>{stay.desk_hours}</span>}
           </div>
         )}

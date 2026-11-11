@@ -596,7 +596,7 @@ input, textarea, select {
 .owner-pill.cu { color: #B83C01; border-color: rgba(184, 60, 1, 0.35); background: rgba(184, 60, 1, 0.06); }
 .owner-layer { position: fixed; inset: 0; z-index: 60; }
 .owner-scrim { position: absolute; inset: 0; background: rgba(28, 26, 22, 0.38); animation: owner-fade 0.2s var(--ease-out); }
-.owner-sheet { position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto; max-width: 520px; background: var(--surface); border-radius: 18px 18px 0 0; padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); box-shadow: 0 -10px 30px -12px rgba(0,0,0,0.25); animation: owner-rise 0.28s var(--ease-out); }
+.owner-sheet { position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto; max-width: 520px; background: var(--surface); border-radius: 18px 18px 0 0; padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); box-shadow: 0 -10px 30px -12px rgba(0,0,0,0.25); animation: owner-rise 0.28s var(--ease-out); max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 24px); overflow-y: auto; overscroll-behavior: contain; }
 .owner-grab { width: 36px; height: 4px; border-radius: 2px; background: var(--border-mid); margin: 0 auto 10px; }
 .owner-lbl { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-4); margin: 12px 2px 8px; }
 .owner-mode-note { font-family: var(--font-serif); font-style: italic; font-weight: 300; font-size: 14px; color: var(--ink-3); margin: 10px 4px 4px; }

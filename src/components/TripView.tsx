@@ -2129,7 +2129,7 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
               const timeline = all.map(st => (st.is_optional && isAdded(st) ? { ...st, added: true } : st));
               return (
               <Fragment key={day.id}>
-              {opens && stay && <StayHeading stay={stay} />}
+              {opens && stay && <StayHeading stay={stay} firstNight={1 + stays.reduce((n, o) => (o.check_in < stay.check_in ? n + o.nights : n), 0)} />}
               <DayBlock
                 day={day}
                 stay={stay}
