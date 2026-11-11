@@ -2112,7 +2112,7 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
 
       {activeTab === 'itinerary' && !komaOn && (
         <>
-          {tripUpcoming && <TripAlerts slug={trip.slug} title={trip.title} theme={theme} />}
+          {tripUpcoming && <TripAlerts slug={trip.slug} title={trip.title} theme={theme} hideWhenOn />}
           <QuickStrip logistics={logistics} theme={theme} />
           <main>
             {days.map((day, i) => {
@@ -2177,7 +2177,12 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
       )}
 
       {/* LOGISTICS TAB */}
-      {activeTab === 'logistics' && <LogisticsSection logistics={logistics} theme={theme} />}
+      {activeTab === 'logistics' && (
+        <>
+          {tripUpcoming && <TripAlerts slug={trip.slug} title={trip.title} theme={theme} />}
+          <LogisticsSection logistics={logistics} theme={theme} />
+        </>
+      )}
 
       {/* WEATHER TAB */}
       {activeTab === 'weather' && (() => {

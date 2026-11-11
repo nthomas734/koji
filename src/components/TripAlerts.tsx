@@ -3,15 +3,26 @@
 import { useEffect, useState } from 'react';
 import { pushState, subscribe, unsubscribe, type PushState } from '@/lib/push';
 
-// The alerts toggle at the top of the itinerary, for trips that haven't ended.
-// Styled as a one-row QuickStrip card.
-export function TripAlerts({ slug, title, theme }: { slug: string; title: string; theme: { bg: string; fg: string } }) {
+// The alerts toggle, for trips that haven't ended. Styled as a one-row
+// QuickStrip card. On the itinerary it is a one-time setup prompt: with
+// hideWhenOn, a phone that already has alerts on never sees it (it stays
+// visible for the rest of the visit in which you switch it on, as the
+// confirmation). The Logistics tab always shows it, so it can be turned off.
+export function TripAlerts({ slug, title, theme, hideWhenOn = false }: {
+  slug: string; title: string; theme: { bg: string; fg: string }; hideWhenOn?: boolean;
+}) {
   const [state, setState] = useState<PushState | null>(null);
+  const [onAtLoad, setOnAtLoad] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
-  useEffect(() => { pushState(slug).then(setState).catch(() => setState('unsupported')); }, [slug]);
+  useEffect(() => {
+    pushState(slug)
+      .then(s => { setState(s); setOnAtLoad(s === 'on'); })
+      .catch(() => setState('unsupported'));
+  }, [slug]);
   if (state == null || state === 'unsupported') return null;
+  if (hideWhenOn && onAtLoad && state === 'on') return null;
 
   const on = state === 'on';
   const note =

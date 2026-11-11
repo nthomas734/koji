@@ -204,6 +204,8 @@ function fmtRange(a: string | null, b: string | null): string {
 
 // ── Board ───────────────────────────────────────────────────────────────────
 
+const FEED_KEY = 'koji:bookings-feed-subscribed';
+
 export default function BookingsBoard({ initial, trips, feedHttp, feedWebcal }: {
   initial: Booking[]; trips: BoardTrip[]; feedHttp: string; feedWebcal: string;
 }) {
@@ -216,6 +218,12 @@ export default function BookingsBoard({ initial, trips, feedHttp, feedWebcal }: 
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // Once the calendar feed has been subscribed to (or its link copied) on this
+  // device, the card folds to one line; it only needs setting up once.
+  const [feedDone, setFeedDone] = useState(false);
+  const [feedOpen, setFeedOpen] = useState(false);
+  useEffect(() => { try { setFeedDone(localStorage.getItem(FEED_KEY) === '1'); } catch {} }, []);
+  const markFeedDone = () => { try { localStorage.setItem(FEED_KEY, '1'); } catch {} };
 
   // Countdowns, sections and "your time" depend on the clock and the phone's
   // zone, which the server (UTC on Vercel) doesn't share, so they render
@@ -419,22 +427,33 @@ export default function BookingsBoard({ initial, trips, feedHttp, feedWebcal }: 
           );
         })}
 
-        {/* Calendar feed */}
-        <section className="bk-feed">
-          <div className="bk-feed-ic" style={{ background: heroBg, color: heroFg }}>◷</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>Alerts on your calendar</div>
-            <p style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5, marginTop: 3 }}>
-              The day before and when each window opens, plus a Sunday list of what&apos;s open. On a Mac, untick <b>Remove: Alerts</b> and refresh hourly. The link has a private key, so don&apos;t share it.
-            </p>
-            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-              <a className="bk-btn bk-btn-ink" href={feedWebcal}>Subscribe</a>
-              <button className="bk-btn" onClick={() => { navigator.clipboard?.writeText(feedHttp).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}>
-                {copied ? 'Copied' : 'Copy link'}
-              </button>
+        {/* Calendar feed: the setup card, or one line once it's set up here */}
+        {feedDone && !feedOpen ? (
+          <section className="bk-feed" style={{ padding: '10px 14px' }}>
+            <div className="bk-feed-ic" style={{ background: heroBg, color: heroFg, width: 26, height: 26, fontSize: 12 }}>✓</div>
+            <div style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--ink-2)' }}>On your calendar</div>
+            <button className="bk-btn" onClick={() => setFeedOpen(true)}>Link</button>
+          </section>
+        ) : (
+          <section className="bk-feed">
+            <div className="bk-feed-ic" style={{ background: heroBg, color: heroFg }}>◷</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Alerts on your calendar</div>
+              <p style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5, marginTop: 3 }}>
+                The day before and when each window opens, plus a Sunday list of what&apos;s open. On a Mac, untick <b>Remove: Alerts</b> and refresh hourly. The link has a private key, so don&apos;t share it.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                <a className="bk-btn bk-btn-ink" href={feedWebcal} onClick={markFeedDone}>Subscribe</a>
+                <button className="bk-btn" onClick={() => { navigator.clipboard?.writeText(feedHttp).then(() => { markFeedDone(); setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}>
+                  {copied ? 'Copied' : 'Copy link'}
+                </button>
+                <button className="bk-btn" style={{ marginLeft: 'auto' }} onClick={() => { markFeedDone(); setFeedDone(true); setFeedOpen(false); }}>
+                  {feedDone ? 'Hide' : 'Already done'}
+                </button>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
       </main>
     </div>
   );
