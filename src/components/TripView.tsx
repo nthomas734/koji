@@ -1554,7 +1554,7 @@ interface TripViewProps {
   days: Day[];
   stays?: Stay[];
   /** Set on /trips/<slug>/<part>: the page shows only that part's dates. */
-  part?: { label: string; wholeHref: string };
+  part?: { key: string; label: string; wholeHref: string };
 }
 
 const TAB_HASHES: Record<string, Tab> = { logistics: 'logistics', weather: 'weather', itinerary: 'itinerary' };
@@ -2229,7 +2229,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
 
       {activeTab === 'itinerary' && !komaOn && (
         <>
-          {tripUpcoming && <TripAlerts slug={trip.slug} title={trip.title} theme={theme} hideWhenOn />}
+          {tripUpcoming && <TripAlerts slug={part ? `${trip.slug}/${part.key}` : trip.slug} title={trip.title} theme={theme} hideWhenOn />}
           <QuickStrip logistics={logistics} theme={theme} />
           <main>
             {days.map((day, i) => {
@@ -2321,7 +2321,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
       {/* LOGISTICS TAB */}
       {activeTab === 'logistics' && (
         <>
-          {tripUpcoming && <TripAlerts slug={trip.slug} title={trip.title} theme={theme} />}
+          {tripUpcoming && <TripAlerts slug={part ? `${trip.slug}/${part.key}` : trip.slug} title={trip.title} theme={theme} />}
           <LogisticsSection logistics={logistics} theme={theme} />
         </>
       )}

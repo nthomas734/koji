@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { getTripBySlug, supabaseAdmin } from '@/lib/supabase';
+import { findPart, slicePart } from '@/lib/parts';
 import { planTripAlerts } from '@/lib/tripAlerts';
 import { VAPID_PUBLIC } from '@/lib/push';
 
@@ -62,9 +63,16 @@ export async function POST(req: Request) {
   const now = Date.now();
   const report: Record<string, unknown> = {};
   for (const [slug, rows] of bySlug) {
-    const data = await getTripBySlug(slug);
-    if (!data) continue;
-    const plan = planTripAlerts(data.trip, data.days);
+    // "japan-2027/together": turned on from a part link, so only that part's
+    // days, linking back to the part's page. Dez's alerts end when her part
+    // does, instead of following the solo week on LA time.
+    const [base, partKey] = slug.split('/');
+    const whole = await getTripBySlug(base);
+    if (!whole) continue;
+    const part = partKey ? findPart(whole.trip, partKey) : null;
+    if (partKey && !part) continue;
+    const data = part ? slicePart(whole, part) : whole;
+    const plan = planTripAlerts(data.trip, data.days, part ? `/trips/${base}/${partKey}` : `/trips/${base}`);
     if (q.get('dry') === '1') {
       report[slug] = plan.filter(a => a.at > now - WINDOW_MS && a.at < now + 864e5)
         .map(a => ({ at: new Date(a.at).toISOString(), title: a.title, body: a.body }));

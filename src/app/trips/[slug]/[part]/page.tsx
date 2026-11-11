@@ -30,7 +30,7 @@ export default async function TripPartPage({
       logistics={logistics}
       days={days}
       stays={stays}
-      part={{ label: part.label, wholeHref: `/trips/${slug}` }}
+      part={{ key: part.key, label: part.label, wholeHref: `/trips/${slug}` }}
     />
   );
 }

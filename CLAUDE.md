@@ -821,3 +821,13 @@ koma, typing `/admin`, a link on admin to Bookings). Now there is one:
   "← <last trip>" (written by TripView to `koji:lastTrip`), then Trips ·
   Bookings · Admin · Rolls. `KomaHomeMark` (long-press to `/koma`) is gone;
   Rolls is in the nav and the sheet.
+
+## Trip alerts copy (2026-11-11)
+
+`koji_stops.alert_md / alert_lead / alert_off` shape each stop's push (see the
+header of `lib/tripAlerts.ts`). Write `alert_md` for a lock screen: ~110
+characters, what to do next (route, cash, booking, last entry), never the stop's
+opening description. Hotel stops are silent unless they carry `alert_md`.
+Alerts turned on from a part link subscribe as `<slug>/<part>`: only that part's
+days, linking to the part's page (Dez's end with her part).
+

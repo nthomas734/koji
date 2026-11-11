@@ -119,6 +119,10 @@ export interface Stop {
   added?:      boolean;
   /** Dinner choices. A stop with options renders the vote cards. */
   options?:    DinnerOption[];
+  /** Trip alerts (lib/tripAlerts): the lock-screen body, minutes of lead, or off. */
+  alert_md?: string | null;
+  alert_lead?: number | null;
+  alert_off?: boolean | null;
 }
 
 // ── STAYS ───────────────────────────────────────────────────────────────────
