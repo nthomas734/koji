@@ -684,8 +684,10 @@ function Plate({ s, area, n, total, hour, sun, geo, now, facing, place, onClose,
 }) {
   const st = lightState(s, sun, geo, hour, now);
   const hot = st.tone === 'now' || st.tone === 'soon';
+  // "Sat 13", built by hand: en-US puts the day first ("13 Sat") for this pair.
   const day = geo?.dateISO
-    ? new Date(`${geo.dateISO}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })
+    ? (() => { const d = new Date(`${geo.dateISO}T12:00:00`);
+               return `${d.toLocaleDateString('en-US', { weekday: 'short' })} ${d.getDate()}`; })()
     : null;
   const eyebrow = [day, place, hour != null ? fmtHour(hour) : null].filter(Boolean).join(' · ');
   const done = s.status === 'got';
