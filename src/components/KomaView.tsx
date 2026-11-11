@@ -185,10 +185,12 @@ export type SheetGeo = { lat: number; lng: number; dateISO: string; offset: numb
 
 function FrameSheet({
   frame, total, sun, geo, onClose, onStatus, pending, dated, onStep, lightNote = null,
-  inside = [], onPick, onOpenKoma,
+  inside = [], onPick, onOpenKoma, place = null,
 }: {
   /** From the itinerary: a way into koma itself, on this shot's day. */
   onOpenKoma?: () => void;
+  /** The town, for the plate's eyebrow ("Sat 13 · Tokyo · 9:00pm"). */
+  place?: string | null;
   /** "golden 5:23" from the Near me list, shown as a chip. */
   lightNote?: string | null;
   /** An area's spots, from the Near me list; tapping one opens it. */
@@ -210,7 +212,6 @@ function FrameSheet({
 }) {
   const s = frame.shot;
   const [zoom, setZoom] = useState(false);
-  const [more, setMore] = useState(false);
 
   // The clock, for the live light line. Thirty seconds is plenty: the line
   // speaks in minutes.
@@ -236,7 +237,7 @@ function FrameSheet({
 
   // Stepping kept the previous scroll position, so "next" from the bottom bar
   // landed you mid-page with the reference photograph off-screen above.
-  useEffect(() => { scroller.current?.scrollTo({ top: 0 }); setMore(false); }, [s.id]);
+  useEffect(() => { scroller.current?.scrollTo({ top: 0 }); }, [s.id]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -289,71 +290,22 @@ function FrameSheet({
   const mapsHref = spot
     ? `https://www.google.com/maps/search/?api=1&query=${spot.lat},${spot.lng}`
     : s.scout_url;
-  const hasMore = Boolean(
-    (area && s.radius_m) || spot || s.tech_md || s.notes_md
-    || frame.stop?.body_md || s.status === 'planned',
-  );
 
   return (
     <div ref={scroller} role="dialog" aria-modal="true" aria-label={s.title} style={{
       position: 'fixed', inset: 0, zIndex: 60, background: 'var(--k-bg)',
       overflowY: 'auto', WebkitOverflowScrolling: 'touch',
       display: 'flex', flexDirection: 'column',
-      paddingTop: 'env(safe-area-inset-top, 0px)',
     }}>
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 10,
-        padding: '13px 16px 10px', background: 'var(--k-bg)',
-        borderBottom: 'var(--k-bw) solid var(--k-border)',
-      }}>
-        {/* 44px of target, pulled left by its own padding so the chevron still
-            sits flush with the header text. It was 16x19. */}
-        <button type="button" onClick={onClose} aria-label="Back" style={{
-          background: 'none', border: 'none', font: 'inherit', fontSize: 19,
-          color: 'var(--k-ink-2)', cursor: 'pointer', lineHeight: 1,
-          width: 44, height: 44, marginLeft: -14, marginTop: -6, marginBottom: -6,
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          flex: '0 0 auto',
-        }}>‹</button>
-        {/* One line. "Bourton → Lower Slaughter → Upper Slaughter loop" wrapped
-            this to three lines and pushed the whole sheet down; the stop name is
-            one tap behind anyway. The stepper moved to the pinned bar below, so
-            the header is only ever "where am I". */}
-        <span className="koma-label" style={{
-          flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {total > 1
-            ? <>{area ? 'Area' : 'Frame'} <b style={{ color: 'var(--k-copper)', fontWeight: 500 }}>{frame.n}</b> of {total}</>
-            : area ? 'Area' : 'Idea'}
-          {/* the frame's own time, not the stop's — they differ by 30 min on
-              the Slaughters loop, and the frame's is the one you shoot to.
-              The stop's name and the area's size went: on a phone they only
-              ever showed as "· 9…", and neither helps in the street. */}
-          {frame.hour != null ? ` · ${fmtHour(frame.hour)}` : ''}
-        </span>
-        {onOpenKoma && (
-          <button type="button" onClick={onOpenKoma} style={{
-            flex: 'none', minHeight: 44, padding: '0 4px 0 10px', marginRight: -4,
-            background: 'none', border: 'none', cursor: 'pointer',
-            fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em',
-            textTransform: 'uppercase', color: 'var(--k-copper)',
-          }}>
-            Day in koma ›
-          </button>
-        )}
-        {/* The stepper moved up here when the pinned bar became Maps + Got it:
-            from the street, the spot is the action, not the next frame. */}
-        {total > 1 && (
-          <>
-            <StepBtn dir={-1} disabled={frame.n <= 1} onStep={onStep} />
-            <StepBtn dir={1} disabled={frame.n >= total} onStep={onStep} />
-          </>
-        )}
-      </div>
+      <Plate
+        s={s} area={area} n={frame.n} total={total} hour={frame.hour}
+        sun={sun} geo={geo} now={now} facing={facing?.text ?? null} place={place}
+        onClose={onClose} onStep={onStep} onOpenKoma={onOpenKoma}
+      />
 
       <div style={{
         maxWidth: 'var(--max-w)', width: '100%', margin: '0 auto', flex: '1 0 auto',
-        padding: '14px 16px 20px',
+        padding: '16px 16px 20px',
       }}>
         {s.ref_url ? (
           <>
@@ -386,29 +338,16 @@ function FrameSheet({
           </>
         ) : null}
 
-        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 500,
-                     lineHeight: 1.15, margin: '13px 0 0', letterSpacing: '-0.015em', color: 'var(--k-ink)' }}>
-          {s.title}
-        </h2>
-        {s.subtitle && (
-          <p style={{ fontSize: 14, color: 'var(--k-ink-2)', lineHeight: 1.45, margin: '5px 0 0' }}>{s.subtitle}</p>
-        )}
-
-        {/* ── the light, now ──────────────────────────────────────────────
-            The first question on the street is "is it good right now, and for
-            how long". On the day it answers that against the clock; before the
-            trip it gives the window, worked out from the sun. Lens and facing
-            ride along so nothing below has to be read to start shooting. */}
-        <LightNow s={s} sun={sun} geo={geo} hour={frame.hour} now={now}
-                  facing={facing?.text ?? null} must={s.priority === 'must'}
-                  status={s.status} area={area} />
-
         {/* Where to begin, in full and up top. It sat under "More" — the one
             thing you need on arrival, one tap away while holding a camera. */}
         {s.position_md && (
-          <div style={{ marginTop: 16 }}>
-            <div className="koma-label" style={{ marginBottom: 5 }}>{area ? 'Start here' : 'Stand here'}</div>
-            <div className="body-content" style={{ fontSize: 15, lineHeight: 1.5, color: 'var(--k-ink)' }}
+          <div style={{
+            marginTop: (s.ref_url || s.sketch) ? 14 : 0, padding: '11px 13px 12px 12px',
+            borderLeft: '2px solid var(--k-copper)', borderRadius: '0 10px 10px 0',
+            background: 'linear-gradient(90deg, var(--k-copper-tint) 0%, transparent 92%)',
+          }}>
+            <div className="koma-label" style={{ marginBottom: 4, color: 'var(--k-copper)' }}>{area ? 'Start here' : 'Stand here'}</div>
+            <div className="body-content" style={{ fontSize: 15.5, lineHeight: 1.5, color: 'var(--k-ink)' }}
                  dangerouslySetInnerHTML={{ __html: renderMd(s.position_md) }} />
           </div>
         )}
@@ -418,7 +357,7 @@ function FrameSheet({
             <div className="koma-label" style={{ marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
               <span>Look for</span>
               <span style={{ color: ticked.length ? 'var(--k-copper)' : undefined }}>
-                {ticked.length ? `${Math.min(ticked.length, look.length)} of ${look.length} · tap to tick` : 'tap to tick off'}
+                {ticked.length ? `${Math.min(ticked.length, look.length)} of ${look.length} shot` : 'tap when you get one'}
               </span>
             </div>
             <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
@@ -427,16 +366,20 @@ function FrameSheet({
                 return (
                   <li key={i} style={{ borderTop: i ? 'var(--k-bw) solid var(--k-border)' : 'none' }}>
                     <button type="button" onClick={() => tick(i)} aria-pressed={done} style={{
-                      display: 'grid', gridTemplateColumns: '26px 1fr', gap: 10, width: '100%',
+                      display: 'grid', gridTemplateColumns: '34px 1fr', gap: 10, width: '100%',
                       minHeight: 52, padding: '11px 0', textAlign: 'left', cursor: 'pointer',
                       background: 'none', border: 'none', font: 'inherit', color: 'var(--k-ink)',
                     }}>
+                      {/* A frame number, like the film counter: 01, 02… Ticked, the
+                          frame is exposed — filled copper with a check. */}
                       <span aria-hidden style={{
-                        width: 22, height: 22, marginTop: 1, borderRadius: 999,
-                        border: `1.5px solid ${done ? 'var(--k-copper)' : 'var(--k-border-2)'}`,
-                        background: done ? 'var(--k-copper)' : 'transparent', color: '#fff',
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13,
-                      }}>{done ? '✓' : ''}</span>
+                        width: 32, height: 24, marginTop: 0, borderRadius: 5,
+                        border: '1.5px solid var(--k-copper)',
+                        background: done ? 'var(--k-copper)' : 'transparent',
+                        color: done ? '#FFF6EE' : 'var(--k-copper)',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        fontFamily: 'var(--font-mono)', fontSize: done ? 13 : 11, fontWeight: 500, letterSpacing: '0.04em',
+                      }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
                       <span style={{ minWidth: 0, opacity: done ? 0.45 : 1 }}>
                         <span style={{ display: 'block', fontSize: 16, lineHeight: 1.38,
                                        textDecoration: done ? 'line-through' : 'none' }}>{l.prompt}</span>
@@ -488,75 +431,52 @@ function FrameSheet({
           </div>
         )}
 
-        {hasMore && (
-          <button type="button" onClick={() => setMore(m => !m)} aria-expanded={more} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
-            marginTop: 16, padding: '12px 0 4px', minHeight: 44, background: 'none', border: 'none',
-            borderTop: '1px dashed var(--k-border-2)', cursor: 'pointer',
-            fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
-            color: 'var(--k-copper)',
-          }}>
-            <span>{more ? 'Less' : 'More · settings, notes, the plan'}</span>
-            <span aria-hidden>{more ? '▴' : '▾'}</span>
-          </button>
+        {/* No "More" fold any more: it held the area's size, raw coordinates
+            and Missed it — nothing worth a tap. What has value shows inline,
+            only when the shot has it. */}
+        {s.tech_md && (
+          <div style={{ marginTop: 18 }}>
+            <div className="koma-label" style={{ marginBottom: 5 }}>Settings</div>
+            <div className="body-content" style={{ fontSize: 14.5, lineHeight: 1.5, color: 'var(--k-ink)' }}
+                 dangerouslySetInnerHTML={{ __html: renderMd(s.tech_md) }} />
+          </div>
         )}
-
-        {more && (
-          <>
-            {area && s.radius_m && (
-              <div className="koma-label" style={{ marginTop: 13 }}>{areaSize(s.radius_m)}</div>
-            )}
-
-            {spot && (
-              <div style={{
-                marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-                fontFamily: 'var(--font-mono)', fontSize: 10.5,
-                letterSpacing: '0.03em', color: 'var(--k-ink-3)',
-              }}>
-                <span>{spot.lat.toFixed(4)}, {spot.lng.toFixed(4)}</span>
-              </div>
-            )}
-
-            {/* Needs all three. A pano facing the wrong way looks authoritative,
-                and an uncovered coordinate is worse still — Google answers it
-                with the nearest user photosphere rather than nothing, which for
-                the Tower Bridge span was The O2, 6km east. So the gate is a
-                pano_id somebody loaded and confirmed, not merely a coordinate.
-                viewpoint rides along so a retired pano still lands nearby. */}
-            {spot && s.bearing != null && s.pano_id && (
-              <SpotPill
-                href={`https://www.google.com/maps/@?api=1&map_action=pano&pano=${encodeURIComponent(s.pano_id)}&viewpoint=${spot.lat},${spot.lng}&heading=${s.bearing}&pitch=0`}
-                label={`Street view · ${s.bearing}°`}
-                icon={
-                  <>
-                    <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.4" />
-                    <path d="M8 2.6l2.4 5.6L8 7.1 5.6 8.2z" fill="currentColor" />
-                  </>
-                }
-              />
-            )}
-
-            <Block label="Technical" md={s.tech_md} mono />
-            <Block label="Notes" md={s.notes_md} />
-
-            {frame.stop?.body_md && (
-              <div style={{ marginTop: 13, background: 'var(--k-subtle)', borderRadius: 10, padding: '10px 11px' }}>
-                <div className="koma-label" style={{ marginBottom: 5 }}>From the itinerary</div>
-                <div className="body-content" style={{ fontSize: 12, color: 'var(--k-ink-2)', lineHeight: 1.55 }}
-                     dangerouslySetInnerHTML={{ __html: renderMd(frame.stop.body_md) }} />
-              </div>
-            )}
-
-            {/* Missed stays down here on purpose: it is the rarer mark and does
-                not need to hold a permanent 58px of a phone screen. */}
-            {s.status === 'planned' && (
-              <div style={{ marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--k-border)' }}>
-                <button type="button" className="koma-btn sec" onClick={() => onStatus('missed')}>
-                  Missed it
-                </button>
-              </div>
-            )}
-          </>
+        {s.notes_md && (
+          <div style={{ marginTop: 16 }}>
+            <div className="koma-label" style={{ marginBottom: 5 }}>Good to know</div>
+            <div className="body-content" style={{ fontSize: 14.5, lineHeight: 1.5, color: 'var(--k-ink)' }}
+                 dangerouslySetInnerHTML={{ __html: renderMd(s.notes_md) }} />
+          </div>
+        )}
+        {spot && s.bearing != null && s.pano_id && (
+          <SpotPill
+            href={`https://www.google.com/maps/@?api=1&map_action=pano&pano=${encodeURIComponent(s.pano_id)}&viewpoint=${spot.lat},${spot.lng}&heading=${s.bearing}&pitch=0`}
+            label={`Street view · ${s.bearing}°`}
+            icon={
+              <>
+                <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M8 2.6l2.4 5.6L8 7.1 5.6 8.2z" fill="currentColor" />
+              </>
+            }
+          />
+        )}
+        {frame.stop?.body_md && (
+          <details style={{ marginTop: 16, background: 'var(--k-subtle)', borderRadius: 10, padding: '10px 12px' }}>
+            <summary className="koma-label" style={{ cursor: 'pointer', minHeight: 24, display: 'flex', alignItems: 'center' }}>
+              From the itinerary · {frame.stop.title}
+            </summary>
+            <div className="body-content" style={{ fontSize: 13.5, color: 'var(--k-ink-2)', lineHeight: 1.55, marginTop: 6 }}
+                 dangerouslySetInnerHTML={{ __html: renderMd(frame.stop.body_md) }} />
+          </details>
+        )}
+        {s.status === 'planned' && (
+          <button type="button" onClick={() => onStatus('missed')} style={{
+            marginTop: 18, minHeight: 44, padding: 0, background: 'none', border: 'none', cursor: 'pointer',
+            fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+            color: 'var(--k-ink-3)', textDecoration: 'underline', textUnderlineOffset: 3,
+          }}>
+            Missed it
+          </button>
         )}
 
         {pending && (
@@ -643,25 +563,22 @@ function lightWindow(kind: string, sun: SunDay, planned: number | null): [number
   }
 }
 
-function LightNow({ s, sun, geo, hour, now, facing, must, status, area }: {
-  s: Shot; sun: SunDay | null; geo: SheetGeo; hour: number | null; now: Date;
-  facing: string | null; must: boolean; status: Shot['status']; area: boolean;
-}) {
+function lightState(s: Shot, sun: SunDay | null, geo: SheetGeo, hour: number | null, now: Date) {
   const kind = s.light && s.light !== 'any' ? s.light : null;
   const win = kind && sun ? lightWindow(kind, sun, hour) : null;
   const live = geo != null && sameDayThere(now, geo.offset, geo.dateISO);
   let h = live && geo ? hoursAtLocation(now, geo.offset) : null;
   // Past midnight still counts as tonight for a night window.
   if (h != null && win && win[1] > 24 && h < win[1] - 24) h += 24;
+  const name = kind ? LIGHT_NAME[kind] ?? kind : null;
+  const clock = (x: number) => fmtHour(x % 24);
 
   let big: string;
   let small: string | null = null;
   let tone: 'now' | 'soon' | 'plain' | 'over' = 'plain';
-  const name = kind ? LIGHT_NAME[kind] ?? kind : null;
-  const clock = (x: number) => fmtHour(x % 24);
-
   if (!name) {
-    big = hour != null ? `Any light · planned ${fmtHour(hour)}` : 'Any light';
+    big = 'Any light';
+    small = hour != null ? `planned ${fmtHour(hour)}` : null;
   } else if (!win) {
     big = name;
     small = hour != null ? `planned ${fmtHour(hour)}` : null;
@@ -681,45 +598,177 @@ function LightNow({ s, sun, geo, hour, now, facing, must, status, area }: {
     big = `${name} is over today`;
     small = `it was ${clock(win[0])}–${clock(win[1])}`;
   }
+  return { big, small, tone, nowHour: h != null ? h % 24 : null };
+}
 
-  const hot = tone === 'now' || tone === 'soon';
-  const done = status === 'got';
+// ── THE PLATE ────────────────────────────────────────────────────────────────
+// The card's head is a frame of film, the same base and perforations as the
+// koma index: where and when in the eyebrow, the name, the light as words, and
+// the day's light as a bar — golden, blue, dark — with the planned moment
+// marked in copper and, on the day, now in cream. Everything needed to start
+// shooting is in this one block.
+
+const FILM = {
+  base: '#17150F', band: '#0D0C08', ink: '#F2ECE1', ink2: '#C9BFAE', ink3: '#978C7B',
+  hot: '#FBB04F', copper: '#E2672A',
+};
+
+function Perf({ top }: { top?: boolean }) {
   return (
-    <div style={{
-      marginTop: 12, padding: '11px 13px', borderRadius: 12,
-      background: hot ? 'var(--k-copper)' : 'var(--k-surface)',
-      border: `var(--k-bw) solid ${hot ? 'var(--k-copper)' : 'var(--k-border)'}`,
-      color: hot ? '#FFF6EE' : 'var(--k-ink)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.25, letterSpacing: '-0.01em',
-                       opacity: tone === 'over' ? 0.6 : 1 }}>{big}</span>
-        {small && (
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.02em',
-                         color: hot ? '#FFE3CC' : 'var(--k-ink-2)' }}>{small}</span>
-        )}
-      </div>
-      {(s.lens || facing || must || done) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px 12px', flexWrap: 'wrap', marginTop: 7,
-                      fontSize: 13.5, color: hot ? '#FFE3CC' : 'var(--k-ink-2)' }}>
-          {s.lens && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <LensMark lens={s.lens} color={hot ? '#FFE3CC' : 'var(--k-ink-2)'} height={11} />
-              {lensLabel(s.lens, s.focal_hint)}
-            </span>
+    <div aria-hidden style={{
+      height: 13, background: FILM.band,
+      backgroundImage: 'repeating-linear-gradient(to right, var(--k-bg) 0 6px, transparent 6px 11px)',
+      backgroundSize: '100% 5px', backgroundRepeat: 'no-repeat', backgroundPosition: top ? '0 5px' : '0 3px',
+    }} />
+  );
+}
+
+/** The day's light around the planned moment, as a strip of bands. */
+function SunBar({ sun, hour, nowHour, kind }: { sun: SunDay; hour: number | null; nowHour: number | null; kind: string | null }) {
+  const morning = hour != null && hour < 12;
+  const { sunrise, sunset, goldenAm, goldenPm, blueStart, blueEnd } = sun;
+  let h0: number, h1: number;
+  if (morning && (kind === 'golden' || kind === 'blue' || (hour ?? 12) < 8)) {
+    h0 = Math.min((blueStart ?? 5.5) - 0.5, (hour ?? 24) - 0.4);
+    h1 = Math.max((goldenAm ?? 7.5) + 0.75, (hour ?? 0) + 0.4);
+  } else if (kind === 'golden' || kind === 'blue' || kind === 'night' || (hour ?? 0) >= 15) {
+    h0 = Math.min((goldenPm ?? 16.5) - 0.75, (hour ?? 24) - 0.4);
+    h1 = Math.min(24, Math.max((blueEnd ?? 18.5) + 0.75, (hour ?? 0) + 0.5));
+  } else {
+    h0 = (sunrise ?? 6.5) - 0.25; h1 = (sunset ?? 17.5) + 0.25;
+  }
+  const W = 300, Y = 14, H = 12;
+  const X = (h: number) => ((h - h0) / (h1 - h0)) * W;
+  const fill = { day: '#4A4335', golden: FILM.hot, blue: '#5B7FB5', night: '#05050A' } as const;
+  const N = 90;
+  const segs: { x: number; w: number; c: string }[] = [];
+  for (let i = 0; i < N; i++) {
+    const a = h0 + ((h1 - h0) * i) / N;
+    const c = fill[bandAt(sun, a + (h1 - h0) / N / 2)];
+    const last = segs[segs.length - 1];
+    if (last && last.c === c) last.w += W / N;
+    else segs.push({ x: (W * i) / N, w: W / N, c });
+  }
+  const marks = (morning ? [blueStart, sunrise, goldenAm] : [goldenPm, sunset, blueEnd])
+    .filter((m): m is number => m != null && m > h0 + 0.15 && m < h1 - 0.15);
+  const clip = 'sunbar-clip';
+  return (
+    <svg viewBox={`0 0 ${W} 44`} width="100%" height="44" role="img"
+         aria-label="The day's light: golden, blue and dark, with the planned time marked" style={{ display: 'block', overflow: 'visible' }}>
+      <defs><clipPath id={clip}><rect x="0" y={Y} width={W} height={H} rx="4" /></clipPath></defs>
+      <g clipPath={`url(#${clip})`}>
+        {segs.map((g, i) => <rect key={i} x={g.x} y={Y} width={g.w + 0.6} height={H} fill={g.c} />)}
+      </g>
+      <rect x="0.5" y={Y + 0.5} width={W - 1} height={H - 1} rx="4" fill="none" stroke="#3A352B" />
+      {marks.map((m, i) => (
+        <text key={i} x={X(m)} y={Y + H + 13} textAnchor="middle" fontSize="9.5"
+              fontFamily="var(--font-mono)" fill={FILM.ink3}>{fmtHour(m).replace(/[ap]m$/, '')}</text>
+      ))}
+      {hour != null && hour >= h0 && hour <= h1 && (
+        <g>
+          <path d={`M${X(hour) - 5} ${Y - 9} L${X(hour) + 5} ${Y - 9} L${X(hour)} ${Y - 2} Z`} fill={FILM.copper} />
+          <line x1={X(hour)} x2={X(hour)} y1={Y - 2} y2={Y + H} stroke={FILM.copper} strokeWidth="2" />
+        </g>
+      )}
+      {nowHour != null && nowHour >= h0 && nowHour <= h1 && (
+        <line x1={X(nowHour)} x2={X(nowHour)} y1={Y - 4} y2={Y + H + 4} stroke={FILM.ink} strokeWidth="2" />
+      )}
+    </svg>
+  );
+}
+
+function Plate({ s, area, n, total, hour, sun, geo, now, facing, place, onClose, onStep, onOpenKoma }: {
+  s: Shot; area: boolean; n: number; total: number; hour: number | null;
+  sun: SunDay | null; geo: SheetGeo; now: Date; facing: string | null; place: string | null;
+  onClose: () => void; onStep: (d: number) => void; onOpenKoma?: () => void;
+}) {
+  const st = lightState(s, sun, geo, hour, now);
+  const hot = st.tone === 'now' || st.tone === 'soon';
+  const day = geo?.dateISO
+    ? new Date(`${geo.dateISO}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })
+    : null;
+  const eyebrow = [day, place, hour != null ? fmtHour(hour) : null].filter(Boolean).join(' · ');
+  const done = s.status === 'got';
+  const tag = (t: string, color: string) => (
+    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
+                   padding: '3px 7px', borderRadius: 4, border: `1px solid ${color}`, color }}>{t}</span>
+  );
+  return (
+    <header style={{ background: FILM.base, color: FILM.ink, flex: 'none' }}>
+      <div style={{ height: 'env(safe-area-inset-top, 0px)', background: FILM.band }} />
+      <Perf top />
+      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '6px 16px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 44 }}>
+          <button type="button" onClick={onClose} aria-label="Back" style={{
+            width: 44, height: 44, marginLeft: -14, flex: 'none', background: 'none', border: 'none',
+            color: FILM.ink, fontSize: 22, lineHeight: 1, cursor: 'pointer',
+          }}>‹</button>
+          <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                         fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.1em',
+                         textTransform: 'uppercase', color: FILM.ink3 }}>
+            {total > 1 && <b style={{ color: FILM.hot, fontWeight: 500 }}>{String(n).padStart(2, '0')}/{String(total).padStart(2, '0')} · </b>}
+            {eyebrow || (area ? 'Area' : 'Idea')}
+          </span>
+          {onOpenKoma && (
+            <button type="button" onClick={onOpenKoma} style={{
+              flex: 'none', minHeight: 44, padding: '0 0 0 8px', background: 'none', border: 'none', cursor: 'pointer',
+              fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: FILM.hot,
+            }}>Day in koma ›</button>
           )}
-          {facing && <span>☀ {facing}</span>}
-          {must && !done && (
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.1em',
-                           textTransform: 'uppercase' }}>must</span>
-          )}
-          {done && (
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.1em',
-                           textTransform: 'uppercase' }}>✓ {area ? 'been' : 'got it'}</span>
+          {total > 1 && (
+            <>
+              <PlateStep dir={-1} disabled={n <= 1} onStep={onStep} />
+              <PlateStep dir={1} disabled={n >= total} onStep={onStep} />
+            </>
           )}
         </div>
-      )}
-    </div>
+
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+          {area && tag('Area', FILM.ink3)}
+          {s.priority === 'must' && !done && tag('Must', FILM.hot)}
+          {done && tag(area ? '✓ Been' : '✓ Got it', FILM.hot)}
+        </div>
+        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 27, fontWeight: 500, lineHeight: 1.12,
+                     letterSpacing: '-0.015em', margin: '8px 0 0', color: FILM.ink }}>{s.title}</h2>
+        {s.subtitle && (
+          <p style={{ margin: '6px 0 0', fontSize: 14.5, lineHeight: 1.45, color: FILM.ink2 }}>{s.subtitle}</p>
+        )}
+
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', gap: '2px 10px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.2,
+                         color: hot ? FILM.hot : FILM.ink, opacity: st.tone === 'over' ? 0.6 : 1 }}>{st.big}</span>
+          {st.small && (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.02em', color: FILM.ink2 }}>{st.small}</span>
+          )}
+        </div>
+        {sun && <div style={{ marginTop: 6 }}><SunBar sun={sun} hour={hour} nowHour={st.nowHour} kind={s.light ?? null} /></div>}
+
+        {(s.lens || facing) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px 16px', flexWrap: 'wrap', marginTop: 8,
+                        fontSize: 14, color: FILM.ink2 }}>
+            {s.lens && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                <LensMark lens={s.lens} color={FILM.ink2} height={11} />
+                {lensLabel(s.lens, s.focal_hint)}
+              </span>
+            )}
+            {facing && <span><span style={{ color: FILM.hot }}>☀</span> {facing}</span>}
+          </div>
+        )}
+      </div>
+      <Perf />
+    </header>
+  );
+}
+
+function PlateStep({ dir, disabled, onStep }: { dir: -1 | 1; disabled: boolean; onStep: (d: number) => void }) {
+  return (
+    <button type="button" onClick={() => !disabled && onStep(dir)} disabled={disabled}
+            aria-label={dir === -1 ? 'Previous frame' : 'Next frame'} style={{
+      width: 40, height: 40, borderRadius: 9, flex: 'none', fontSize: 18, lineHeight: 1,
+      border: '1px solid #3A352B', background: 'transparent',
+      color: disabled ? '#3A352B' : FILM.hot, cursor: disabled ? 'default' : 'pointer',
+    }}>{dir === -1 ? '‹' : '›'}</button>
   );
 }
 
