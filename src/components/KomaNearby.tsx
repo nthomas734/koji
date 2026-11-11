@@ -47,8 +47,15 @@ export function lookFor(md: string | null): { prompt: string; tip: string | null
     .map(l => l.trim())
     .filter(l => /^[-*]\s/.test(l))
     .map(l => {
-      const [prompt, ...rest] = l.replace(/^[-*]\s+/, '').split(' — ');
-      return { prompt: prompt.trim(), tip: rest.join(' — ').trim() || null };
+      const [head, ...rest] = l.replace(/^[-*]\s+/, '').split(' — ');
+      const tip = rest.join(' — ').trim();
+      // "Cats at cat height" + "85mm wide open." read as one run-on sentence
+      // side by side, so the prompt gets its full stop and the tip a capital.
+      const prompt = head.trim();
+      return {
+        prompt: tip && !/[.!?]$/.test(prompt) ? `${prompt}.` : prompt,
+        tip: tip ? tip[0].toUpperCase() + tip.slice(1) : null,
+      };
     });
 }
 
@@ -246,10 +253,12 @@ export function KomaNearby({
     if (done(a) !== done(b)) return done(a) - done(b);
     return (a.dist ?? 0) - (b.dist ?? 0);
   };
-  // The areas you are standing in, the nearest middle first. They open at the
-  // top, so they leave the list.
+  // The area you are standing in opens at the top, so it leaves the list.
+  // Only the nearest middle opens: Onomichi's temple lanes and waterfront
+  // overlap, and two dark cards stacked pushed the list off the screen.
   const hereAreas = rows.filter(r => r.here && r.shot.status !== 'got')
-    .sort((a, b) => haversine(pos ?? a.spot, a.spot) - haversine(pos ?? b.spot, b.spot));
+    .sort((a, b) => haversine(pos ?? a.spot, a.spot) - haversine(pos ?? b.spot, b.spot))
+    .slice(0, 1);
   const listed = rows.filter(r => !hereAreas.includes(r));
   const walk = listed.filter(r => r.dist != null && r.dist <= WALK_M).sort(rank);
   const ride = listed.filter(r => r.dist != null && r.dist > WALK_M && r.dist <= RIDE_M).sort(rank);
