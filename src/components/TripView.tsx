@@ -15,6 +15,7 @@ import { useQueueDrain } from '@/lib/komaQueue';
 import { mapsSearchUrl } from '@/lib/supabase';
 import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
+import { JourneyTicket, isJourney } from '@/components/JourneyTicket';
 import { MaybeShelf, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
@@ -832,7 +833,11 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
 // ── STOP ROW ────────────────────────────────────────────────────────────────
 // 3px accent bar on left matches the tag pill's color family.
 // Time label tinted in the pill's dark text color to tie everything together.
-function StopRow({ stop, stamp, footer }: { stop: Stop; stamp?: React.ReactNode; footer?: React.ReactNode }) {
+function StopRow({ stop, stamp, footer, accent }: { stop: Stop; stamp?: React.ReactNode; footer?: React.ReactNode; accent?: string }) {
+  // Trains you have to be on and flights get the ticket, in the day's colour.
+  if (accent && !(stop.is_optional && !stop.added) && isJourney(stop)) {
+    return <JourneyTicket stop={stop} accent={accent} stamp={stamp} footer={footer} />;
+  }
   const tagColor = TAG_COLORS[stop.tag_color] ?? TAG_COLORS.gray;
   const bodyHtml = renderMd(stop.body_md);
   // An optional stop only reaches the timeline once it has been added from the
@@ -1155,7 +1160,7 @@ function DayBlock({
         </div>
       </div>
       <div style={{ padding: '0 12px' }}>
-        {(stops ?? day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />)}
+        {(stops ?? day.stops ?? []).map(stop => <StopRow key={stop.id} stop={stop} accent={accent} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />)}
         {shelf}
         {afterStops}
       </div>

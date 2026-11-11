@@ -94,6 +94,8 @@ export interface Stop {
   sort_order:  number;
   /** "3½ h · 2 changes", shown on a travel stop's pill. */
   duration_label?: string | null;
+  /** Plane Lab aircraft id ("787-10") on a Flight stop: shows a See the plane link. */
+  aircraft?:   string | null;
   /** On an optional stop: how long it takes or where it fits. */
   fit_label?:  string | null;
   /** An optional stop moved into the plan from the "if there's time" list. */

@@ -89,6 +89,8 @@ All of this lives in `src/components/TripView.tsx` and runs client-side in a `us
 - **Motion utilities** in `globals.css` (borrowed from clip/stack): `.row-in` staggered entrance (pair with an inline `animationDelay`, capped at 8 steps), `.pressable` scale-on-tap (only on elements that navigate — tabs, trip-card links — never on inert content cards), `.shimmer-anim` skeleton (pair with an inline `backgroundImage` gradient), `.num` tabular numerals, all guarded by `prefers-reduced-motion`. Ease token: `--ease-out`.
 - **Today**: see "Trip page shell" below. Day sections are `day-<index>` (index, not row id), stops `stop-<id>`.
 
+- **Journey tickets** (`src/components/JourneyTicket.tsx`, 2026-11-10). A stop with a clock time in `time_label` and either a `duration_label` or a `Flight…` tag renders as a ticket instead of a `StopRow` card. The ticket sits in a pale wash of the day's accent (tonight's stay colour, else the trip's), shows the departure on the left, a drawn train / plane / ferry on a dotted route with one dot per "N changes", and on the right the arrival worked out from the duration (`~1:30`) plus a "to X" destination parsed from the title. A duration with a `+` ("35 min + bus") gets no arrival time. Optional stops still in the maybes stay cards. Hops with no duration stay cards, so a ferry only becomes a ticket once it has a `duration_label`. `koji_stops.aircraft` (a Plane Lab id such as `787-10`) adds a "See the plane" link to `https://san-plane-lab.vercel.app/#<id>`, which opens that model. Migration: `sql/2026-11-10-koji-stop-aircraft.sql`.
+
 ## Text-parsing conventions (non-obvious)
 
 Several fields are free-text but are parsed by regex for display, so the authoring format matters:
