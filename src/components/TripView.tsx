@@ -1680,6 +1680,16 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
     }
   }, [focusShot, shots, days]);
 
+  // "Day in koma" on the card: into Shoot, By day, at this shot's day.
+  const openKomaDay = useCallback((id: number) => {
+    const shot = shots.find(s => s.id === id);
+    const i = shot ? days.findIndex(d => d.id === shot.day_id) : -1;
+    try { localStorage.setItem('koma:view', 'day'); } catch { /* private mode */ }
+    setFocusShot(null);
+    setMode('shoot');
+    if (i >= 0) setTimeout(() => document.getElementById(`day-${i}`)?.scrollIntoView({ block: 'start', behavior: 'instant' as ScrollBehavior }), 150);
+  }, [shots, days, setMode]);
+
   const noteFor = useCallback((s: Shot, dayIdx: number) => {
     const day = days[dayIdx];
     const dateISO = trip.date_start ? dateForDay(trip.date_start, dayIdx) : null;
@@ -2209,6 +2219,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
           sunMode={sunMode}
           onClose={closeShot}
           onShotChange={applyShot}
+          onOpenKoma={() => openKomaDay(focusShot.id)}
         />
       )}
 
