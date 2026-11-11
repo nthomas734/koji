@@ -48,11 +48,31 @@ export function isFlight(stop: Stop): boolean {
   return /^flight/i.test(stop.tag);
 }
 
-/** A ticket needs a clock time to hang on, and a duration or an arrival. */
+/** Shorter hops (a 5-minute ferry, a 15-minute local) stay ordinary cards. */
+const TICKET_MIN_MINUTES = 45;
+
+/** Minutes from departure to arrival, from the duration or the arrival time. */
+function tripMinutes(stop: Stop, dep: Clock): number | null {
+  const mins = parseMinutes(stop.duration_label);
+  if (mins != null) return mins;
+  const arr = parseClock(stop.arrive_label ?? null);
+  if (!arr) return null;
+  const toMin = (c: Clock) => ((c.h % 12) + (c.mer === 'pm' ? 12 : 0)) * 60 + c.m;
+  return (toMin(arr) - toMin(dep) + 24 * 60) % (24 * 60);
+}
+
+/**
+ * A ticket needs a clock time to hang on, and a duration or an arrival.
+ * Flights always get one; other trips only when they run 45 minutes or more
+ * (or when the length can't be worked out, e.g. "35 min + bus").
+ */
 export function isJourney(stop: Stop): boolean {
-  return !!parseClock(stop.time_label)
-    && (!!stop.duration_label || !!parseClock(stop.arrive_label ?? null))
-    && !/^land\b/i.test(stop.title);
+  const dep = parseClock(stop.time_label);
+  if (!dep || /^land\b/i.test(stop.title)) return false;
+  if (!stop.duration_label && !parseClock(stop.arrive_label ?? null)) return false;
+  if (isFlight(stop)) return true;
+  const mins = tripMinutes(stop, dep);
+  return mins == null || mins >= TICKET_MIN_MINUTES;
 }
 
 /** "4:30pm JST · Fri" → the time, and "JST · Fri" for the line under it. */
