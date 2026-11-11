@@ -1,0 +1,4 @@
+-- 2026-11-11: the 85 as the people lens. Six people/face tips moved to the 85 (shots 98, 99, 113,
+-- 109, 127, 97); the 85 added on non-moving days (carry for days 130, 138, 141-144); only the
+-- 70-200 ships to Kyoto on Tue 23 (carry 140, koji stop 642: "keep the 85mm out").
+-- Applied as UPDATEs with replace() and UPDATE ... FROM (VALUES); see koji_history for koji_stops.
