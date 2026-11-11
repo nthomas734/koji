@@ -120,7 +120,7 @@ Editing these regexes changes how already-authored trip data renders — check e
 How the parts fit:
 - **Table.** `koji_verdicts` (`sql/2026-11-08-koji-verdicts.sql`) has RLS on and **no policies**.
 - **Who sees them.** Only `/api/verdicts` (needs the `koji_admin` cookie) and `/api/verdicts/share` (needs the `KOJI_SHARE_TOKEN` bearer token) touch the table. `lib/verdicts.ts` asks the API on mount, and a 200 is the only thing that turns on `owner`. The prerendered trip page never carries verdicts.
-- **Private, not hidden.** This is the opposite of koma's call. Don't add a public read policy, and don't ship verdicts with the page payload.
+- **Private, not hidden.** Don't add a public read policy, and don't ship verdicts with the page payload.
 - **Offline writes.** These follow komaQueue: the tap goes into a localStorage queue, overlays the last server list, and drains when there is a network.
 - **One key per place.** Every write is an upsert on `client_key`:
   - `stop:<id>` for a planned stop
@@ -137,28 +137,36 @@ A private photography-planning layer over an existing itinerary, named for 齣
 site header (the glass top bar it also lived in is gone); it replaces the itinerary tab's body with
 `KomaView` and leaves logistics and weather alone.
 
-**Hidden, not locked** — the same call daizu makes for `/barista`. It shipped
-auth-gated on 2026-09-16 and was deliberately opened the same day: the gate
-depended on an admin cookie surviving on a phone mid-trip, and the mode was
-undiscoverable. Now `koma_shots` and `koma_rolls` have public read policies and
-the shots come down with the trip page, so koma works logged out and offline
-from the SW cache. Entry used to be a **350ms long-press on `KomaMark`**; since
-2026-11-10 it is Shoot in the owner switcher (signed in) or a
-`/trips/<slug>#koma` link (anyone, offline) — see "Owner switcher" below.
-`KomaMark` keeps the long-press code (the roll page still uses it) and has a
-`tap` mode that is the logged-out way back out of koma. If a long-press ever
-returns, it must stay an icon: a long-press on text raises iOS's Copy/Look Up
-callout and the gesture never reaches the handler.
+**Private since 2026-11-11.** koma shipped auth-gated on 2026-09-16 and was
+opened the same day ("hidden, not locked": public read policies, shots inside
+the trip page, open GET and status PATCH). That put the whole shot plan in
+every trip link, every part link and the anon key — Dez's shared links
+included. Nathan closed it on 2026-11-11. Now:
 
-Hidden applies to the entrance, not to every verb on a public URL.
-`/api/koma/shots` allows **GET and a PATCH of `status`/`status_note`
-unauthenticated** — marking a frame "got" has to work in the street — while
-`POST`, `DELETE` and a PATCH of any other field still need the `koji_admin`
-cookie. An unauthenticated DELETE here would be a wipe-the-plan-before-the-trip
-button. Keep that split if you touch the route.
+- **Nothing koma is in a public page.** `getTripBySlug` does not load shots or
+  carry lists; don't add them back, and don't add any koma field to a
+  prerendered payload.
+- **The owner's phone fetches them.** `lib/komaData.ts` (`useKomaData`) asks
+  `GET /api/koma/shots?trip=` — the same pattern as `useVerdicts`. A 200 is
+  cached in localStorage so koma opens offline; a 401 clears it. The cache is
+  written only after a 200.
+- **Every verb on `/api/koma/shots` needs the `koji_admin` cookie**, and so does
+  `/api/koma/kml`. A status PATCH that gets a 401 stays in komaQueue until the
+  cookie is back. `/koma`, `/koma/[slug]` and `/koma/notes` render per request
+  and redirect to `/admin/login` without the cookie. Server code reads the koma
+  tables with `supabaseAdmin()`; `lib/owner.ts` has `isOwner()`.
+- **The koma tables have no public read policy** (dropped in
+  `sql/2026-11-11-koma-private.sql`). Don't add one.
+- **Entry** is Shoot in the owner switcher, or `/trips/<slug>#koma` on a
+  signed-in phone; anyone else asking for `#koma` gets the itinerary. The
+  shooting phone must be signed in (the cookie lasts a year).
+- **Still public:** the `koma-refs` storage bucket of reference photos (links
+  are unguessable, not locked). Making it private means signed URLs and a new
+  offline cache for them; that's a separate change.
 
-Accepted trade: the shot plan is in the trip page's HTML and is readable by
-anyone who loads it. It is not secret, only unadvertised.
+`KomaMark` keeps the long-press code (the roll page still uses it). If a
+long-press ever returns, it must stay an icon: a long-press on text raises
+iOS's Copy/Look Up callout and the gesture never reaches the handler.
 
 **Frames.** A shot is a named picture, not a location. `buildFrames` numbers a
 day's shots 1..n in itinerary order: shots inherit their stop's `sort_order`,

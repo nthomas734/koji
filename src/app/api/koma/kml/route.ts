@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabase, type Shot } from '@/lib/supabase';
+import { supabase, supabaseAdmin, type Shot } from '@/lib/supabase';
+import { isOwner } from '@/lib/owner';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,6 +73,10 @@ function placemark(s: Shot) {
 }
 
 export async function GET(req: Request) {
+  // The shot plan is owner only since 2026-11-11 (see "koma" in CLAUDE.md), and
+  // this hands all of it out as a file. Import it into My Maps from a signed-in
+  // browser.
+  if (!await isOwner()) return new NextResponse('Unauthorized', { status: 401 });
   const slug = new URL(req.url).searchParams.get('trip');
   if (!slug) return NextResponse.json({ error: 'trip is required' }, { status: 400 });
 
@@ -81,7 +86,7 @@ export async function GET(req: Request) {
 
   const [{ data: days }, { data: shots }] = await Promise.all([
     supabase.from('koji_days').select('id, label, sort_order').eq('trip_id', trip.id).order('sort_order'),
-    supabase.from('koma_shots').select('*').eq('trip_id', trip.id)
+    supabaseAdmin().from('koma_shots').select('*').eq('trip_id', trip.id)
       .neq('status', 'skipped').order('sort_order'),
   ]);
 

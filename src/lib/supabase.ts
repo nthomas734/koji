@@ -331,11 +331,12 @@ export interface KomaEntry {
 }
 
 export async function getKomaEntries(): Promise<KomaEntry[]> {
+  const admin = supabaseAdmin();
   const [rollsRes, tripsRes, shotsRes, daysRes] = await Promise.all([
-    supabase.from('koma_rolls').select('*').order('sort_order'),
+    admin.from('koma_rolls').select('*').order('sort_order'),
     supabase.from('koji_trips').select('id, slug, title, subtitle, location, date_start, date_end')
       .eq('published', true),
-    supabase.from('koma_shots').select('roll_id, trip_id, status'),
+    admin.from('koma_shots').select('roll_id, trip_id, status'),
     supabase.from('koji_days').select('trip_id'),
   ]);
   if (rollsRes.error) throw rollsRes.error;
@@ -380,7 +381,8 @@ export async function getKomaEntries(): Promise<KomaEntry[]> {
 export async function getRollBySlug(slug: string): Promise<{
   roll: Roll; shots: Shot[]; carry: Carry | null;
 } | null> {
-  const { data: roll, error } = await supabase
+  const admin = supabaseAdmin();
+  const { data: roll, error } = await admin
     .from('koma_rolls')
     .select('*')
     .eq('slug', slug)
@@ -388,13 +390,13 @@ export async function getRollBySlug(slug: string): Promise<{
   if (error) throw error;
   if (!roll) return null;
 
-  const { data: shots } = await supabase
+  const { data: shots } = await admin
     .from('koma_shots')
     .select('*')
     .eq('roll_id', roll.id)
     .order('sort_order');
 
-  const { data: carry } = await supabase
+  const { data: carry } = await admin
     .from('koma_carry')
     .select('*')
     .eq('roll_id', roll.id)
@@ -407,15 +409,24 @@ export async function getRollBySlug(slug: string): Promise<{
   };
 }
 
-/** koma is hidden behind a long-press, not access-controlled — see CLAUDE.md. */
-export async function getShotsForTrip(tripId: number): Promise<Shot[]> {
-  const { data, error } = await supabase
-    .from('koma_shots')
-    .select('*')
-    .eq('trip_id', tripId)
-    .order('sort_order');
-  if (error) throw error;
-  return (data as Shot[]) ?? [];
+/**
+ * A trip's shots and carry lists. Server only, and only ever behind the
+ * koji_admin cookie (GET /api/koma/shots): since 2026-11-11 the koma tables
+ * have no public read policy and nothing koma rides in the trip page, so a
+ * shared link, a part link or the anon key shows none of it. See CLAUDE.md.
+ */
+export async function getKomaForTrip(tripId: number): Promise<{ shots: Shot[]; carry: Carry[] }> {
+  const admin = supabaseAdmin();
+  const { data: days } = await admin.from('koji_days').select('id').eq('trip_id', tripId);
+  const dayIds = (days ?? []).map((d: { id: number }) => d.id);
+  const [shotsRes, carryRes] = await Promise.all([
+    admin.from('koma_shots').select('*').eq('trip_id', tripId).order('sort_order'),
+    dayIds.length
+      ? admin.from('koma_carry').select('*').in('day_id', dayIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (shotsRes.error) throw shotsRes.error;
+  return { shots: (shotsRes.data as Shot[]) ?? [], carry: (carryRes.data as Carry[]) ?? [] };
 }
 
 // ── DATA FETCHING ───────────────────────────────────────────────────────────
@@ -445,8 +456,6 @@ export async function getTripBySlug(slug: string): Promise<{
   trip: Trip;
   logistics: Logistics[];
   days: Day[];
-  shots: Shot[];
-  carry: Carry[];
   stays: Stay[];
 } | null> {
   const { data: trip, error } = await supabase
@@ -476,14 +485,12 @@ export async function getTripBySlug(slug: string): Promise<{
     .order('sort_order')
     .order('sort_order', { referencedTable: 'koji_stops' });
 
-  const { data: shots } = await supabase
-    .from('koma_shots')
-    .select('*')
-    .eq('trip_id', trip.id)
-    .order('sort_order');
+  // koma's shots and carry lists are NOT loaded here: this payload is the
+  // public, prerendered page that shared and part links get. The owner's phone
+  // fetches them from /api/koma/shots instead (lib/komaData.ts).
 
-  // Dinner options ride along with their stops, like the shots: public read,
-  // prerendered, so the cards work offline. Votes are fetched live instead.
+  // Dinner options ride along with their stops: public read, prerendered, so
+  // the cards work offline. Votes are fetched live instead.
   const stopIds = (days ?? []).flatMap((d: { stops?: { id: number }[] }) => (d.stops ?? []).map(st => st.id));
   const { data: options } = stopIds.length
     ? await supabase.from('koji_dinner_options').select('*').in('stop_id', stopIds).order('sort_order')
@@ -501,11 +508,6 @@ export async function getTripBySlug(slug: string): Promise<{
     }
   }
 
-  const dayIds = (days ?? []).map((d: { id: number }) => d.id);
-  const { data: carry } = dayIds.length
-    ? await supabase.from('koma_carry').select('*').in('day_id', dayIds)
-    : { data: [] };
-
   // A missing table or a blip here should cost the strip, not the page.
   const { data: stays } = await supabase
     .from('koji_stays')
@@ -518,8 +520,6 @@ export async function getTripBySlug(slug: string): Promise<{
     trip,
     logistics: logistics ?? [],
     days: (days as Day[]) ?? [],
-    shots: (shots as Shot[]) ?? [],
-    carry: (carry as Carry[]) ?? [],
     stays: (stays as Stay[]) ?? [],
   };
 }
@@ -555,14 +555,6 @@ export async function getTripPartParams(): Promise<{ slug: string; part: string 
   }
 }
 
-export async function getRollSlugs(): Promise<string[]> {
-  try {
-    const { data } = await supabase.from('koma_rolls').select('slug');
-    return (data ?? []).map((r: { slug: string }) => r.slug);
-  } catch {
-    return [];
-  }
-}
 
 // ── REFERENCE NOTES ─────────────────────────────────────────────────────────
 // Frames answer "what is the picture"; notes answer "how does this behave".
@@ -588,7 +580,7 @@ export interface Note {
 /** Published notes in shelf order. Swallows errors so the page degrades to
  *  empty rather than 500ing in the field, where it is least recoverable. */
 export async function getNotes(): Promise<Note[]> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin()
     .from('koma_notes')
     .select('id, slug, title, subtitle, field_md, body_md, sort_order, read_order')
     .eq('published', true)

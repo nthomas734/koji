@@ -11,8 +11,8 @@
 // Verdicts mode.
 //
 // This replaced (2026-11-10) the hidden long-press on KomaMark, the gear icon
-// every visitor could see, and having to type /admin. A logged-out phone still
-// reaches koma by link (/trips/<slug>#koma), which keeps "hidden, not locked".
+// every visitor could see, and having to type /admin. Since 2026-11-11 koma is
+// owner only, so this switch (or a #koma link on a signed-in phone) is the way in.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';

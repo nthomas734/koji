@@ -1,26 +1,26 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
-import { supabaseAdmin } from '@/lib/supabase';
+import { getKomaForTrip, supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-// koma is hidden, not locked — the same call daizu makes for /barista. But
-// "hidden" applies to the entrance, not to every verb on a public URL:
+// koma is private since 2026-11-11: every verb here needs the koji_admin
+// cookie. It used to be "hidden, not locked" — GET and status PATCHes were
+// open and the shots shipped inside the public trip page — which put the whole
+// shot plan in every shared and part link. See "koma" in CLAUDE.md.
 //
-//   GET, PATCH(status)  open  — marking a frame "got" has to work in the
-//                              street, on a phone that may not be logged in
-//   PATCH(anything else),
-//   POST, DELETE        admin — authoring. There is no field reason to create
-//                              or destroy a shot from a browser, and an
-//                              unauthenticated DELETE on a public route is a
-//                              wipe-the-plan-before-the-trip button.
+//   GET ?trip=   the trip's shots and carry lists. This is how the trip page
+//                gets koma now; lib/komaData.ts caches the answer on the
+//                owner's phone so koma still opens offline.
+//   GET ?roll=   a standalone roll's shots.
+//   PATCH        status/status_note (the field write, checked rather than
+//                trusted) or any other field (authoring).
+//   POST, DELETE authoring.
 //
-// Reads for the app itself don't come through here at all; the shots ship with
-// the trip page under a public RLS policy so koma works offline from the SW
-// cache. This route is for status writes and for authoring.
+// A 401 on a status PATCH keeps the tap in komaQueue until the cookie is back.
 
-/** Fields the field UI is allowed to write without being logged in. */
+/** Fields the field UI writes. Validated, since they come from a tap. */
 const FIELD_WRITABLE = new Set(['status', 'status_note']);
 
 /** The route is open, so the two open fields get checked rather than trusted.
@@ -63,6 +63,7 @@ async function authed() {
 }
 
 export async function GET(req: Request) {
+  if (!await authed()) return new NextResponse('Unauthorized', { status: 401 });
   const { searchParams } = new URL(req.url);
   const trip = searchParams.get('trip');
   const roll = searchParams.get('roll');
@@ -74,11 +75,19 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'exactly one of trip or roll required' }, { status: 400 });
   }
 
-  const q = supabaseAdmin().from('koma_shots').select('*');
-  const { data, error } = await (trip
-    ? q.eq('trip_id', Number(trip))
-    : q.eq('roll_id', Number(roll))
-  ).order('sort_order');
+  if (trip) {
+    try {
+      return NextResponse.json(await getKomaForTrip(Number(trip)));
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    }
+  }
+
+  const { data, error } = await supabaseAdmin()
+    .from('koma_shots')
+    .select('*')
+    .eq('roll_id', Number(roll))
+    .order('sort_order');
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ shots: data ?? [] });
@@ -93,11 +102,8 @@ export async function PATCH(req: Request) {
   const keys = Object.keys(body ?? {});
   if (!keys.length) return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
 
-  // Anything beyond a status change is authoring, and needs the cookie.
+  if (!await authed()) return new NextResponse('Unauthorized', { status: 401 });
   const fieldOnly = keys.every(k => FIELD_WRITABLE.has(k));
-  if (!fieldOnly && !await authed()) {
-    return new NextResponse('Unauthorized', { status: 401 });
-  }
   if (fieldOnly) {
     const bad = rejectBadValues(body);
     if (bad) return NextResponse.json({ error: bad }, { status: 400 });

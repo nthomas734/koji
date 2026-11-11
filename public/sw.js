@@ -13,7 +13,9 @@
 //     requests, so the UpdateBanner deploy check (HEAD / with no-store) passes
 //
 // Bump VERSION to invalidate all old caches on the next deploy of this file.
-const VERSION = 'koji-v2';
+// v3 (2026-11-11): pages cached before koma went private still hold the shot
+// plan in their payload; the bump clears them off every phone.
+const VERSION = 'koji-v3';
 const ASSET_CACHE = `${VERSION}-assets`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const REF_CACHE = `${VERSION}-refs`;

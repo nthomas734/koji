@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Carry, Day, Logistics, Shot, Stay, Stop, Trip } from '@/lib/supabase';
+import type { Day, Logistics, Shot, Stay, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { KojiMark } from '@/components/KojiMark';
 import { KomaView } from '@/components/KomaView';
@@ -14,6 +14,7 @@ import { TripSearch, type SearchTarget } from '@/components/TripSearch';
 import { useQueueDrain } from '@/lib/komaQueue';
 import { mapsSearchUrl } from '@/lib/supabase';
 import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
+import { useKomaData } from '@/lib/komaData';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
 import { JourneyTicket, isJourney } from '@/components/JourneyTicket';
 import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
@@ -1535,8 +1536,6 @@ interface TripViewProps {
   trip: Trip;
   logistics: Logistics[];
   days: Day[];
-  shots: Shot[];
-  carry: Carry[];
   stays?: Stay[];
   /** Set on /trips/<slug>/<part>: the page shows only that part's dates. */
   part?: { label: string; wholeHref: string };
@@ -1544,7 +1543,7 @@ interface TripViewProps {
 
 const TAB_HASHES: Record<string, Tab> = { logistics: 'logistics', weather: 'weather', itinerary: 'itinerary' };
 
-export function TripView({ trip, logistics, days, shots: initialShots, carry, stays = [], part }: TripViewProps) {
+export function TripView({ trip, logistics, days, stays = [], part }: TripViewProps) {
   const router = useRouter();
   // Above koma on purpose: a frame marked underground has to keep trying once
   // there is signal, whether or not the mode is still open. See komaQueue.
@@ -1554,18 +1553,21 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
   const closeSearch = useCallback(() => setSearchOn(false), []);
 
   // ── koma ──────────────────────────────────────────────────────────────────
-  // Hidden, not locked — the same call daizu makes for /barista. Signed in,
-  // it's Shoot in the owner switcher; logged out, /trips/<slug>#koma opens it.
-  // The long-press that used to be the way in went on 2026-11-10. The shots
-  // come down with the trip, so it works logged out and offline from the SW
-  // cache.
-  const [shots, setShots]     = useState<Shot[]>(initialShots);
-  const [komaOn, setKomaOn]   = useState(false);
+  // Private since 2026-11-11: the shots are not in this page. useKomaData
+  // fetches them for a phone holding the admin cookie and caches them there,
+  // so koma still opens offline. Entry is Shoot in the owner switcher, or a
+  // /trips/<slug>#koma link on that phone. Anyone else asking for #koma just
+  // gets the itinerary: the mode is wanted, but only on for the owner.
+  const koma = useKomaData(trip.id);
+  const carry = koma.carry;
+  const [shots, setShots]     = useState<Shot[]>([]);
+  const [komaWanted, setKomaOn] = useState(false);
+  const komaOn = komaWanted && koma.owner;
   // Verdict circles show only in Verdicts mode, so Plan is what Dez sees.
   const [verdictsOn, setVerdictsOn] = useState(false);
   const [sunMode, setSunMode] = useState(false);
 
-  useEffect(() => { setShots(initialShots); }, [initialShots]);
+  useEffect(() => { setShots(koma.shots); }, [koma.shots]);
 
   // ── koma survives a reload ───────────────────────────────────────────────
   // The mode was component state only, so an iOS PWA resume — which happens
@@ -2018,8 +2020,8 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
               }}>☀</span>
             </button>
           )}
-          {/* Logged out, koma is reached only by a #koma link; this is its
-              way back out. Signed in, the owner pill does both jobs. */}
+          {/* koma is owner only, so the owner pill is normally the way out.
+              This is the fallback if the verdicts check hasn't answered yet. */}
           {komaOn && !verdicts.owner && <KomaMark on tap onToggle={toggleKoma} />}
           {verdicts.owner && (
             <span style={{ marginRight: 2 }}>

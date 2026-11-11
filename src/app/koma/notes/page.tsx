@@ -1,9 +1,13 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getNotes } from '@/lib/supabase';
+import { isOwner } from '@/lib/owner';
 import { renderBlockMd } from '@/lib/markdown';
 import { NotesView, type NoteCard } from './NotesView';
 
-export const revalidate = 60;
+// Owner only since 2026-11-11: per request, behind the cookie. The service
+// worker still caches the page once the owner's phone has loaded it.
+export const dynamic = 'force-dynamic';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The reference shelf.
@@ -40,6 +44,7 @@ const WPM = 220;
 const words = (md: string | null) => (md ? md.trim().split(/\s+/).length : 0);
 
 export default async function NotesPage() {
+  if (!await isOwner()) redirect('/admin/login');
   const notes = await getNotes();
 
   const cards: NoteCard[] = notes.map(n => ({

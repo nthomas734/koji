@@ -22,15 +22,13 @@ export default async function TripPartPage({
   const part = findPart(data.trip, key);
   if (!part) notFound();
 
-  const { trip, logistics, days, shots, carry, stays } = slicePart(data, part);
+  const { trip, logistics, days, stays } = slicePart(data, part);
 
   return (
     <TripView
       trip={trip}
       logistics={logistics}
       days={days}
-      shots={shots}
-      carry={carry}
       stays={stays}
       part={{ label: part.label, wholeHref: `/trips/${slug}` }}
     />

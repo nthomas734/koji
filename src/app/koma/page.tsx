@@ -1,7 +1,11 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getKomaEntries } from '@/lib/supabase';
+import { isOwner } from '@/lib/owner';
 
-export const revalidate = 60;
+// Owner only since 2026-11-11, so rendered per request behind the cookie
+// rather than prerendered for anyone. See "koma" in CLAUDE.md.
+export const dynamic = 'force-dynamic';
 
 function fmtDate(iso: string | null, end: string | null): string {
   if (!iso) return 'no date yet';
@@ -70,6 +74,7 @@ function BookMark() {
 }
 
 export default async function KomaIndex() {
+  if (!await isOwner()) redirect('/admin/login');
   const entries = await getKomaEntries();
 
   return (
