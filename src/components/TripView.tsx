@@ -1446,7 +1446,11 @@ function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme, to
     if (!rail) return;
     const chip = rail.children[active] as HTMLElement | undefined;
     if (!chip) return;
-    const left = chip.offsetLeft - (rail.clientWidth - chip.offsetWidth) / 2;
+    // Measured against the rail itself. offsetLeft is relative to the nearest
+    // positioned ancestor (the hero card), not the rail, so on a wide screen
+    // it overshot by the card's own offset and cut the first days off.
+    const offset = chip.getBoundingClientRect().left - rail.getBoundingClientRect().left + rail.scrollLeft;
+    const left = offset - (rail.clientWidth - chip.offsetWidth) / 2;
     rail.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
   }, [active]);
 
