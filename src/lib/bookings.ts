@@ -116,17 +116,21 @@ export function fmtDate(iso: string): string {
   return `${WD[dt.getUTCDay()]} ${MO[m - 1]} ${d}`;
 }
 
-/** "10:00" from "10:00:00". */
+/** "10:00am" from "10:00:00", "7:30pm" from "19:30:00". Never 24-hour. */
 export function fmtTime(t: string): string {
-  return t.slice(0, 5);
+  const [hh, mm] = t.split(':').map(Number);
+  const h = (hh || 0) % 12 || 12;
+  return `${h}:${String(mm || 0).padStart(2, '0')}${(hh || 0) >= 12 ? 'pm' : 'am'}`;
 }
 
-/** Short zone name for a label: Asia/Tokyo → JST. */
+/** Short zone name for a label: Asia/Tokyo → JST, America/Los_Angeles → PT
+ *  (US zones drop the standard/daylight letter: PT, MT, CT, ET). */
 export function zoneAbbr(tz: string, at: Date): string {
   try {
     const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' }).formatToParts(at);
     const name = p.find(x => x.type === 'timeZoneName')?.value ?? tz;
     if (tz === 'Asia/Tokyo') return 'JST';
-    return name;
+    const us = name.match(/^([PMCE])[SD]T$/);
+    return us ? `${us[1]}T` : name;
   } catch { return tz; }
 }

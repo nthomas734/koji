@@ -5,7 +5,7 @@
 // all hang off koji_stays, plus the "if there's time" list for optional stops:
 //   - StaysStrip:   the band of towns in the hero; tap one to jump to its day
 //   - StayHeading:  the chapter heading before a town's first day
-//   - MaybeShelf:   optional stops at the foot of their day, full strength
+//   - MaybeShelf:   optional stops at the foot of their day, tinted dashed cards
 // A trip with no stays renders none of the first two, exactly as before.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -127,51 +127,98 @@ export function StayHeading({ stay }: { stay: Stay }) {
 }
 
 // ── IF THERE'S TIME ─────────────────────────────────────────────────────────
-export function MaybeShelf({ stops, owner, onAdd }: {
+// Each maybe is its own card in a pale wash of the day's colour with a dashed
+// edge (a cut-out, not a planned stop). The owner's add button is a full-width
+// strip along the bottom, so the text always gets the whole card.
+const ClockGlyph = () => (
+  <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden style={{ flexShrink: 0, alignSelf: 'center' }}>
+    <circle cx="6" cy="6" r="4.9" fill="none" stroke="currentColor" strokeWidth="1.2" />
+    <path d="M6 3.4V6l1.8 1.2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+  </svg>
+);
+const PlusGlyph = () => (
+  <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden>
+    <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+/** A body that is only "- " bullets → its items; anything else → null. */
+function listItems(md: string | null): string[] | null {
+  if (!md) return null;
+  const lines = md.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0 || !lines.every(l => /^[-*] /.test(l))) return null;
+  return lines.map(l => l.slice(2));
+}
+
+export function MaybeShelf({ stops, owner, onAdd, accent }: {
   stops: Stop[];
   owner: boolean;
   onAdd: (stop: Stop) => void;
+  accent: string;
 }) {
   if (stops.length === 0) return null;
+  const tint = `color-mix(in srgb, ${accent} 15%, var(--surface))`;
+  const deep = `color-mix(in srgb, ${accent} 62%, var(--ink))`;
+  const edge = (pct: number) => `color-mix(in srgb, ${accent} ${pct}%, transparent)`;
   return (
-    <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px dashed var(--border-mid)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 4px' }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 500, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--brass)' }}>
+    <div style={{ marginTop: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px', color: deep }}>
+        <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 300, fontSize: 16, whiteSpace: 'nowrap' }}>
           if there&apos;s time
         </span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-4)' }}>
+        <span aria-hidden style={{ flex: 1, borderTop: `1.5px dotted ${edge(50)}` }} />
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
           {stops.length} {stops.length === 1 ? 'maybe' : 'maybes'}
         </span>
       </div>
       {stops.map(stop => {
-        const body = renderMd(stop.body_md);
+        // "Ideas: lunch on Naoshima" with a "- " list body: a short list of
+        // picks, not one stop. Show the list as a list and say so in the pill.
+        const ideas = /^ideas:\s*/i.test(stop.title);
+        const title = ideas ? stop.title.replace(/^ideas:\s*/i, '').replace(/^./, c => c.toUpperCase()) : stop.title;
+        const items = listItems(stop.body_md);
+        const body = items ? null : renderMd(stop.body_md);
+        const pill = stop.fit_label ?? (ideas ? (items && items.length > 1 ? `${items.length} ideas` : 'an idea') : null);
         return (
           <article
             key={stop.id}
             id={`stop-${stop.id}`}
             style={{
-              display: 'grid',
-              gridTemplateColumns: owner ? 'minmax(0, 1fr) auto' : 'minmax(0, 1fr)',
-              gap: '3px 10px',
-              alignItems: 'start',
-              background: 'var(--surface)',
-              border: '0.5px solid var(--border)',
-              borderRadius: 12,
-              padding: '10px 12px',
-              marginTop: 6,
+              background: tint,
+              border: `1.5px dashed ${edge(45)}`,
+              borderRadius: 16,
+              marginTop: 8,
+              overflow: 'hidden',
               scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 64px)',
             }}
           >
-            <div style={{ minWidth: 0 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: 'var(--ink)', margin: 0 }}>
-                {stop.title}
-                {stop.time_label && (
+            <div style={{ padding: '11px 14px 11px' }}>
+              {pill && (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'baseline', gap: 5, maxWidth: '100%', lineHeight: 1.35,
+                  fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  color: deep, background: 'var(--surface)', borderRadius: 10, padding: '3px 9px', marginBottom: 7,
+                }}>
+                  {stop.fit_label && <ClockGlyph />}
+                  <span style={{ minWidth: 0 }}>{pill}</span>
+                </span>
+              )}
+              <h3 style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.3, color: deep, margin: 0 }}>
+                {title}
+                {!owner && stop.time_label && (
                   <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500, color: 'var(--ink-4)', marginLeft: 8 }}>{stop.time_label}</span>
                 )}
               </h3>
-              {body && <div className="body-content" style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--ink-3)', marginTop: 2 }} dangerouslySetInnerHTML={{ __html: body }} />}
-              {stop.fit_label && (
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.06em', color: 'var(--brass)', marginTop: 4 }}>{stop.fit_label}</div>
+              {body && <div className="body-content" style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--ink-2)', marginTop: 3 }} dangerouslySetInnerHTML={{ __html: body }} />}
+              {items && (
+                <ul style={{ listStyle: 'none', margin: '5px 0 0', padding: 0, display: 'grid', gap: 6 }}>
+                  {items.map((it, k) => (
+                    <li key={k} style={{ display: 'grid', gridTemplateColumns: '12px minmax(0, 1fr)', gap: 6, alignItems: 'start' }}>
+                      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: edge(70), marginTop: 7 }} />
+                      <div className="body-content" style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--ink-2)' }} dangerouslySetInnerHTML={{ __html: renderMd(it) }} />
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
             {owner && (
@@ -181,12 +228,15 @@ export function MaybeShelf({ stops, owner, onAdd }: {
                 className="pressable"
                 aria-label={`Add ${stop.title} to the plan`}
                 style={{
-                  minHeight: 32, padding: '0 11px', borderRadius: 999,
-                  border: '1px solid var(--border-mid)', background: 'var(--bg)',
-                  fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.06em', color: 'var(--ink-2)', whiteSpace: 'nowrap',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', minHeight: 40,
+                  border: 'none', borderTop: `1.5px dashed ${edge(35)}`,
+                  background: `color-mix(in srgb, ${accent} 9%, var(--surface))`,
+                  fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
+                  color: deep, cursor: 'pointer',
                 }}
               >
-                + add
+                <PlusGlyph />
+                Add to the day{stop.time_label ? ` · ${stop.time_label}` : ''}
               </button>
             )}
           </article>

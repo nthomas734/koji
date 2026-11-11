@@ -2,12 +2,16 @@
 
 import type { Stop } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
+import { zoneAbbr } from '@/lib/bookings';
 
 // ── JOURNEY TICKET ──────────────────────────────────────────────────────────
-// A travel stop you have to be on time for: anything with a duration, and any
-// flight. It reads as a ticket in a pale wash of the day's colour, with the
-// departure on the left, a little train, plane or ferry on the dotted route,
-// and the arrival (worked out from the duration) on the right. Hops without a
+// A travel stop you have to be on time for: one with a clock time and either a
+// duration or an arrival. It reads as a ticket in a pale wash of the day's
+// colour: the departure on the left, a little train, plane or ferry on the
+// dotted route, and the arrival on the right, taken from arrive_label or
+// worked out from the duration. The title already says where it goes, so the
+// ticket doesn't repeat it. Zones (PT, JST) show only when the arrival names
+// one, i.e. a flight that crosses them. "Land at ..." stops, hops without a
 // duration and untimed errands stay ordinary stop cards.
 
 const PLANE_LAB = 'https://san-plane-lab.vercel.app/#';
@@ -44,21 +48,25 @@ export function isFlight(stop: Stop): boolean {
   return /^flight/i.test(stop.tag);
 }
 
-/** A ticket needs a clock time to hang on, and either a duration or a flight. */
+/** A ticket needs a clock time to hang on, and a duration or an arrival. */
 export function isJourney(stop: Stop): boolean {
-  return !!parseClock(stop.time_label) && (!!stop.duration_label || isFlight(stop));
+  return !!parseClock(stop.time_label)
+    && (!!stop.duration_label || !!parseClock(stop.arrive_label ?? null))
+    && !/^land\b/i.test(stop.title);
+}
+
+/** "4:30pm JST · Fri" → the time, and "JST · Fri" for the line under it. */
+function parseArrival(label: string | null | undefined): { at: Clock; note: string } | null {
+  const at = parseClock(label ?? null);
+  if (!at || !label) return null;
+  const note = label.replace(/^\s*\d{1,2}(?::\d{2})?\s*(am|pm)\s*/i, '').trim();
+  return { at, note };
 }
 
 function modeOf(stop: Stop): 'plane' | 'ferry' | 'train' {
   if (isFlight(stop)) return 'plane';
   if (/\b(ferry|boat)\b/i.test(stop.title)) return 'ferry';
   return 'train';
-}
-
-/** "Nozomi to Tokyo" → "Tokyo"; "UA 39 to Haneda" → "Haneda". */
-function destinationOf(title: string): string | null {
-  const m = title.match(/\bto ((?:[A-Z][\w'-]*)(?:[ -][A-Z][\w'-]*)*)/);
-  return m ? m[1] : null;
 }
 
 /** Plane Lab ids → the name on the ticket. */
@@ -127,18 +135,31 @@ const small: React.CSSProperties = {
   fontWeight: 400,
 };
 
-export function JourneyTicket({ stop, accent, stamp, footer }: {
+/** "11:30" with a smaller "am" set right after it, and an optional line under. */
+function TicketTime({ c, approx, under, align }: { c: Clock; approx?: boolean; under?: string; align: 'left' | 'right' }) {
+  return (
+    <div className="num" style={{ textAlign: align, fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 30, lineHeight: 1, whiteSpace: 'nowrap' }}>
+      {approx ? '~' : ''}{fmt(c)}<span style={{ fontSize: 15, marginLeft: 1 }}>{c.mer}</span>
+      {under && <small style={small}>{under}</small>}
+    </div>
+  );
+}
+
+export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
   stop: Stop;
+  /** The day's zone, for the departure's "PT" when a flight crosses zones. */
+  tz?: string | null;
   /** The day's colour: tonight's town, or the trip's. */
   accent: string;
   stamp?: React.ReactNode;
   footer?: React.ReactNode;
 }) {
   const dep = parseClock(stop.time_label)!;
+  const given = parseArrival(stop.arrive_label);
   const mins = parseMinutes(stop.duration_label);
-  const arr = mins != null ? addMinutes(dep, mins) : null;
-  const dest = destinationOf(stop.title);
-  const landing = /^land\b/i.test(stop.title);
+  const arr = given?.at ?? (mins != null ? addMinutes(dep, mins) : null);
+  // A named zone on the arrival means the trip crosses zones: name both ends.
+  const depZone = given?.note && tz ? zoneAbbr(tz, new Date()) : undefined;
   const mode = modeOf(stop);
   const changes = Number(stop.duration_label?.match(/(\d+)\s*change/)?.[1] ?? 0);
   const bodyHtml = renderMd(stop.body_md);
@@ -165,10 +186,7 @@ export function JourneyTicket({ stop, accent, stamp, footer }: {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 10, marginTop: 8 }}>
-          <div className="num" style={{ fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 30, lineHeight: 1 }}>
-            {fmt(dep)}
-            <small style={small}>{dep.mer}{landing ? ' · land' : ''}</small>
-          </div>
+          <TicketTime c={dep} under={depZone} align="left" />
 
           <div style={{ position: 'relative', height: 34, minWidth: 60 }}>
             <div style={{ position: 'absolute', left: 0, right: 0, top: 21, borderTop: `1.5px dotted ${accent}`, opacity: 0.7 }} />
@@ -189,9 +207,8 @@ export function JourneyTicket({ stop, accent, stamp, footer }: {
             )}
           </div>
 
-          <div className="num" style={{ textAlign: 'right', fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: arr ? 30 : 17, lineHeight: 1, opacity: 0.8 }}>
-            {arr ? `~${fmt(arr)}` : (dest ?? '')}
-            {arr && <small style={small}>{dest ? `${arr.mer} · ${dest}` : arr.mer}</small>}
+          <div style={{ opacity: 0.8 }}>
+            {arr && <TicketTime c={arr} approx={!given} under={given?.note || undefined} align="right" />}
           </div>
         </div>
 

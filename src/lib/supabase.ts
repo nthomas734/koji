@@ -94,6 +94,9 @@ export interface Stop {
   sort_order:  number;
   /** "3½ h · 2 changes", shown on a travel stop's pill. */
   duration_label?: string | null;
+  /** When a journey arrives, as the ticket shows it: "4:30pm JST · Fri", "12:45pm PT".
+   *  A zone after the time marks a trip that crosses zones. */
+  arrive_label?: string | null;
   /** Plane Lab aircraft id ("787-10") on a Flight stop: shows a See the plane link. */
   aircraft?:   string | null;
   /** On an optional stop: how long it takes or where it fits. */

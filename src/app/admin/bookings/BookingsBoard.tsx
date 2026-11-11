@@ -26,7 +26,7 @@ function todayIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** "Thu Jan 14, 10:00 JST" plus "Wed Jan 13, 7:00 PM your time" when they differ. */
+/** "Thu Jan 14, 10:00am JST" plus "Wed Jan 13, 5:00pm PT" (the phone's zone) when they differ. */
 function whenLines(b: Booking): { main: string; local: string | null } {
   if (!b.opens_on) return { main: '', local: null };
   const approx = b.opens_approx ? '~' : '';
@@ -35,9 +35,9 @@ function whenLines(b: Booking): { main: string; local: string | null } {
   const main = `${fmtDate(b.opens_on)}, ${fmtTime(b.opens_time)} ${zoneAbbr(b.opens_tz, at)}`;
   const here = Intl.DateTimeFormat().resolvedOptions().timeZone;
   if (here === b.opens_tz) return { main, local: null };
-  const local = at.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-    .replace(/,(?= \d+:)/, ',');
-  return { main, local: `${local} your time` };
+  const day = at.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '');
+  const hm = at.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s?([AP])M$/, (_, x) => x.toLowerCase() + 'm');
+  return { main, local: `${day}, ${hm} ${zoneAbbr(here, at)}` };
 }
 
 function countdown(b: Booking, now: Date): { n: string; unit: string } | null {
