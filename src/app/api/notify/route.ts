@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     const part = partKey ? findPart(whole.trip, partKey) : null;
     if (partKey && !part) continue;
     const data = part ? slicePart(whole, part) : whole;
-    const plan = planTripAlerts(data.trip, data.days, part ? `/trips/${base}/${partKey}` : `/trips/${base}`);
+    const plan = planTripAlerts(data.trip, data.days, part ? `/trips/${base}/${partKey}` : `/trips/${base}`, !!part);
     if (q.get('dry') === '1') {
       report[slug] = plan.filter(a => a.at > now - WINDOW_MS && a.at < now + 864e5)
         .map(a => ({ at: new Date(a.at).toISOString(), title: a.title, body: a.body }));

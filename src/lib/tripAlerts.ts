@@ -120,7 +120,10 @@ function shortClock(label: string): string {
 
 /** basePath: where links point — `/trips/<slug>`, or a part's own page for
  *  someone who turned alerts on from a part link. */
-export function planTripAlerts(trip: Trip, days: Day[], basePath = `/trips/${trip.slug}`): PlannedAlert[] {
+/** endAtLastFlight: for a part (someone's share of the trip), its last day
+ *  stops at that day's flight — Dez's alerts end at "Goodbye at Fukuoka
+ *  Airport", not at Nathan's solo dinner in Onomichi. */
+export function planTripAlerts(trip: Trip, days: Day[], basePath = `/trips/${trip.slug}`, endAtLastFlight = false): PlannedAlert[] {
   if (!trip.date_start) return [];
   const out: PlannedAlert[] = [];
   days.forEach((day, i) => {
@@ -128,7 +131,11 @@ export function planTripAlerts(trip: Trip, days: Day[], basePath = `/trips/${tri
     const date = dateFor(trip.date_start!, i);
     const tz = day.tz || trip.tz || 'UTC';
     const url = `${basePath}#day-${i}`;
-    const stops = (day.stops ?? []).filter(s => !s.is_optional || s.added);
+    let stops = (day.stops ?? []).filter(s => !s.is_optional || s.added);
+    if (endAtLastFlight && i === days.length - 1) {
+      const k = stops.findIndex(s => /^flight$/i.test(s.tag));
+      if (k >= 0) stops = stops.slice(0, k + 1);
+    }
     const timed = stops
       .map(s => ({ s, min: parseClock(s.time_label) }))
       .filter((x): x is { s: Stop; min: number } => x.min != null)
