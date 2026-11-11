@@ -56,6 +56,20 @@ export interface Trip {
   vote_weights?: Record<string, number>;
   /** Dinners one person decides alone, by stop id, e.g. { "480": "Mom" }. */
   dinner_choosers?: Record<string, string>;
+  /** Shareable slices of the trip; /trips/<slug>/<key> shows only those dates. */
+  parts?: TripPart[];
+}
+
+export interface TripPart {
+  /** URL segment, e.g. "family-week". Never "dinners" (that route exists). */
+  key:       string;
+  /** What the owner sheet calls it, e.g. "Family week". */
+  label:     string;
+  /** First and last day shown, YYYY-MM-DD, both inclusive. */
+  from:      string;
+  to:        string;
+  /** Replaces the trip subtitle in the part view, e.g. "with Dez". */
+  subtitle?: string;
 }
 
 export interface Logistics {
@@ -525,6 +539,17 @@ export async function getTripSlugs(): Promise<string[]> {
   try {
     const { data } = await supabase.from('koji_trips').select('slug').eq('published', true);
     return (data ?? []).map((t: { slug: string }) => t.slug);
+  } catch {
+    return [];
+  }
+}
+
+/** Every published trip's parts, for prerendering /trips/<slug>/<part>. */
+export async function getTripPartParams(): Promise<{ slug: string; part: string }[]> {
+  try {
+    const { data } = await supabase.from('koji_trips').select('slug, parts').eq('published', true);
+    return (data ?? []).flatMap((t: { slug: string; parts: TripPart[] | null }) =>
+      (t.parts ?? []).map(p => ({ slug: t.slug, part: p.key })));
   } catch {
     return [];
   }

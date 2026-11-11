@@ -60,6 +60,9 @@ create table if not exists koji_trips (
   lat          numeric,
   lng          numeric
 );
+-- Shareable slices of a trip: [{key, label, from, to, subtitle?}].
+-- /trips/<slug>/<key> shows only those dates (src/lib/parts.ts).
+alter table koji_trips add column if not exists parts jsonb not null default '[]'::jsonb;
 
 create table if not exists koji_days (
   id             bigserial primary key,

@@ -1538,11 +1538,13 @@ interface TripViewProps {
   shots: Shot[];
   carry: Carry[];
   stays?: Stay[];
+  /** Set on /trips/<slug>/<part>: the page shows only that part's dates. */
+  part?: { label: string; wholeHref: string };
 }
 
 const TAB_HASHES: Record<string, Tab> = { logistics: 'logistics', weather: 'weather', itinerary: 'itinerary' };
 
-export function TripView({ trip, logistics, days, shots: initialShots, carry, stays = [] }: TripViewProps) {
+export function TripView({ trip, logistics, days, shots: initialShots, carry, stays = [], part }: TripViewProps) {
   const router = useRouter();
   // Above koma on purpose: a frame marked underground has to keep trying once
   // there is signal, whether or not the mode is still open. See komaQueue.
@@ -2021,7 +2023,7 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
           {komaOn && !verdicts.owner && <KomaMark on tap onToggle={toggleKoma} />}
           {verdicts.owner && (
             <span style={{ marginRight: 2 }}>
-              <OwnerSwitch mode={mode} onMode={m => { if (activeTab !== 'itinerary') setActiveTab('itinerary'); setMode(m); }} tripId={trip.id} hasShots={shots.length > 0} />
+              <OwnerSwitch mode={mode} onMode={m => { if (activeTab !== 'itinerary') setActiveTab('itinerary'); setMode(m); }} tripId={trip.id} hasShots={shots.length > 0} slug={trip.slug} parts={trip.parts ?? []} />
             </span>
           )}
           <button
@@ -2096,6 +2098,17 @@ export function TripView({ trip, logistics, days, shots: initialShots, carry, st
           </div>
         )}
       </div>
+
+      {part && (
+        <div style={{ margin: '10px 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 300, fontSize: 15, color: 'var(--ink-2)' }}>
+            {part.label}, part of a longer trip
+          </span>
+          <a href={part.wholeHref} style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--brass)', whiteSpace: 'nowrap', textDecoration: 'none', borderBottom: '1px solid currentColor' }}>
+            Whole trip ›
+          </a>
+        </div>
+      )}
 
       {/* ITINERARY TAB */}
       {activeTab === 'itinerary' && komaOn && (
