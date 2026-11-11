@@ -1134,12 +1134,17 @@ function DayBlock({
                 {headline}
               </h2>
               {subtitle && (
+                // A sentence, so it's set like the hero's subtitle: italic
+                // serif, with the lines balanced when it runs to two. In mono
+                // it wrapped raggedly and read as a second label.
                 <div style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10.5,
-                  letterSpacing: '0.06em',
+                  fontFamily: 'var(--font-serif)',
+                  fontStyle: 'italic',
+                  fontWeight: 300,
+                  fontSize: 14.5,
                   color: 'var(--ink-2)',
-                  lineHeight: 1.4,
+                  lineHeight: 1.35,
+                  textWrap: 'balance',
                 }}>
                   {subtitle}
                 </div>
