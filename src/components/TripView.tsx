@@ -19,6 +19,7 @@ import { mapsSearchUrl } from '@/lib/supabase';
 import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
 import { useKomaData } from '@/lib/komaData';
 import { useStopPrep } from '@/lib/stopPrep';
+import { useBookRows } from '@/lib/bookRows';
 import { PrepStrip } from '@/components/PrepStrip';
 import { WhoChip } from '@/components/WhoChip';
 import { TonightCard } from '@/components/Tonight';
@@ -1737,6 +1738,9 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   // asks the API, and only a phone holding the admin cookie gets `owner`.
   const verdicts = useVerdicts(trip.id);
   const prep = useStopPrep(trip.id);
+  // Book ahead rows never ride in the public page; the owner fetches them.
+  const bookRows = useBookRows(trip.id, verdicts.owner);
+  const ownerLogistics = useMemo(() => (bookRows.length ? [...logistics, ...bookRows] : logistics), [logistics, bookRows]);
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
 
   // ── big shots ──────────────────────────────────────────────────────────────
@@ -2486,7 +2490,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
           {tripUpcoming && <TripAlerts slug={part ? `${trip.slug}/${part.key}` : trip.slug} title={trip.title} theme={theme} />}
           {/* Book Ahead is Nathan's to-do list (it mirrors the bookings board):
               Dez's copy of the tab leaves it out. */}
-          <LogisticsSection logistics={verdicts.owner ? logistics : logistics.filter(r => r.column_key !== 'book')} theme={theme} tonight={tonight} />
+          <LogisticsSection logistics={ownerLogistics} theme={theme} tonight={tonight} />
         </>
       )}
 
@@ -2540,7 +2544,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         );
       })()}
 
-      {searchOn && <TripSearch days={days} logistics={logistics} onPick={pickResult} onClose={closeSearch} />}
+      {searchOn && <TripSearch days={days} logistics={ownerLogistics} onPick={pickResult} onClose={closeSearch} />}
 
       {/* Footer: the page ends on where the trip ends, not on a bare word.
           After the trip, the owner gets a way into Verdicts. */}

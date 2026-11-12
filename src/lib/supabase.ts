@@ -493,6 +493,9 @@ export async function getTripBySlug(slug: string): Promise<{
     .from('koji_logistics')
     .select('*')
     .eq('trip_id', trip.id)
+    // Book ahead is the owner's to-do list: never in the public page
+    // (the read policy excludes it too). The owner loads it from /api/logistics/book.
+    .neq('column_key', 'book')
     .order('column_key')
     .order('sort_order');
 
