@@ -45,22 +45,32 @@ const THEME_COLORS: Record<string, { bg: string; fg: string }> = {
 
 type CompanionMode = 'solo' | 'companion' | 'group';
 
-// Parse stored "with X" or "with X & Y" subtitle into mode + names
-function parseCompanion(subtitle: string | null | undefined): { mode: CompanionMode; names: string[] } {
-  const s = (subtitle ?? '').trim();
-  if (!s || s.toLowerCase() === 'solo') return { mode: 'solo', names: [] };
-  const withMatch = s.match(/^with\s+(.+)$/i);
-  if (!withMatch) return { mode: 'companion', names: [s] };
-  const names = withMatch[1].split(/\s*&\s*|\s*,\s*/).map(n => n.trim()).filter(Boolean);
+// Parse stored "with X", "with X & Y", or a split trip ("Dez then Solo",
+// "with Dez, then solo") into mode + names. The trailing "then solo" is kept
+// as a flag so the picker doesn't read it as a second person.
+function parseCompanion(subtitle: string | null | undefined): { mode: CompanionMode; names: string[]; thenSolo: boolean } {
+  let s = (subtitle ?? '').trim();
+  const split = s.match(/^(.*?)[,\s]+then\s+solo$/i);
+  const thenSolo = !!split;
+  if (split) s = split[1].trim();
+  if (!s || s.toLowerCase() === 'solo') return { mode: 'solo', names: [], thenSolo: false };
+  const body = s.match(/^with\s+(.+)$/i)?.[1] ?? s;
+  const names = body.split(/\s*&\s*|\s*,\s*|\s+and\s+/).map(n => n.trim()).filter(Boolean);
   return {
     mode: names.length >= 2 ? 'group' : 'companion',
     names,
+    thenSolo,
   };
 }
 
 // Build the subtitle from mode + names
-function formatCompanion(mode: CompanionMode, names: string[]): string {
+function formatCompanion(mode: CompanionMode, names: string[], thenSolo = false): string {
   if (mode === 'solo') return 'Solo';
+  const base = formatWith(mode, names);
+  return base && thenSolo ? `${base}, then solo` : base;
+}
+
+function formatWith(mode: CompanionMode, names: string[]): string {
   const clean = names.map(n => n.trim()).filter(Boolean);
   if (clean.length === 0) return '';
   if (mode === 'companion') return `with ${clean[0]}`;
@@ -829,6 +839,7 @@ function CompanionPicker({
   onChange: (newSubtitle: string) => void;
 }) {
   const parsed = parseCompanion(subtitle);
+  const thenSolo = parsed.thenSolo;
   const [mode, setMode] = useState<CompanionMode>(parsed.mode);
   const [names, setNames] = useState<string[]>(
     parsed.names.length ? parsed.names : ['']
@@ -837,7 +848,7 @@ function CompanionPicker({
   function commit(nextMode: CompanionMode, nextNames: string[]) {
     setMode(nextMode);
     setNames(nextNames);
-    onChange(formatCompanion(nextMode, nextNames));
+    onChange(formatCompanion(nextMode, nextNames, thenSolo));
   }
 
   function changeMode(next: CompanionMode) {
