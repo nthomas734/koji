@@ -21,6 +21,7 @@ import { useKomaData } from '@/lib/komaData';
 import { useStopPrep } from '@/lib/stopPrep';
 import { PrepStrip } from '@/components/PrepStrip';
 import { WhoChip } from '@/components/WhoChip';
+import { TonightCard } from '@/components/Tonight';
 import { NowCard, NowRule } from '@/components/NowCard';
 import { nowOverride, nowState, useZonedMinutes } from '@/lib/now';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
@@ -630,12 +631,17 @@ function WeatherHeroCard({
 
 // ── FULL LOGISTICS SECTION ───────────────────────────────────────────────────
 const CATEGORY_LABELS: Record<string, string> = {
-  flight: 'Flights',
+  flight: 'Getting there',
   train:  'Trains',
-  hotel:  'Hotels',
-  book:   'Book Ahead',
+  hotel:  'Where you sleep',
+  bags:   'Bags',
+  info:   'Good to know',
+  book:   'Book ahead · only you see this',
   other:  'Other',
 };
+
+// Always in Good to know: the numbers nobody looks up until they need them.
+const EMERGENCY_MD = '**110** police · **119** ambulance and fire · **#7119** is the non-emergency medical line in Tokyo and some other areas. Japan Visitor Hotline, 24 hours in English: **050-3816-2787**.';
 
 // Inline SVG icons per category (24x24 viewBox, stroke-only)
 function CategoryIcon({ cat, color }: { cat: string; color: string }) {
@@ -658,7 +664,7 @@ function CategoryIcon({ cat, color }: { cat: string; color: string }) {
   );
 }
 
-const CATEGORY_ORDER = ['flight', 'train', 'hotel', 'book', 'other'];
+const CATEGORY_ORDER = ['flight', 'train', 'hotel', 'bags', 'info', 'other', 'book'];
 
 // Parse a value_md string into { headline, secondary, detail } based on category
 function parseLogisticsValue(value: string, category: string): { headline: string; secondary: string; detail: string } {
@@ -707,7 +713,9 @@ function parseLogisticsValue(value: string, category: string): { headline: strin
     const nights = parts.find(p => /night/i.test(p)) ?? '';
     const checkin = parts.find(p => /check.?in/i.test(p)) ?? '';
     const conf = parts.find(p => /conf|#/i.test(p)) ?? '';
-    const extra = parts.find(p => p !== datePart && p !== nights && p !== checkin && p !== conf && !/check.?out/i.test(p) && p.length > 2) ?? '';
+    // Every leftover part: the hotel link and the note after it ("king",
+    // "desk 7am to 9pm"), not just the first.
+    const extra = parts.filter(p => p !== datePart && p !== nights && p !== checkin && p !== conf && !/check.?out/i.test(p) && p.length > 2).join(' · ');
     return {
       headline: [datePart, nights].filter(Boolean).join(' · '),
       secondary: checkin,
@@ -737,8 +745,11 @@ function parseLogisticsValue(value: string, category: string): { headline: strin
   };
 }
 
-function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme: { bg: string; fg: string } }) {
+function LogisticsSection({ logistics, theme, tonight }: { logistics: Logistics[]; theme: { bg: string; fg: string }; tonight?: { stay: Stay; label: string } | null }) {
   const byCategory: Record<string, Logistics[]> = {};
+  if (logistics.length) {
+    logistics = [...logistics, { id: -1, trip_id: 0, column_key: 'logistics', category: 'info', label: 'Emergency', value_md: EMERGENCY_MD, sort_order: 999 } as Logistics];
+  }
   for (const row of logistics) {
     // Rows authored in the admin's "book" column always group under Book Ahead,
     // regardless of their category value
@@ -767,6 +778,7 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
 
   return (
     <div style={{ padding: '12px 12px 40px' }}>
+      {tonight && <TonightCard stay={tonight.stay} label={tonight.label} />}
       {categories.map(cat => (
         <div key={cat} style={{ marginBottom: 16 }}>
 
@@ -889,6 +901,10 @@ function StopRow({ stop, stamp, footer, accent, tz }: { stop: Stop; stamp?: Reac
   const faded = stop.is_optional && !stop.added;
   const baseTag = faded && !/optional/i.test(stop.tag) ? `${stop.tag} · optional` : stop.tag;
   const tagText = stop.duration_label ? `${baseTag} · ${stop.duration_label}` : baseTag;
+  // Directions to the stop's first place link (review C), not for the travel
+  // legs themselves. The link's query is already URL-encoded.
+  const dirQuery = /^(travel|flight|train)/i.test(stop.tag) ? null
+    : stop.body_md?.match(/google\.com\/maps\/search\/\?api=1&query=([^)\s"]+)/)?.[1] ?? null;
   return (
     <article id={`stop-${stop.id}`} style={{
       position: 'relative',
@@ -940,6 +956,13 @@ function StopRow({ stop, stamp, footer, accent, tz }: { stop: Stop; stamp?: Reac
             className="body-content"
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
+        )}
+        {dirQuery && (
+          <a href={`https://www.google.com/maps/dir/?api=1&destination=${dirQuery}&travelmode=transit`}
+            target="_blank" rel="noopener noreferrer"
+            style={{ display: 'inline-block', marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.06em', color: tagColor.text, textDecoration: 'none', borderBottom: '1px solid currentColor' }}>
+            Directions ↗
+          </a>
         )}
         {footer}
       </div>
@@ -1875,6 +1898,15 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   const pendingDay = useRef<number | null>(null);
   const todayTz = todayIdx >= 0 ? (days[todayIdx].tz || trip.tz || null) : null;
   const nowMin = useZonedMinutes(todayTz, todayIdx >= 0);
+  // Logistics opens on tonight's stay; before the trip, the first night's.
+  const tonight = useMemo(() => {
+    if (!stays?.length || !trip.date_start) return null;
+    const sorted = [...stays].sort((a, b) => (a.check_in < b.check_in ? -1 : 1));
+    const st = todayIdx >= 0 ? stayForDate(sorted, dateForDay(trip.date_start, todayIdx)) : null;
+    if (st) return { stay: st, label: 'Tonight' };
+    if (todayIdx < 0 && (nowOverride()?.date ?? fmtLocalDate(new Date())) < trip.date_start) return { stay: sorted[0], label: 'First night' };
+    return null;
+  }, [stays, todayIdx, trip.date_start]);
 
   const hasCoords = (trip.lat != null && trip.lng != null && !!trip.date_start)
     || days.some(d => d.lat != null && d.lng != null);
@@ -2454,7 +2486,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
           {tripUpcoming && <TripAlerts slug={part ? `${trip.slug}/${part.key}` : trip.slug} title={trip.title} theme={theme} />}
           {/* Book Ahead is Nathan's to-do list (it mirrors the bookings board):
               Dez's copy of the tab leaves it out. */}
-          <LogisticsSection logistics={verdicts.owner ? logistics : logistics.filter(r => r.column_key !== 'book')} theme={theme} />
+          <LogisticsSection logistics={verdicts.owner ? logistics : logistics.filter(r => r.column_key !== 'book')} theme={theme} tonight={tonight} />
         </>
       )}
 

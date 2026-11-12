@@ -148,6 +148,11 @@ export interface Stay {
   hotel_query: string | null;
   booked:      boolean;
   desk_hours:  string | null;
+  /** For the driver card (review C): the name and address as a taxi reads them. */
+  hotel_ja?:   string | null;
+  address_ja?: string | null;
+  address_en?: string | null;
+  phone?:      string | null;
   intro_md:    string | null;
   photo_url:   string | null;
   sort_order:  number;
