@@ -21,6 +21,8 @@ import { useKomaData } from '@/lib/komaData';
 import { useStopPrep } from '@/lib/stopPrep';
 import { PrepStrip } from '@/components/PrepStrip';
 import { WhoChip } from '@/components/WhoChip';
+import { NowCard, NowRule } from '@/components/NowCard';
+import { nowOverride, nowState, useZonedMinutes } from '@/lib/now';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
 import { JourneyTicket, isJourney } from '@/components/JourneyTicket';
 import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
@@ -972,7 +974,10 @@ function DayBlock({
   footerFor,
   maybe,
   afterStop,
+  nowMin,
 }: {
+  /** Today only: minutes after midnight in the day's zone, for the Now card. */
+  nowMin?: number | null;
   /** Where you sleep tonight: names the town and colours the accent. */
   stay?: Stay | null;
   /** The timeline, maybes included in place. Defaults to all of the day's stops. */
@@ -999,6 +1004,8 @@ function DayBlock({
   onToday: () => void;
 }) {
   const { headline, subtitle } = parseDayLabel(day.label);
+  const list = stops ?? day.stops ?? [];
+  const now = nowMin != null ? nowState(list, nowMin) : null;
   const accent = isToday ? 'var(--brass)' : stay ? stayTone(stay, null) : themeColor.bg;
   const folded = pinned;
 
@@ -1210,17 +1217,25 @@ function DayBlock({
         </div>
       </div>
       <div style={{ padding: '0 12px' }}>
+        {now?.nextStop && now.minutesToNext != null && (
+          <NowCard stop={now.nextStop} minutes={now.minutesToNext} accent={accent} />
+        )}
         {afterStop?.(null)}
-        {(stops ?? day.stops ?? []).map((stop, k, list) => {
+        {list.map((stop, k) => {
           const m = maybe?.(stop, accent);
           if (m) {
             const prev = list[k - 1];
             const startsRun = !prev || !maybe?.(prev, accent);
             return <Fragment key={stop.id}>{startsRun && <MaybeRunHead accent={accent} />}{m}</Fragment>;
           }
+          // Today: stops behind the one under way go quiet; a rule marks now.
+          const past = !!now && k < now.current;
           return (
             <Fragment key={stop.id}>
-              <StopRow stop={stop} accent={accent} tz={day.tz} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />
+              {now && nowMin != null && k === now.next && <NowRule nowMin={nowMin} accent={accent} />}
+              <div style={past ? { opacity: 0.5 } : undefined}>
+                <StopRow stop={stop} accent={accent} tz={day.tz} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />
+              </div>
               {afterStop?.(stop)}
             </Fragment>
           );
@@ -1858,6 +1873,8 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   const [leavingDay, setLeavingDay] = useState(-1);
   const [railOpen, setRailOpen]   = useState(false);
   const pendingDay = useRef<number | null>(null);
+  const todayTz = todayIdx >= 0 ? (days[todayIdx].tz || trip.tz || null) : null;
+  const nowMin = useZonedMinutes(todayTz, todayIdx >= 0);
 
   const hasCoords = (trip.lat != null && trip.lng != null && !!trip.date_start)
     || days.some(d => d.lat != null && d.lng != null);
@@ -1866,7 +1883,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   useEffect(() => {
     if (!trip.date_start) return;
     const compute = () => {
-      const today = fmtLocalDate(new Date());
+      const today = nowOverride()?.date ?? fmtLocalDate(new Date());
       let idx = -1;
       for (let i = 0; i < days.length; i++) if (dateForDay(trip.date_start!, i) === today) idx = i;
       setTodayIdx(idx);
@@ -2389,6 +2406,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
                 dayTotal={days.length}
                 themeColor={theme}
                 isToday={i === todayIdx}
+                nowMin={i === todayIdx ? nowMin : null}
                 pinned={i === pinnedDay || i === leavingDay}
                 railOpen={railOpen && i === pinnedDay}
                 onToggleRail={() => setRailOpen(v => !v)}

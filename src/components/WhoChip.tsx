@@ -5,7 +5,7 @@ export function WhoChip({ who, color }: { who?: string | null; color?: string })
   return (
     <span style={{
       display: 'inline-block', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
-      letterSpacing: '0.04em', padding: '1px 8px', borderRadius: 999, lineHeight: '18px',
+      letterSpacing: '0.04em', textTransform: 'none', padding: '1px 8px', borderRadius: 999, lineHeight: '18px',
       border: `1px solid ${color ?? 'var(--border)'}`, color: color ?? 'var(--ink-2)',
     }}>
       {who}
