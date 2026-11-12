@@ -8,6 +8,8 @@ import { pushState, subscribe, unsubscribe, type PushState } from '@/lib/push';
 // hideWhenOn, a phone that already has alerts on never sees it (it stays
 // visible for the rest of the visit in which you switch it on, as the
 // confirmation). The Logistics tab always shows it, so it can be turned off.
+const DISMISS_KEY = 'koji:alerts-note-dismissed';
+
 export function TripAlerts({ slug, title, theme, hideWhenOn = false }: {
   slug: string; title: string; theme: { bg: string; fg: string }; hideWhenOn?: boolean;
 }) {
@@ -15,14 +17,31 @@ export function TripAlerts({ slug, title, theme, hideWhenOn = false }: {
   const [onAtLoad, setOnAtLoad] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    try { setDismissed(localStorage.getItem(DISMISS_KEY) === '1'); } catch { /* private mode */ }
+    // iOS only allows push for an installed app, and a browser tab can report
+    // "denied" when the real answer is "install it first". Say that instead.
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches
+      || (navigator as Navigator & { standalone?: boolean }).standalone === true;
     pushState(slug)
-      .then(s => { setState(s); setOnAtLoad(s === 'on'); })
+      .then(s => {
+        const shown = s === 'denied' && !standalone && /iPhone|iPad/.test(navigator.userAgent) ? 'install' : s;
+        setState(shown); setOnAtLoad(shown === 'on');
+      })
       .catch(() => setState('unsupported'));
   }, [slug]);
   if (state == null || state === 'unsupported') return null;
   if (hideWhenOn && onAtLoad && state === 'on') return null;
+  // A note you can't act on from here (install, or blocked in Settings) can be
+  // waved away once per phone; the Logistics copy (no hideWhenOn) stays.
+  const canDismiss = hideWhenOn && (state === 'install' || state === 'denied');
+  if (canDismiss && dismissed) return null;
+  const dismiss = () => {
+    setDismissed(true);
+    try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* private mode */ }
+  };
 
   const on = state === 'on';
   const note =
@@ -57,7 +76,7 @@ export function TripAlerts({ slug, title, theme, hideWhenOn = false }: {
       }}>
         <span style={{
           fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
+          fontSize: 11,
           letterSpacing: '0.12em',
           textTransform: 'uppercase',
           color: theme.bg,
@@ -69,6 +88,12 @@ export function TripAlerts({ slug, title, theme, hideWhenOn = false }: {
         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.45, flex: 1, minWidth: 0 }}>
           {note}
         </span>
+        {canDismiss && (
+          <button type="button" onClick={dismiss} aria-label="Hide this note" style={{
+            flexShrink: 0, width: 32, height: 32, border: 'none', background: 'none',
+            color: 'var(--ink-4)', fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: 0,
+          }}>×</button>
+        )}
         {(state === 'on' || state === 'off') && (
           <button
             type="button"

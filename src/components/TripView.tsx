@@ -81,6 +81,8 @@ interface DayWeather {
   precipProb:  number | null;
   uvIndex:     number | null;
   humidity:    number | null;
+  /** Seasonal only: the spread of highs across past years, and how many of them rained. */
+  usual?: { highLo: number; highHi: number; rainyYears: number; years: number };
 }
 
 // ── WMO CODE → DISPLAY ───────────────────────────────────────────────────────
@@ -231,24 +233,51 @@ async function fetchArchiveYear(
   }));
 }
 
-// Seasonal averages: tries last year first, falls back to 2 years ago.
-// Drops hourly humidity to keep requests fast.
+// Seasonal averages: the same dates over the last five years, through the
+// proxy. One year was one day's luck (a storm read as "12.6 precip"), so this
+// averages the highs and lows, keeps the spread of highs, and counts how many
+// of the years rained. Wind and UV aren't averaged: a single gusty day says
+// nothing about a season.
+const SEASON_YEARS = [-1, -2, -3, -4, -5];
+const RAIN_MM = 1; // a day with at least 1 mm counts as a rainy one
+
 async function fetchSeasonalWeather(
   lat: number,
   lng: number,
   dateStart: string,
   dateEnd: string,
 ): Promise<DayWeather[]> {
-  // Try -1 year first, then -2 as fallback
-  for (const delta of [-1, -2]) {
-    try {
-      const results = await fetchArchiveYear(lat, lng, dateStart, dateEnd, delta);
-      if (results.length > 0) return results;
-    } catch {
-      // try next year
-    }
+  const years = await Promise.allSettled(
+    SEASON_YEARS.map(delta => fetchArchiveYear(lat, lng, dateStart, dateEnd, delta)),
+  );
+  const byDate = new Map<string, DayWeather[]>();
+  for (const y of years) {
+    if (y.status !== 'fulfilled') continue;
+    for (const w of y.value) byDate.set(w.date, [...(byDate.get(w.date) ?? []), w]);
   }
-  return [];
+  const out: DayWeather[] = [];
+  for (const [date, ws] of byDate) {
+    const avg = (f: (w: DayWeather) => number) => Math.round(ws.reduce((s, w) => s + f(w), 0) / ws.length);
+    const highs = ws.map(w => w.tempMax);
+    // The commonest kind of sky across the years, as one representative code
+    const counts = new Map<string, DayWeather[]>();
+    for (const w of ws) counts.set(wmoBucket(w.wmoCode), [...(counts.get(wmoBucket(w.wmoCode)) ?? []), w]);
+    const common = [...counts.values()].sort((a, b) => b.length - a.length)[0];
+    out.push({
+      date,
+      tempMax: avg(w => w.tempMax),
+      tempMin: avg(w => w.tempMin),
+      wmoCode: common[0].wmoCode,
+      windMax: null, precipSum: null, precipProb: null, uvIndex: null, humidity: null,
+      usual: {
+        highLo: Math.min(...highs),
+        highHi: Math.max(...highs),
+        rainyYears: ws.filter(w => (w.precipSum ?? 0) >= RAIN_MM).length,
+        years: ws.length,
+      },
+    });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 function shiftYear(dateStr: string, delta: number): string {
@@ -301,12 +330,18 @@ function summarizeWeather(weather: DayWeather[]): WeatherSummary | null {
     }
   }
   const dominantCode = buckets[dominantBucket][0];
-  const dominantShare = dominantCount / weather.length;
 
-  // If conditions are evenly split across buckets, call it mixed
-  const conditionLabel = dominantShare >= 0.6
-    ? `Mostly ${wmoDisplay(dominantCode).label.toLowerCase()}`
-    : 'Mixed conditions';
+  // Say what to pack, not what the sky does on average ("Mixed conditions"
+  // told nobody anything). Built from the coldest low and how often it rains.
+  const coldest = Math.min(...weather.map(w => w.tempMin));
+  const rainShare = weather.reduce((s, w) => s + (
+    w.usual ? w.usual.rainyYears / w.usual.years
+      : (w.precipSum ?? 0) >= RAIN_MM || ['rain', 'snow'].includes(wmoBucket(w.wmoCode)) ? 1 : 0
+  ), 0) / weather.length;
+  const feel = coldest <= 36 ? 'Cold' : avgMax <= 60 ? 'Cool' : avgMax <= 75 ? 'Mild' : 'Warm';
+  const wet = rainShare < 0.25 ? 'mostly dry' : rainShare < 0.5 ? 'some rain' : 'often wet';
+  const pack = coldest <= 36 ? 'Warm coat and gloves' : coldest <= 50 ? 'A warm coat' : coldest <= 62 ? 'A light jacket' : 'Light layers';
+  const conditionLabel = `${feel} and ${wet}. ${pack}${rainShare >= 0.3 ? ' and an umbrella' : ''}.`;
 
   return { avgMax, avgMin, dominantCode, conditionLabel };
 }
@@ -563,8 +598,8 @@ function WeatherHeroCard({
       </span>
       <span style={{
         marginLeft: 'auto',
-        fontSize: 10,
-        color: `${fg}99`,
+        fontSize: 12,
+        color: `${fg}cc`,
         textAlign: 'right',
         lineHeight: 1.3,
       }}>
@@ -579,7 +614,7 @@ function WeatherHeroCard({
               textTransform: 'uppercase',
               color: `${fg}77`,
             }}>
-              Seasonal avg
+              Usual for these dates
             </span>
           </>
         )}
@@ -992,6 +1027,17 @@ function DayBlock({
       {weather.tempMax}° / {weather.tempMin}°
     </span>
   );
+  // The folded row is one line on a phone: the icon and the high are enough,
+  // and every character saved goes to the subtitle.
+  const foldedWeather = weather && (
+    <span className="num" style={{
+      flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3,
+      fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', whiteSpace: 'nowrap',
+    }}>
+      <span style={{ fontSize: 12, lineHeight: 1 }}>{wmoDisplay(weather.wmoCode).icon}</span>
+      {weather.tempMax}°
+    </span>
+  );
 
   return (
     <section id={`day-${dayIndex}`} data-day-idx={dayIndex} className="row-in" style={{ animationDelay: `${Math.min(dayIndex, 8) * 40}ms`, scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}>
@@ -1044,11 +1090,14 @@ function DayBlock({
             <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 16, color: 'var(--ink)', lineHeight: 1.1, whiteSpace: 'nowrap', margin: 0 }}>
               {headline}
             </h2>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, whiteSpace: 'nowrap' }}>
-              {isToday ? 'today' : `day ${dayIndex + 1}`}
-            </span>
+            {/* "Day 4" lives in the unfolded header; folded, the room goes to the subtitle */}
+            {isToday && (
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, whiteSpace: 'nowrap' }}>
+                today
+              </span>
+            )}
             {subtitle && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.04em', color: 'var(--ink-3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 13, color: 'var(--ink-3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {subtitle}
               </span>
             )}
@@ -1078,7 +1127,7 @@ function DayBlock({
                 today
               </button>
             )}
-            {weatherPill}
+            {foldedWeather}
             <span aria-hidden style={{
               width: 7, height: 7, flexShrink: 0,
               borderRight: '1.5px solid var(--ink-4)', borderBottom: '1.5px solid var(--ink-4)',
@@ -1196,12 +1245,14 @@ function WeatherTab({
   trip,
   isSeasonal,
   theme,
+  toneFor,
 }: {
   days: Day[];
   weatherMap: Record<string, DayWeather>;
   trip: Trip;
   isSeasonal: boolean;
   theme: { bg: string; fg: string };
+  toneFor: (dayIndex: number) => string | null;
 }) {
   if (!trip.date_start) return null;
 
@@ -1253,7 +1304,7 @@ function WeatherTab({
           textAlign: 'center',
           padding: '0 0 4px',
         }}>
-          Seasonal averages from prior year
+          Usual weather: these dates over the last 5 years
         </div>
       )}
       {days.map((day, i) => {
@@ -1280,7 +1331,8 @@ function WeatherTab({
         const lat = day.lat ?? trip.lat;
         const lng = day.lng ?? trip.lng;
         const cityKey = lat != null && lng != null ? `${lat},${lng}` : '';
-        const accentColor = cityColors[cityKey] ?? theme.bg;
+        // Same colour as the itinerary: tonight's stay, else the city's
+        const accentColor = toneFor(i) ?? cityColors[cityKey] ?? theme.bg;
         const city = cityLabel[cityKey] ?? '';
         const { icon, label } = wmoDisplay(w.wmoCode);
         const { headline } = parseDayLabel(day.label);
@@ -1325,9 +1377,14 @@ function WeatherTab({
                 <div style={{ fontSize: 28, fontWeight: 300, color: 'var(--ink)', lineHeight: 1 }}>
                   {w.tempMax}°
                 </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-4)', marginTop: 2 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-4)', marginTop: 2 }}>
                   {w.tempMin}° low
                 </div>
+                {w.usual && w.usual.highHi > w.usual.highLo && (
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-4)', marginTop: 2 }}>
+                    highs {w.usual.highLo}–{w.usual.highHi}°
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1399,7 +1456,21 @@ function WeatherTab({
                   color: 'var(--ink-3)',
                   letterSpacing: '0.08em',
                 }}>
-                  {w.precipSum} in precip
+                  {w.precipSum} mm rain
+                </span>
+              )}
+              {w.usual && (
+                <span style={{
+                  background: 'var(--bg-subtle)',
+                  borderRadius: 999,
+                  padding: '3px 10px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  color: 'var(--ink-3)',
+                }}>
+                  {w.usual.rainyYears === 0
+                    ? `dry all ${w.usual.years} years`
+                    : `rained ${w.usual.rainyYears} of ${w.usual.years} years`}
                 </span>
               )}
             </div>
@@ -1957,6 +2028,42 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
     requestAnimationFrame(() => requestAnimationFrame(go));
   }, [activeTab, setActiveTab, pickDay, komaOn, setMode]);
 
+  // ── hash links on a page that's already open ─────────────────────────────
+  // The hash was only read on mount, so a push alert's #stop-N tapped while the
+  // PWA was already on this trip changed the URL and nothing else. Route every
+  // hash form the same way here: tabs, the two owner modes, a day, a stop.
+  const navRef = useRef({ pickDay, pickResult, activeTab, scrollToDay });
+  navRef.current = { pickDay, pickResult, activeTab, scrollToDay };
+  useEffect(() => {
+    const onHash = () => {
+      const hash = window.location.hash.slice(1);
+      if (TAB_HASHES[hash]) {
+        setActiveTabState(TAB_HASHES[hash]);
+        window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+        return;
+      }
+      if (hash === 'koma' || hash === 'verdicts') {
+        setKomaOn(hash === 'koma');
+        setVerdictsOn(hash === 'verdicts');
+        setActiveTabState('itinerary');
+        return;
+      }
+      const day = hash.match(/^day-(\d+)$/);
+      if (day) {
+        // A link lands, it doesn't glide: smooth scrolling stalls in a
+        // backgrounded page, which is exactly when a push alert is tapped.
+        const nav = navRef.current;
+        if (nav.activeTab === 'itinerary') nav.scrollToDay(Number(day[1]), 'instant' as ScrollBehavior);
+        else nav.pickDay(Number(day[1]));
+        return;
+      }
+      const stop = hash.match(/^stop-(\d+)$/);
+      if (stop) navRef.current.pickResult({ kind: 'stop', id: Number(stop[1]) });
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA)$/.test(e.target.tagName);
@@ -2371,25 +2478,50 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
             trip={trip}
             isSeasonal={isSeasonal}
             theme={theme}
+            toneFor={j => { const st = stayFor(j); return st ? stayTone(st, null) : null; }}
           />
         );
       })()}
 
       {searchOn && <TripSearch days={days} logistics={logistics} onPick={pickResult} onClose={closeSearch} />}
 
-      {/* Footer */}
-      <footer style={{
-        padding: '28px var(--px)',
-        textAlign: 'center',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 9,
-        letterSpacing: '0.18em',
-        textTransform: 'uppercase',
-        color: 'var(--ink-4)',
-        borderTop: '1px solid var(--border)',
-      }}>
-        {trip.title}
-      </footer>
+      {/* Footer: the page ends on where the trip ends, not on a bare word.
+          After the trip, the owner gets a way into Verdicts. */}
+      {(() => {
+        const lastDay = days[days.length - 1];
+        const lastStop = [...(lastDay?.stops ?? [])].reverse().find(s => !s.is_optional);
+        const lastDate = trip.date_start && days.length ? dateForDay(trip.date_start, days.length - 1) : null;
+        const when = lastDate ? new Date(lastDate + 'T00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : null;
+        const ends = lastStop?.arrive_label ? `lands ${lastStop.arrive_label}` : lastStop?.time_label ?? null;
+        const over = !!trip.date_start && !tripUpcoming;
+        return (
+          <footer style={{
+            padding: '28px var(--px) 36px',
+            textAlign: 'center',
+            borderTop: '1px solid var(--border)',
+            display: 'grid',
+            gap: 6,
+            justifyItems: 'center',
+          }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-4)' }}>
+              {when ? `The end · ${when}` : trip.title}
+            </div>
+            {lastStop && (
+              <div style={{ fontFamily: 'var(--font-serif)', fontSize: 17, color: 'var(--ink-2)', lineHeight: 1.35, maxWidth: 320 }}>
+                {lastStop.title}{ends ? <span style={{ color: 'var(--ink-3)' }}>{`, ${ends}`}</span> : null}
+              </div>
+            )}
+            {over && verdicts.owner && (
+              <button type="button" onClick={() => { setMode('verdicts'); window.scrollTo({ top: 0 }); }} style={{
+                marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase',
+                color: 'var(--brass)', background: 'none', border: '1px solid var(--brass)', borderRadius: 999, padding: '7px 14px', cursor: 'pointer',
+              }}>
+                Stamp the verdicts
+              </button>
+            )}
+          </footer>
+        );
+      })()}
 
       {verdicts.owner && sheet && (
         <VerdictSheet
