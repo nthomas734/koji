@@ -208,7 +208,7 @@ export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 10, marginTop: 8 }}>
           <TicketTime c={dep} under={depZone} align="left" />
 
-          <div style={{ position: 'relative', height: 34, minWidth: 60 }}>
+          <div style={{ position: 'relative', height: 42, minWidth: 60 }}>
             <div style={{ position: 'absolute', left: 0, right: 0, top: 21, borderTop: `1.5px dotted ${accent}`, opacity: 0.7 }} />
             {Array.from({ length: changes }, (_, i) => (
               <span key={i} style={{
@@ -221,8 +221,17 @@ export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
               <JourneyGlyph mode={mode} />
             </span>
             {routeLabel && (
-              <span style={{ ...small, position: 'absolute', left: '50%', top: 25, transform: 'translateX(-50%)', whiteSpace: 'nowrap', marginTop: 0 }}>
-                {routeLabel}
+              // The time is the thing you glance for: big and plain, with the
+              // changes beside it in a quieter voice ("1 h 50 · 1 change").
+              <span style={{
+                position: 'absolute', left: '50%', top: 26, transform: 'translateX(-50%)', whiteSpace: 'nowrap',
+                fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '0.02em',
+                fontVariantNumeric: 'tabular-nums', color: deep, background: tint, padding: '0 5px', lineHeight: 1.2,
+              }}>
+                {routeLabel.split(/\s*·\s*/)[0]}
+                {routeLabel.split(/\s*·\s*/).slice(1).map((part, i) => (
+                  <span key={i} style={{ fontSize: 11, fontWeight: 400, opacity: 0.75 }}> · {part}</span>
+                ))}
               </span>
             )}
           </div>
