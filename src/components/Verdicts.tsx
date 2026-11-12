@@ -63,7 +63,7 @@ export function ExtraPlaceRow({ row, onOpen }: { row: VerdictRow; onOpen: () => 
       padding: '10px 12px 10px 18px', marginTop: 8,
     }}>
       <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase',
+        fontFamily: 'var(--font-mono)', fontSize: 11.5, letterSpacing: '0.14em', textTransform: 'uppercase',
         color: 'var(--ink-4)', paddingTop: 6,
       }}>
         {row.source === 'share' ? 'shared' : row.source === 'photo' ? 'photos' : 'added'}
@@ -90,7 +90,7 @@ export function AddPlaceButton({ onAdd }: { onAdd: () => void }) {
       onClick={onAdd}
       style={{
         marginTop: 8, marginLeft: 18, padding: '6px 0',
-        fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.08em',
+        fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em',
         color: 'var(--brass)',
       }}
     >
@@ -187,7 +187,7 @@ export function VerdictSheet({ target, onSave, onRemove, onClose }: {
         ) : (
           <div style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--ink)', lineHeight: 1.2 }}>{draft.title}</div>
         )}
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-4)', margin: '6px 0 14px' }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-4)', margin: '6px 0 14px' }}>
           {target.context}
         </div>
 
@@ -212,7 +212,7 @@ export function VerdictSheet({ target, onSave, onRemove, onClose }: {
                 }}
               >
                 {t.label}
-                <span style={{ display: 'block', fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 400, letterSpacing: '0.04em', color: on ? t.ink : 'var(--ink-4)', marginTop: 3 }}>
+                <span style={{ display: 'block', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 400, letterSpacing: '0.04em', color: on ? t.ink : 'var(--ink-4)', marginTop: 3 }}>
                   {t.hint}
                 </span>
               </button>
@@ -232,7 +232,7 @@ export function VerdictSheet({ target, onSave, onRemove, onClose }: {
           }}
         />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 12 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-4)' }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-4)' }}>
             private · only you see this
           </span>
           <span style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
@@ -240,7 +240,7 @@ export function VerdictSheet({ target, onSave, onRemove, onClose }: {
               <button
                 type="button"
                 onClick={() => { onRemove(draft.client_key); onClose(); }}
-                style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.08em', color: TONES.skip.ink }}
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.08em', color: TONES.skip.ink }}
               >
                 remove
               </button>
@@ -249,7 +249,7 @@ export function VerdictSheet({ target, onSave, onRemove, onClose }: {
               type="button"
               onClick={finish}
               style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.1em', textTransform: 'uppercase',
+                fontFamily: 'var(--font-mono)', fontSize: 11.5, letterSpacing: '0.1em', textTransform: 'uppercase',
                 color: 'var(--surface)', background: 'var(--ink)', borderRadius: 999, padding: '7px 16px',
               }}
             >

@@ -64,7 +64,7 @@ export function UpdateBanner() {
         </svg>
         <span style={{
           fontFamily: 'var(--font-mono)',
-          fontSize: 10,
+          fontSize: 11,
           letterSpacing: '0.12em',
           textTransform: 'uppercase',
           color: 'var(--ink-2)',
@@ -77,7 +77,7 @@ export function UpdateBanner() {
         onClick={() => window.location.reload()}
         style={{
           fontFamily: 'var(--font-mono)',
-          fontSize: 9,
+          fontSize: 11,
           letterSpacing: '0.12em',
           textTransform: 'uppercase',
           fontWeight: 700,

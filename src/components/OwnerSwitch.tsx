@@ -149,8 +149,8 @@ export function OwnerSwitch({ mode, onMode, tripId, hasShots, slug, parts = [] }
                 {[{ path: `/trips/${slug}`, label: 'Whole trip', sub: null as string | null }, ...parts.map(p => ({ path: `/trips/${slug}/${p.key}`, label: p.label, sub: shortRange(p.from, p.to) }))].map(r => (
                   <button key={r.path} type="button" className="owner-link pressable" onClick={() => share(r.path, r.label)}
                     style={{ all: 'unset', boxSizing: 'border-box', width: '100%', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 46, padding: '0 4px', borderBottom: '1px solid var(--border)', fontSize: 14.5, color: 'var(--ink)' }}>
-                    <span style={{ color: 'var(--ink)' }}>{r.label}{r.sub && <span style={{ color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', fontSize: 10, marginLeft: 8 }}>{r.sub}</span>}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brass)' }}>
+                    <span style={{ color: 'var(--ink)' }}>{r.label}{r.sub && <span style={{ color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', fontSize: 11, marginLeft: 8 }}>{r.sub}</span>}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brass)' }}>
                       {shared === r.path ? 'copied' : 'share link'}
                     </span>
                   </button>

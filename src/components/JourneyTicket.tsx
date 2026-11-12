@@ -3,6 +3,7 @@
 import type { Stop } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { zoneAbbr } from '@/lib/bookings';
+import { WhoChip } from './WhoChip';
 
 // ── JOURNEY TICKET ──────────────────────────────────────────────────────────
 // A travel stop you have to be on time for: one with a clock time and either a
@@ -147,7 +148,7 @@ export function JourneyGlyph({ mode, size = 44 }: { mode: 'train' | 'plane' | 'f
 const small: React.CSSProperties = {
   display: 'block',
   fontFamily: 'var(--font-mono)',
-  fontSize: 8.5,
+  fontSize: 11.5,
   letterSpacing: '0.14em',
   textTransform: 'uppercase',
   marginTop: 5,
@@ -199,8 +200,9 @@ export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
     }}>
       <div style={{ padding: '13px 16px 10px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-          <div style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 500, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent }}>
             {stop.tag}
+            <WhoChip who={stop.who} color={accent} />
           </div>
           {stamp}
         </div>
@@ -258,10 +260,10 @@ export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
             )}
             {stop.aircraft && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: bodyHtml ? 10 : 0 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.04em' }}>{aircraftName(stop.aircraft)}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.04em' }}>{aircraftName(stop.aircraft)}</span>
                 <a href={`${PLANE_LAB}${encodeURIComponent(stop.aircraft)}`} target="_blank" rel="noopener noreferrer" style={{
                   marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5,
-                  fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  fontFamily: 'var(--font-mono)', fontSize: 11.5, letterSpacing: '0.1em', textTransform: 'uppercase',
                   textDecoration: 'none', color: deep, background: 'var(--surface)',
                   border: `1px solid color-mix(in srgb, ${accent} 45%, transparent)`, borderRadius: 999, padding: '5px 11px',
                 }}>

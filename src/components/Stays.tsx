@@ -72,7 +72,7 @@ export function StaysStrip({ stays, theme, onPick }: {
           <span style={{ fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 14, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {s.place}
           </span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.06em', opacity: 0.75 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em', opacity: 0.75 }}>
             {s.nights} night{s.nights === 1 ? '' : 's'}
           </span>
         </button>
@@ -134,7 +134,7 @@ export function StayHeading({ stay, firstNight = 1 }: { stay: Stay; firstNight?:
           {stay.place}
           {stay.local_name && <span style={{ fontSize: 15, fontWeight: 400, color: ink, marginLeft: 7 }}>{stay.local_name}</span>}
         </h2>
-        <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.04em', color: 'var(--ink-3)', textAlign: 'right', lineHeight: 1.45 }}>
+        <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.04em', color: 'var(--ink-3)', textAlign: 'right', lineHeight: 1.45 }}>
           {stay.nights} night{stay.nights === 1 ? '' : 's'}<br />{shortDate(stay.check_in)} – {shortDate(out)}
         </span>
         {stay.intro_md && (
@@ -145,11 +145,11 @@ export function StayHeading({ stay, firstNight = 1 }: { stay: Stay; firstNight?:
           />
         )}
         {stay.hotel && (
-          <div style={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 10px', marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.03em', color: 'var(--ink-3)' }}>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 10px', marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 11.5, letterSpacing: '0.03em', color: 'var(--ink-3)' }}>
             <a href={hotelUrl!} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-2)', borderBottom: '1px solid var(--border-mid)', textDecoration: 'none' }}>{stay.hotel}</a>
             {stamp && (
               <span style={{
-                fontSize: 8.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                fontSize: 11.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap',
                 padding: '2px 7px', borderRadius: 4, transform: 'rotate(-2deg)',
                 ...(stamp.ghost
                   ? { border: `1.5px dashed ${ink}`, color: ink }
@@ -242,7 +242,7 @@ export function MaybeCard({ stop, owner, onAdd, accent }: {
           {pill && (
             <span style={{
               display: 'inline-flex', alignItems: 'baseline', gap: 5, maxWidth: '100%', lineHeight: 1.35,
-              fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.06em', textTransform: 'uppercase',
+              fontFamily: 'var(--font-mono)', fontSize: 11.5, letterSpacing: '0.06em', textTransform: 'uppercase',
               color: deep, background: 'var(--surface)', borderRadius: 10, padding: '3px 9px', marginBottom: 7,
             }}>
               {stop.fit_label && <ClockGlyph />}
@@ -252,7 +252,7 @@ export function MaybeCard({ stop, owner, onAdd, accent }: {
           <h3 style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.3, color: deep, margin: 0 }}>
             {title}
             {!owner && stop.time_label && (
-              <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500, color: 'var(--ink-4)', marginLeft: 8 }}>{stop.time_label}</span>
+              <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500, color: 'var(--ink-4)', marginLeft: 8 }}>{stop.time_label}</span>
             )}
           </h3>
           {body && <div className="body-content" style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--ink-2)', marginTop: 3 }} dangerouslySetInnerHTML={{ __html: body }} />}
@@ -277,7 +277,7 @@ export function MaybeCard({ stop, owner, onAdd, accent }: {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', minHeight: 40,
               border: 'none', borderTop: `1.5px dashed ${edge(35)}`,
               background: `color-mix(in srgb, ${accent} 9%, var(--surface))`,
-              fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
+              fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase',
               color: deep, cursor: 'pointer',
             }}
           >
@@ -295,7 +295,7 @@ export function RemoveFromPlan({ onRemove }: { onRemove: () => void }) {
     <button
       type="button"
       onClick={onRemove}
-      style={{ marginTop: 6, padding: 0, fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.06em', color: 'var(--ink-4)', background: 'none', border: 'none', cursor: 'pointer' }}
+      style={{ marginTop: 6, padding: 0, fontFamily: 'var(--font-mono)', fontSize: 11.5, letterSpacing: '0.06em', color: 'var(--ink-4)', background: 'none', border: 'none', cursor: 'pointer' }}
     >
       added from maybes · put back
     </button>

@@ -20,6 +20,7 @@ import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
 import { useKomaData } from '@/lib/komaData';
 import { useStopPrep } from '@/lib/stopPrep';
 import { PrepStrip } from '@/components/PrepStrip';
+import { WhoChip } from '@/components/WhoChip';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
 import { JourneyTicket, isJourney } from '@/components/JourneyTicket';
 import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
@@ -518,7 +519,7 @@ function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg:
           >
             <span style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
+              fontSize: 11.5,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               color: theme.bg,
@@ -611,7 +612,7 @@ function WeatherHeroCard({
             <br />
             <span style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 8,
+              fontSize: 11,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
               color: `${fg}77`,
@@ -752,7 +753,7 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
         padding: '40px 20px',
         textAlign: 'center',
         fontFamily: 'var(--font-mono)',
-        fontSize: 10,
+        fontSize: 11,
         letterSpacing: '0.18em',
         textTransform: 'uppercase',
         color: 'var(--ink-4)',
@@ -790,7 +791,7 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
             <CategoryIcon cat={cat} color={theme.bg} />
             <span style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 10,
+              fontSize: 11,
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
               color: theme.bg,
@@ -828,7 +829,7 @@ function LogisticsSection({ logistics, theme }: { logistics: Logistics[]; theme:
                   }} />
                   <div style={{
                     fontFamily: 'var(--font-mono)',
-                    fontSize: 9.5,
+                    fontSize: 11.5,
                     letterSpacing: '0.14em',
                     textTransform: 'uppercase',
                     color: theme.bg,
@@ -890,8 +891,9 @@ function StopRow({ stop, stamp, footer, accent, tz }: { stop: Stop; stamp?: Reac
     <article id={`stop-${stop.id}`} style={{
       position: 'relative',
       display: 'grid',
-      // The third column only exists for the owner's verdict stamp.
-      gridTemplateColumns: stamp ? '54px 1fr auto' : '54px 1fr',
+      // Time and tag sit on a meta row above the title so the text runs the
+      // card's full width; the second column is only for the verdict stamp.
+      gridTemplateColumns: stamp ? '1fr auto' : '1fr',
       gap: 6,
       background: 'var(--surface)',
       border: '0.5px solid var(--border)',
@@ -911,33 +913,23 @@ function StopRow({ stop, stamp, footer, accent, tz }: { stop: Stop; stamp?: Reac
         borderRadius: 4,
         opacity: faded ? 0.4 : 1,
       }} />
-      <div className="num" style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 11,
-        fontWeight: 500,
-        letterSpacing: '0.03em',
-        color: tagColor.text,
-        paddingTop: 4,
-      }}>
-        {stop.time_label || ''}
-      </div>
       <div style={{ minWidth: 0 }}>
-        <span style={{
-          display: 'inline-block',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9,
-          fontWeight: 500,
-          letterSpacing: '0.14em',
-          textTransform: 'uppercase',
-          padding: '3px 9px',
-          borderRadius: 999,
-          marginBottom: 6,
-          background: tagColor.bg,
-          color: tagColor.text,
-        }}>
-          {tagText}
-        </span>
-        <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.35, marginBottom: 4, fontStyle: faded ? 'italic' : 'normal' }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px', marginBottom: 6 }}>
+          {stop.time_label && (
+            <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: tagColor.text }}>
+              {stop.time_label}
+            </span>
+          )}
+          <span style={{
+            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500, letterSpacing: '0.1em',
+            textTransform: 'uppercase', padding: '2px 9px', borderRadius: 999,
+            background: tagColor.bg, color: tagColor.text,
+          }}>
+            {tagText}
+          </span>
+          <WhoChip who={stop.who} />
+        </div>
+        <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.35, marginBottom: 4, fontStyle: faded ? 'italic' : 'normal' }}>
           {stop.title}
         </h3>
         {bodyHtml && (
@@ -1017,7 +1009,7 @@ function DayBlock({
       alignItems: 'center',
       gap: 4,
       fontFamily: 'var(--font-mono)',
-      fontSize: 10,
+      fontSize: 11,
       color: 'var(--ink-3)',
       background: 'var(--surface)',
       border: '0.5px solid var(--border)',
@@ -1094,7 +1086,7 @@ function DayBlock({
             </h2>
             {/* "Day 4" lives in the unfolded header; folded, the room goes to the subtitle */}
             {isToday && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, whiteSpace: 'nowrap' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, whiteSpace: 'nowrap' }}>
                 today
               </span>
             )}
@@ -1120,7 +1112,7 @@ function DayBlock({
                   border: '1px solid var(--brass)',
                   color: 'var(--brass)',
                   fontFamily: 'var(--font-mono)',
-                  fontSize: 9,
+                  fontSize: 11,
                   letterSpacing: '0.14em',
                   textTransform: 'uppercase',
                 }}
@@ -1168,7 +1160,7 @@ function DayBlock({
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
+                fontSize: 11.5,
                 letterSpacing: '0.18em',
                 textTransform: 'uppercase',
                 color: accent,
@@ -1299,7 +1291,7 @@ function WeatherTab({
       {isSeasonal && (
         <div className="weather-span" style={{
           fontFamily: 'var(--font-mono)',
-          fontSize: 8.5,
+          fontSize: 11.5,
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
           color: 'var(--ink-4)',
@@ -1324,7 +1316,7 @@ function WeatherTab({
             <div style={{ fontFamily: 'var(--font-serif)', fontSize: 16, color: 'var(--ink)' }}>
               {parseDayLabel(day.label).headline}
             </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-4)', marginTop: 4 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-4)', marginTop: 4 }}>
               No weather data
             </div>
           </div>
@@ -1366,7 +1358,7 @@ function WeatherTab({
                 </div>
                 <div style={{
                   fontFamily: 'var(--font-mono)',
-                  fontSize: 9,
+                  fontSize: 11,
                   letterSpacing: '0.12em',
                   textTransform: 'uppercase',
                   color: accentColor,
@@ -1402,7 +1394,7 @@ function WeatherTab({
                   borderRadius: 999,
                   padding: '3px 10px',
                   fontFamily: 'var(--font-mono)',
-                  fontSize: 9,
+                  fontSize: 11,
                   color: 'var(--ink-3)',
                   letterSpacing: '0.08em',
                 }}>
@@ -1415,7 +1407,7 @@ function WeatherTab({
                   borderRadius: 999,
                   padding: '3px 10px',
                   fontFamily: 'var(--font-mono)',
-                  fontSize: 9,
+                  fontSize: 11,
                   color: 'var(--ink-3)',
                   letterSpacing: '0.08em',
                 }}>
@@ -1428,7 +1420,7 @@ function WeatherTab({
                   borderRadius: 999,
                   padding: '3px 10px',
                   fontFamily: 'var(--font-mono)',
-                  fontSize: 9,
+                  fontSize: 11,
                   color: 'var(--ink-3)',
                   letterSpacing: '0.08em',
                 }}>
@@ -1441,7 +1433,7 @@ function WeatherTab({
                   borderRadius: 999,
                   padding: '3px 10px',
                   fontFamily: 'var(--font-mono)',
-                  fontSize: 9,
+                  fontSize: 11,
                   color: 'var(--ink-3)',
                   letterSpacing: '0.08em',
                 }}>
@@ -1454,7 +1446,7 @@ function WeatherTab({
                   borderRadius: 999,
                   padding: '3px 10px',
                   fontFamily: 'var(--font-mono)',
-                  fontSize: 9,
+                  fontSize: 11,
                   color: 'var(--ink-3)',
                   letterSpacing: '0.08em',
                 }}>
@@ -1481,7 +1473,7 @@ function WeatherTab({
       })}
       <div className="weather-span" style={{
         fontFamily: 'var(--font-mono)',
-        fontSize: 8,
+        fontSize: 11,
         letterSpacing: '0.12em',
         textTransform: 'uppercase',
         color: 'var(--ink-4)',
@@ -1543,7 +1535,7 @@ function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme, to
           padding: '0 11px',
           borderRadius: 999,
           fontFamily: 'var(--font-mono)',
-          fontSize: 10.5,
+          fontSize: 11.5,
           letterSpacing: '0.06em',
           whiteSpace: 'nowrap',
           display: 'inline-flex',
@@ -1603,7 +1595,7 @@ function HeroTabs({ active, onChange, theme }: {
               flex: 1,
               minHeight: 40,
               fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
+              fontSize: 11.5,
               letterSpacing: '0.14em',
               textTransform: 'uppercase',
               color: isActive ? theme.bg : `${theme.fg}b8`,
@@ -2181,7 +2173,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
           gap: 8,
           minHeight: 44,
           fontFamily: 'var(--font-mono)',
-          fontSize: 10,
+          fontSize: 11,
           letterSpacing: '0.22em',
           textTransform: 'uppercase',
           color: komaOn ? '#B83C01' : 'var(--brass)',
@@ -2297,7 +2289,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
           <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 300, fontSize: 15, color: 'var(--ink-2)' }}>
             {part.label}, part of a longer trip
           </span>
-          <a href={part.wholeHref} style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--brass)', whiteSpace: 'nowrap', textDecoration: 'none', borderBottom: '1px solid currentColor' }}>
+          <a href={part.wholeHref} style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--brass)', whiteSpace: 'nowrap', textDecoration: 'none', borderBottom: '1px solid currentColor' }}>
             Whole trip ›
           </a>
         </div>
@@ -2473,7 +2465,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
               {!weatherLoading && (
                 <div style={{
                   fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
+                  fontSize: 11,
                   letterSpacing: '0.12em',
                   textTransform: 'uppercase',
                   color: 'var(--ink-4)',

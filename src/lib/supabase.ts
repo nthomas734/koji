@@ -70,6 +70,8 @@ export interface TripPart {
   to:        string;
   /** Replaces the trip subtitle in the part view, e.g. "with Dez". */
   subtitle?: string;
+  /** Whose part this is ("Dez"): stops marked for someone else are left out. */
+  who?: string;
 }
 
 export interface Logistics {
@@ -123,6 +125,8 @@ export interface Stop {
   alert_md?: string | null;
   alert_lead?: number | null;
   alert_off?: boolean | null;
+  /** On a trip that splits: whose stop this is ("Dez", "Nathan"). Null = everyone. */
+  who?: string | null;
 }
 
 // ── STAYS ───────────────────────────────────────────────────────────────────

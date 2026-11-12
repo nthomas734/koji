@@ -53,10 +53,15 @@ export function slicePart<T extends { trip: Trip; days: Day[]; stays: Stay[]; lo
   const { from, to } = part;
 
   // Days are one per date, in order from date_start.
-  const days = data.days.filter((_, i) => {
-    const date = addDays(trip.date_start!, i);
-    return date >= from && date <= to;
-  });
+  // A part for one person drops the stops marked for someone else, so the
+  // day the trip splits ends with their own journey, not the other's evening.
+  const mine = (s: { who?: string | null }) => !part.who || !s.who || s.who === part.who;
+  const days = data.days
+    .filter((_, i) => {
+      const date = addDays(trip.date_start!, i);
+      return date >= from && date <= to;
+    })
+    .map(d => (part.who && d.stops ? { ...d, stops: d.stops.filter(mine) } : d));
 
   // A stay counts if any of its nights falls before the last day; clip it to
   // the part so the strip and headings say "3 nights", not the whole run.

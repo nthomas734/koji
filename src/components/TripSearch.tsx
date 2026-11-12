@@ -131,7 +131,7 @@ export function TripSearch({ days, logistics, onPick, onClose }: {
         />
         <button
           type="button" onClick={onClose} className="tap"
-          style={{ minHeight: 44, padding: '0 6px', background: 'transparent', border: 'none', color: 'var(--brass)', fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}
+          style={{ minHeight: 44, padding: '0 6px', background: 'transparent', border: 'none', color: 'var(--brass)', fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}
         >
           Done
         </button>
@@ -140,7 +140,7 @@ export function TripSearch({ days, logistics, onPick, onClose }: {
       <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '6px 12px calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
           {terms.length > 0 && results.length === 0 && (
-            <div style={{ padding: '40px 8px', textAlign: 'center', color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+            <div style={{ padding: '40px 8px', textAlign: 'center', color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
               Nothing matches
             </div>
           )}
@@ -155,7 +155,7 @@ export function TripSearch({ days, logistics, onPick, onClose }: {
                 background: 'var(--surface)', border: '0.5px solid var(--border)', borderRadius: 14, padding: '10px 14px',
               }}
             >
-              <div className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-4)', marginBottom: 3 }}>
+              <div className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-4)', marginBottom: 3 }}>
                 {r.where}{r.time ? ` · ${r.time}` : ''}
               </div>
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.35 }}>

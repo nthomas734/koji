@@ -21,9 +21,38 @@ function externalise(html: string): string {
       : `<a target="_blank" rel="noopener noreferrer" href="${href}"`);
 }
 
+const inline = (md: string) => marked.parseInline(escapeLoneTildes(md)) as string;
+const BULLET = /^[-*•]\s+/;
+
+/**
+ * Inline markdown, plus one block: a run of bullet lines ("- x", or the older
+ * "<br>• x" bodies) becomes a real <ul>, so a "pick one" list reads as a list
+ * and wraps under its own text instead of under the bullet.
+ */
 export function renderMd(md: string): string {
   if (!md) return '';
-  return externalise(marked.parseInline(escapeLoneTildes(md)) as string);
+  const lines = md.replace(/<br>\s*•\s*/g, '\n• ').split('\n');
+  if (!lines.some(l => BULLET.test(l.trim()))) return externalise(inline(md));
+  let html = '';
+  let para: string[] = [];
+  let items: string[] = [];
+  const flushPara = () => {
+    const text = para.join('\n').replace(/(<br>\s*)+$/, '').trim();
+    if (text) html += inline(text);
+    para = [];
+  };
+  const flushList = () => {
+    if (items.length) html += `<ul class="md-list">${items.map(i => `<li>${inline(i)}</li>`).join('')}</ul>`;
+    items = [];
+  };
+  for (const raw of lines) {
+    const l = raw.trim();
+    if (BULLET.test(l)) { flushPara(); items.push(l.replace(BULLET, '')); }
+    else { flushList(); para.push(raw); }
+  }
+  flushPara();
+  flushList();
+  return externalise(html);
 }
 
 /**

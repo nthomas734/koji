@@ -186,7 +186,7 @@ input, textarea, select {
 
 .stop-time {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--ink-2);
   padding: 18px 0 16px 16px;
@@ -196,7 +196,7 @@ input, textarea, select {
 .stop-tag {
   display: inline-block;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -224,12 +224,15 @@ input, textarea, select {
   }
   .stop-time {
     padding-left: 12px;
-    font-size: 9.5px;
+    font-size: 11px;
   }
 }
 
 /* Inline body markdown — preserve linebreaks from <br><br> in body_md */
 .body-content br + br { display: block; content: ""; margin-top: 6px; }
+.body-content ul.md-list { margin: 6px 0 2px; padding-left: 18px; }
+.body-content ul.md-list li { margin-top: 4px; }
+.body-content ul.md-list li::marker { color: var(--ink-3, #999); }
 
 /* ── Motion & feel ──────────────────────────────────────────────────────────
    Staggered entrance for day blocks; press feedback for elements that
@@ -535,14 +538,14 @@ input, textarea, select {
 .bk-page { --max-w: 720px; }
 .bk-hero { margin: 14px var(--px) 0; border-radius: 18px; padding: 18px 16px 14px; }
 .bk-hero-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.bk-eyebrow { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.62; }
-.bk-add { all: unset; cursor: pointer; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; padding: 7px 12px; border-radius: 99px; background: rgba(255, 255, 255, 0.16); }
+.bk-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.62; }
+.bk-add { all: unset; cursor: pointer; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; padding: 7px 12px; border-radius: 99px; background: rgba(255, 255, 255, 0.16); }
 .bk-hero h1 { font-family: var(--font-serif); font-weight: 300; font-size: 30px; letter-spacing: -0.01em; line-height: 1.1; margin-top: 6px; }
 .bk-hero-sub { font-family: var(--font-serif); font-style: italic; font-weight: 300; font-size: 15px; opacity: 0.78; margin-top: 3px; }
 .bk-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
 .bk-tile { border-radius: 10px; padding: 9px 10px 8px; border-top: 3px solid; background: rgba(255, 255, 255, 0.1); }
 .bk-tile b { display: block; font-family: var(--font-serif); font-weight: 300; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
-.bk-tile span { display: block; font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.75; margin-top: 5px; }
+.bk-tile span { display: block; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.75; margin-top: 5px; }
 .bk-htabs { display: flex; gap: 4px; padding: 3px; border-radius: 99px; margin-top: 14px; background: rgba(255, 255, 255, 0.1); }
 .bk-htabs button { all: unset; box-sizing: border-box; cursor: pointer; flex: 1; min-height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 99px; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.75; transition: background 0.15s ease, color 0.15s ease; -webkit-tap-highlight-color: transparent; }
 .bk-htabs button.on { opacity: 1; }
