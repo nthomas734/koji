@@ -18,6 +18,8 @@ import { useQueueDrain, usePendingStatus } from '@/lib/komaQueue';
 import { mapsSearchUrl } from '@/lib/supabase';
 import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
 import { useKomaData } from '@/lib/komaData';
+import { useStopPrep } from '@/lib/stopPrep';
+import { PrepStrip } from '@/components/PrepStrip';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
 import { JourneyTicket, isJourney } from '@/components/JourneyTicket';
 import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
@@ -1704,6 +1706,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   // Private, not hidden: nothing here is in the prerendered page. useVerdicts
   // asks the API, and only a phone holding the admin cookie gets `owner`.
   const verdicts = useVerdicts(trip.id);
+  const prep = useStopPrep(trip.id);
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
 
   // ── big shots ──────────────────────────────────────────────────────────────
@@ -2354,8 +2357,11 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
                 footerFor={verdicts.owner ? (st => {
                   const shot = bigShots.find(s => s.stop_id === st.id && s.day_id === day.id);
                   const remove = st.is_optional ? <RemoveFromPlan onRemove={() => setAdded(st, false)} /> : null;
-                  if (!shot) return remove;
-                  return <>{remove}<ShotNote {...noteFor(shot, i)} /></>;
+                  // Planning notes show in Plan mode only, never to Dez
+                  const note = mode === 'plan' ? prep.byStop.get(st.id) : undefined;
+                  const strip = note ? <PrepStrip prep={note} onToggle={() => prep.toggle(st.id)} /> : null;
+                  if (!shot) return <>{remove}{strip}</>;
+                  return <>{remove}{strip}<ShotNote {...noteFor(shot, i)} /></>;
                 }) : undefined}
                 afterStop={bigShotsOn ? (st => {
                   // Shots with no stop on this day, after the last planned stop
@@ -2378,7 +2384,14 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
                     <TimedShot key={s.id} time={s.at_time ? fmtHour(parseClock(s.at_time)) : ''} {...noteFor(s, i)} />
                   ));
                 }) : undefined}
-                maybe={(st, accent) => (st.is_optional && !st.added ? <MaybeCard stop={st} owner={verdicts.owner} accent={accent} onAdd={s => setAdded(s, true)} /> : null)}
+                maybe={(st, accent) => {
+                  if (!(st.is_optional && !st.added)) return null;
+                  const note = verdicts.owner && mode === 'plan' ? prep.byStop.get(st.id) : undefined;
+                  return <>
+                    <MaybeCard stop={st} owner={verdicts.owner} accent={accent} onAdd={s => setAdded(s, true)} />
+                    {note && <PrepStrip prep={note} onToggle={() => prep.toggle(st.id)} />}
+                  </>;
+                }}
                 weather={hasCoords ? weatherForDay(i) : null}
                 dayIndex={i}
                 dayTotal={days.length}
@@ -2429,7 +2442,9 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
       {activeTab === 'logistics' && (
         <>
           {tripUpcoming && <TripAlerts slug={part ? `${trip.slug}/${part.key}` : trip.slug} title={trip.title} theme={theme} />}
-          <LogisticsSection logistics={logistics} theme={theme} />
+          {/* Book Ahead is Nathan's to-do list (it mirrors the bookings board):
+              Dez's copy of the tab leaves it out. */}
+          <LogisticsSection logistics={verdicts.owner ? logistics : logistics.filter(r => r.column_key !== 'book')} theme={theme} />
         </>
       )}
 
