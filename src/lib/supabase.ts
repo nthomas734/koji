@@ -107,6 +107,12 @@ export interface Stop {
   title:       string;
   body_md:     string;
   is_optional: boolean;
+  /** Optional stops only (review G): 'extra' (default) an add-on in time order;
+   *  'instead' replaces replaces_stop_id and sits under it; 'swap' is another
+   *  way to do the day and sits at the top. maybe_head overrides the heading. */
+  maybe_kind?: 'extra' | 'instead' | 'swap' | null;
+  replaces_stop_id?: number | null;
+  maybe_head?: string | null;
   sort_order:  number;
   /** "3½ h · 2 changes", shown on a travel stop's pill. */
   duration_label?: string | null;

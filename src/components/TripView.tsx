@@ -888,7 +888,29 @@ function DayBlock({
   onToday: () => void;
 }) {
   const { headline, subtitle } = parseDayLabel(day.label);
-  const list = stops ?? day.stops ?? [];
+  const all = stops ?? day.stops ?? [];
+  // Un-added maybes are placed by kind (review G): a day swap goes to the top,
+  // an "instead" goes right under the stop it replaces, an extra stays in time
+  // order. Once added to the plan, a stop is just a stop.
+  const unadded = (s: Stop) => s.is_optional && !s.added;
+  const swaps = all.filter(s => unadded(s) && s.maybe_kind === 'swap');
+  const insteadOf = new Map<number, Stop[]>();
+  for (const s of all) {
+    if (unadded(s) && s.maybe_kind === 'instead' && s.replaces_stop_id && all.some(t => t.id === s.replaces_stop_id)) {
+      insteadOf.set(s.replaces_stop_id, [...(insteadOf.get(s.replaces_stop_id) ?? []), s]);
+    }
+  }
+  const moved = new Set([...swaps, ...[...insteadOf.values()].flat()].map(s => s.id));
+  const list = all.filter(s => !moved.has(s.id));
+  const headFor = (s: Stop) => s.maybe_head || (s.maybe_kind === 'swap' ? 'another way to do today' : s.maybe_kind === 'instead' ? 'or, instead of this' : "if there's time");
+  /** Maybes in a row, with a heading wherever the heading changes. */
+  const maybeRun = (run: Stop[]) => run.map((st, k) => {
+    const m = maybe?.(st, accent);
+    if (!m) return null;
+    const head = headFor(st);
+    const starts = k === 0 || headFor(run[k - 1]) !== head;
+    return <Fragment key={st.id}>{starts && <MaybeRunHead accent={accent} label={head} />}{m}</Fragment>;
+  });
   const now = nowMin != null ? nowState(list, nowMin) : null;
   const accent = isToday ? 'var(--brass)' : stay ? stayTone(stay, null) : themeColor.bg;
   const folded = pinned;
@@ -1104,13 +1126,15 @@ function DayBlock({
         {now?.nextStop && now.minutesToNext != null && (
           <NowCard stop={now.nextStop} minutes={now.minutesToNext} accent={accent} />
         )}
+        {swaps.length > 0 && <div style={{ marginBottom: 6 }}>{maybeRun(swaps)}</div>}
         {afterStop?.(null)}
         {list.map((stop, k) => {
           const m = maybe?.(stop, accent);
           if (m) {
             const prev = list[k - 1];
-            const startsRun = !prev || !maybe?.(prev, accent);
-            return <Fragment key={stop.id}>{startsRun && <MaybeRunHead accent={accent} />}{m}</Fragment>;
+            const head = headFor(stop);
+            const startsRun = !prev || !maybe?.(prev, accent) || headFor(prev) !== head;
+            return <Fragment key={stop.id}>{startsRun && <MaybeRunHead accent={accent} label={head} />}{m}</Fragment>;
           }
           // Today: stops behind the one under way go quiet; a rule marks now.
           const past = !!now && k < now.current;
@@ -1120,6 +1144,7 @@ function DayBlock({
               <div style={past ? { opacity: 0.5 } : undefined}>
                 <StopRow stop={stop} accent={accent} tz={day.tz} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />
               </div>
+              {insteadOf.has(stop.id) && maybeRun(insteadOf.get(stop.id)!)}
               {afterStop?.(stop)}
             </Fragment>
           );

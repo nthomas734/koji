@@ -7,6 +7,8 @@ import { ICON_180 } from './icon-data';
 export const metadata: Metadata = {
   title: 'koji',
   description: 'trip itineraries',
+  // Shared by link only: keep every page out of search results.
+  robots: { index: false, follow: false },
   manifest: '/manifest.json?v=3',
   icons: {
     icon: [

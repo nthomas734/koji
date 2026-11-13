@@ -199,12 +199,12 @@ function maybeColors(accent: string) {
 }
 
 /** Above the first maybe in a run: a quiet "if there's time" rule. */
-export function MaybeRunHead({ accent }: { accent: string }) {
+export function MaybeRunHead({ accent, label = "if there's time" }: { accent: string; label?: string }) {
   const { deep, edge } = maybeColors(accent);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px', margin: '14px 0 -2px', color: deep }}>
       <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 300, fontSize: 15, whiteSpace: 'nowrap' }}>
-        if there&apos;s time
+        {label}
       </span>
       <span aria-hidden style={{ flex: 1, borderTop: `1.5px dotted ${edge(50)}` }} />
     </div>
