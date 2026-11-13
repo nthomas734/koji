@@ -384,10 +384,8 @@ function dateForDay(dateStart: string, index: number): string {
   return fmtLocalDate(new Date(y, m - 1, day + index));
 }
 
-// ── QUICK STRIP — itinerary tab top summary ──────────────────────────────────
-// ── QUICK STRIP HELPERS ──────────────────────────────────────────────────────
 // IATA carrier code → airline name for display. Data keeps the codes
-// (parseLogisticsValue and condenseRow match on them); unknown codes fall
+// (parseLogisticsValue matches on them); unknown codes fall
 // back to the raw code + number.
 const AIRLINE_NAMES: Record<string, string> = {
   UA: 'United',
@@ -410,148 +408,10 @@ function airlineDisplay(code: string, num: string): string {
   return name ? `${name} ${num}` : `${code}${num}`;
 }
 
-// "Nathan & Dez - Out (Economy Light)" → "Nathan & Dez"
-function flightParty(row: Logistics): string {
-  return row.label.split(/\s+[-–—]\s+/)[0].replace(/\s*\(.*\)\s*$/, '').trim();
-}
 
-function condenseRow(row: Logistics): string {
-  const v = row.value_md;
-  if (row.category === 'flight') {
-    const flightMatch = v.match(/\b([A-Z]{2})\s*(\d{1,4})\b/);
-    const flight = flightMatch ? airlineDisplay(flightMatch[1], flightMatch[2]) : '';
-    const routeMatch = v.match(/([A-Z]{3})\s*(?:to|\u2192|-+>)\s*([A-Z]{3})/i);
-    const route = routeMatch ? `${routeMatch[1].toUpperCase()} \u2192 ${routeMatch[2].toUpperCase()}` : '';
-    const dateMatch = v.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[,.]?\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i)
-      || v.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i);
-    const date = dateMatch ? dateMatch[1] : '';
-    return [flight, route, date].filter(Boolean).join(' \u00b7 ');
-  }
-  if (row.category === 'train') {
-    const routeMatch = v.match(/([A-Za-z\s]+(?:Termini|SMN|Santa Maria Novella|Central|Station)?)\s*(?:\u2192|-+>|to)\s*([A-Za-z\s]+(?:Termini|SMN|Santa Maria Novella|Central|Station)?)/i);
-    const route = routeMatch ? `${routeMatch[1].trim()} \u2192 ${routeMatch[2].trim()}` : row.label;
-    const dateMatch = v.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[,.]?\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i)
-      || v.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})/i);
-    const date = dateMatch ? dateMatch[1] : '';
-    return [route, date].filter(Boolean).join(' \u00b7 ');
-  }
-  if (row.category === 'hotel') return row.label;
-  return row.label;
-}
 
-// Build a Google Maps link from a hotel label
-function hotelLink(label: string): string {
-  const q = encodeURIComponent(label.trim().replace(/\(.*?\)/g, '').trim()).replace(/%20/g, '+');
-  return `[${label}](https://www.google.com/maps/search/?api=1&query=${q})`;
-}
 
-interface StripRow {
-  label: string;
-  lines: string[];
-  isMarkdown?: boolean;
-}
 
-function QuickStrip({ logistics, theme }: { logistics: Logistics[]; theme: { bg: string; fg: string } }) {
-  const flights = logistics.filter(l => l.category === 'flight');
-  const trains  = logistics.filter(l => l.category === 'train');
-  const hotels  = logistics.filter(l => l.category === 'hotel');
-
-  const stripRows: StripRow[] = [];
-
-  // "Out"/"outbound" as a word; a bare includes('out') also matched Southampton
-  const isOutbound = (f: Logistics) => /\b(out|outbound)\b/i.test(f.label);
-  const outbound  = flights.some(isOutbound)
-    ? flights.filter(isOutbound)
-    : flights.filter(f => f.sort_order === Math.min(...flights.map(x => x.sort_order)));
-  const returning = flights.filter(f => !outbound.includes(f));
-
-  // One line per flight, prefixed with who's on it (from the row label)
-  const flightLine = (r: Logistics) => {
-    const party = flightParty(r);
-    const rest = condenseRow(r);
-    return party && party !== rest ? `${party} \u00b7 ${rest}` : rest;
-  };
-
-  if (outbound.length > 0) {
-    stripRows.push({ label: 'Fly out', lines: outbound.map(flightLine) });
-  }
-  if (returning.length > 0) {
-    stripRows.push({ label: 'Fly home', lines: returning.map(flightLine) });
-  }
-
-  if (trains.length > 0) {
-    stripRows.push({ label: 'Trains', lines: trains.map(r => condenseRow(r)) });
-  }
-
-  if (hotels.length > 0) {
-    stripRows.push({
-      label: 'Hotels',
-      // Unbooked rows ("Not booked yet" anywhere in the value) render as plain
-      // text with a TBD marker — auto-linking a placeholder label like
-      // "London base" produces a junk maps search. The link appears once the
-      // row's value no longer says not booked.
-      lines: hotels.map(r => {
-        if (/not booked/i.test(r.value_md)) return `${r.label} · TBD`;
-        // Prefer the first real link in the row over a search on the label
-        const m = r.value_md.match(/\[([^\]]+)\]\((https?:[^)\s]+)\)/);
-        return m ? `[${m[1]}](${m[2]})` : hotelLink(r.label);
-      }),
-      isMarkdown: true,
-    });
-  }
-
-  if (stripRows.length === 0) return null;
-
-  return (
-    <div style={{ padding: '12px 12px 0' }}>
-      <div style={{
-        background: 'var(--surface)',
-        border: '0.5px solid var(--border)',
-        borderRadius: 14,
-        overflow: 'hidden',
-      }}>
-        {stripRows.map((row, i) => (
-          <div
-            key={row.label}
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 10,
-              padding: '10px 16px',
-              borderBottom: i < stripRows.length - 1 ? '0.5px solid var(--bg-subtle)' : 'none',
-            }}
-          >
-            <span style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11.5,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: theme.bg,
-              flexShrink: 0,
-              width: 66,
-              paddingTop: 2,
-            }}>
-              {row.label}
-            </span>
-            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.6, minWidth: 0 }}>
-              {row.lines.map((line, li) =>
-                row.isMarkdown ? (
-                  <div
-                    key={li}
-                    className="body-content"
-                    dangerouslySetInnerHTML={{ __html: renderMd(line) }}
-                  />
-                ) : (
-                  <div key={li}>{line}</div>
-                )
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 
 // ── WEATHER HERO CARD ────────────────────────────────────────────────────────
@@ -2385,7 +2245,6 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
       {activeTab === 'itinerary' && !komaOn && (
         <>
           {tripUpcoming && <TripAlerts slug={part ? `${trip.slug}/${part.key}` : trip.slug} title={trip.title} theme={theme} hideWhenOn />}
-          <QuickStrip logistics={logistics} theme={theme} />
           <main>
             {days.map((day, i) => {
               const stay = stayFor(i);
