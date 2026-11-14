@@ -46,7 +46,7 @@ create table if not exists koji_trips (
   header_theme text not null default 'forest'
     check (header_theme in (
       'forest','navy','plum','earth','sand','ocean','rust','slate','oxblood',
-      'fog','pewter','pacific','shrine','marigold','lagoon','cobalt','linen','stone'
+      'fog','pewter','pacific','shrine','marigold','lagoon','cobalt','linen','stone','lacquer'
     )),
   companion    text,
   date_start   date,

@@ -27,6 +27,7 @@ const THEME_COLORS: Record<string, { bg: string; fg: string }> = {
   cobalt:   { bg: '#4A6FA5', fg: '#E8EEF8' },
   linen:    { bg: '#F5EDDC', fg: '#3A2A0A' },
   stone:    { bg: '#E8E3D8', fg: '#2A2418' },
+  lacquer:  { bg: '#9E1B1B', fg: '#F2CF7E' },
 };
 
 type Theme = { bg: string; fg: string };

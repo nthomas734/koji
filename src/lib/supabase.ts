@@ -20,7 +20,7 @@ export type HeaderTheme =
   | 'ocean' | 'rust' | 'slate'
   | 'oxblood' | 'fog' | 'pewter' | 'pacific'
   | 'shrine' | 'marigold' | 'lagoon' | 'cobalt'
-  | 'linen' | 'stone';
+  | 'linen' | 'stone' | 'lacquer';
 
 export type TagColor =
   | 'green' | 'navy' | 'amber' | 'pink' | 'sky'
