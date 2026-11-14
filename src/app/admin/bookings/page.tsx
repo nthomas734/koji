@@ -13,7 +13,7 @@ export default async function BookingsPage() {
 
   const db = supabaseAdmin();
   const [{ data: trips }, { data: rows }] = await Promise.all([
-    db.from('koji_trips').select('id, slug, title, subtitle, date_start, date_end, header_theme').order('date_start', { nullsFirst: false }),
+    db.from('koji_trips').select('id, slug, title, subtitle, date_start, date_end, header_theme, tz').order('date_start', { nullsFirst: false }),
     db.from('koji_bookings').select('*').order('opens_on', { nullsFirst: false }).order('sort_order'),
   ]);
 

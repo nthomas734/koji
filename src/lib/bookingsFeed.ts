@@ -16,7 +16,7 @@ export function feedTokenOk(given: string | null): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-interface FeedTrip { id: number; slug: string; title: string }
+interface FeedTrip { id: number; slug: string; title: string; tz?: string | null }
 
 const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
 
@@ -54,7 +54,7 @@ function describe(b: Booking, trip?: FeedTrip): string {
     b.for_date ? `For: ${fmtDate(b.for_date)}` : null,
     b.window_type !== 'deadline' && leadText(b) ? `Opens ${leadText(b)}` : null,
     b.notes,
-    b.maps_query ? `Maps: ${mapsUrl(b.maps_query)}` : null,
+    b.maps_query ? `Maps: ${mapsUrl(b.maps_query, trip?.tz)}` : null,
     b.booking_url ? `Book: ${b.booking_url}` : null,
     b.window_type === 'deadline' ? 'Mark it done in koji and this event goes away.' : 'Mark it booked in koji and this event goes away.',
   ];

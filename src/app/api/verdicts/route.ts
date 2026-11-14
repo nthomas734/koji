@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabase';
+import { isMapsLink } from '@/lib/maps';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +72,7 @@ function rowFrom(body: Record<string, unknown>): { row: Record<string, unknown> 
   if (!SOURCES.has(source)) return { error: 'source is not recognised' };
 
   const mapsUrl = body.maps_url == null ? null : String(body.maps_url);
-  if (mapsUrl && !mapsUrl.startsWith('https://www.google.com/maps/')) return { error: 'maps_url must be a Google Maps link' };
+  if (mapsUrl && !isMapsLink(mapsUrl)) return { error: 'maps_url must be a Google or Apple Maps link' };
 
   const visited = body.visited_on == null ? null : String(body.visited_on);
   if (visited && !/^\d{4}-\d{2}-\d{2}$/.test(visited)) return { error: 'visited_on must be YYYY-MM-DD' };

@@ -3,6 +3,8 @@
 // admin board (client) and the calendar feed (server), so nothing here may
 // import server-only modules.
 
+import { appleSearchUrl, usesAppleMaps } from './maps';
+
 export type BookingStatus = 'not_open' | 'open' | 'booked' | 'skipped';
 export type WindowType = 'opens' | 'deadline';
 export type BookingKind = 'restaurant' | 'train' | 'ticket' | 'tour' | 'hotel' | 'flight' | 'other';
@@ -35,7 +37,9 @@ export const BOOKING_FIELDS = [
   'opens_approx', 'window_type', 'lead', 'maps_query', 'booking_url', 'status', 'notes', 'sort_order',
 ] as const;
 
-export function mapsUrl(query: string): string {
+/** `tz` is the trip's: China trips link Apple Maps (see lib/maps.ts). */
+export function mapsUrl(query: string, tz?: string | null): string {
+  if (usesAppleMaps(tz)) return appleSearchUrl(query);
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query).replace(/%20/g, '+')}`;
 }
 

@@ -15,6 +15,7 @@ import {
 export interface BoardTrip {
   id: number; slug: string; title: string; subtitle: string | null;
   date_start: string | null; date_end: string | null; header_theme: string | null;
+  tz?: string | null;
 }
 
 const mono: React.CSSProperties = { fontFamily: 'var(--font-mono)' };
@@ -146,12 +147,12 @@ function StatusSwitch({ value, onChange, deadline }: { value: BookingStatus; onC
   );
 }
 
-function Links({ b, onEdit }: { b: Booking; onEdit: () => void }) {
+function Links({ b, tz, onEdit }: { b: Booking; tz?: string | null; onEdit: () => void }) {
   let host = '';
   try { host = b.booking_url ? new URL(b.booking_url).hostname.replace(/^www\./, '') : ''; } catch { host = 'Book'; }
   return (
     <div className="bk-links">
-      {b.maps_query && <a className="maps" href={mapsUrl(b.maps_query)} target="_blank" rel="noopener noreferrer">Maps</a>}
+      {b.maps_query && <a className="maps" href={mapsUrl(b.maps_query, tz)} target="_blank" rel="noopener noreferrer">Maps</a>}
       {b.booking_url && <a href={b.booking_url} target="_blank" rel="noopener noreferrer" title={host}>Book ↗</a>}
       <button onClick={onEdit}>Edit</button>
     </div>
@@ -346,7 +347,7 @@ export default function BookingsBoard({ initial, trips, feedHttp, feedWebcal }: 
               {!oneTrip && trip && <><dt>Trip</dt><dd>{trip.title}</dd></>}
             </dl>
             {b.notes && <div className="bk-note">{b.notes}</div>}
-            <Links b={b} onEdit={() => setEditing(b.id)} />
+            <Links b={b} tz={trip?.tz} onEdit={() => setEditing(b.id)} />
             {done
               ? <button className="bk-undo" onClick={() => setStatus(b, 'not_open')}>Undo</button>
               : <StatusSwitch value={b.status === 'not_open' && s === 'open' ? 'open' : b.status} deadline={b.window_type === 'deadline'} onChange={st => setStatus(b, st)} />}

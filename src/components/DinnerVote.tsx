@@ -3,6 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { DinnerOption, DinnerVote, Stop } from '@/lib/supabase';
 import { dinnerState } from '@/lib/dinnerRounds';
+import { appleSearchUrl, usesAppleMaps } from '@/lib/maps';
+import { AppleMapsProvider, useAppleMaps } from './MapsContext';
 
 // ── DINNER VOTES ────────────────────────────────────────────────────────────
 // A dinner stop with options shows them as cards the family votes on. No
@@ -182,7 +184,8 @@ function photosUrl(q: string) {
   return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`${q} food`)}`;
 }
 
-function mapsUrl(q: string) {
+function mapsUrl(q: string, apple = false) {
+  if (apple) return appleSearchUrl(q);
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q).replace(/%20/g, '+')}`;
 }
 
@@ -238,6 +241,7 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted, voteLabel = 
   muted?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const apple = useAppleMaps();
   return (
     <div style={{
       border: mine ? `2px solid ${SKY.bar}` : muted ? '1.5px dashed var(--border-mid)' : '1px solid var(--border-mid)',
@@ -277,7 +281,7 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted, voteLabel = 
             {o.booking_url
               ? <a href={o.booking_url} target="_blank" rel="noopener" style={btn}>Book</a>
               : o.phone ? <a href={telHref(o.phone)} style={btn}>Call {o.phone}</a> : null}
-            <a href={mapsUrl(o.maps_query)} target="_blank" rel="noopener" style={btn}>Map</a>
+            <a href={mapsUrl(o.maps_query, apple)} target="_blank" rel="noopener" style={btn}>Map</a>
           </div>
         </div>
       )}
@@ -316,6 +320,7 @@ function OptionCard({ o, voters, mine, leading, out, onVote, muted, voteLabel = 
 // next thing anyone does is book it or go. `compact` (Results) keeps the
 // headline and the buttons and drops the long text.
 function WinnerCard({ o, label, compact }: { o: DinnerOption; label: string; compact?: boolean }) {
+  const apple = useAppleMaps();
   return (
     <div style={{
       marginTop: 10, borderRadius: 12, background: GREEN.soft, border: `1px solid ${GREEN.line}`,
@@ -341,7 +346,7 @@ function WinnerCard({ o, label, compact }: { o: DinnerOption; label: string; com
           : o.phone ? <a href={telHref(o.phone)} style={{ ...btn, background: SKY.text, color: 'var(--surface)', borderColor: SKY.text }}>Call {o.phone}</a> : null)}
         {o.menu_url && <a href={o.menu_url} target="_blank" rel="noopener" style={btn}>Menu</a>}
         <a href={photosUrl(o.maps_query)} target="_blank" rel="noopener" style={btn}>Photos</a>
-        <a href={mapsUrl(o.maps_query)} target="_blank" rel="noopener" style={btn}>Map</a>
+        <a href={mapsUrl(o.maps_query, apple)} target="_blank" rel="noopener" style={btn}>Map</a>
         {o.status === 'booked' && o.phone && <a href={telHref(o.phone)} style={btn}>Call {o.phone}</a>}
       </div>
     </div>
@@ -899,8 +904,10 @@ function BoardInner({ tripId, tripTitle, slug, dinners }: {
   );
 }
 
-export function DinnerBoard({ tripId, tripTitle, slug, voters, weights = {}, choosers = {}, dinners }: {
+export function DinnerBoard({ tripId, tripTitle, slug, voters, weights = {}, choosers = {}, dinners, tz }: {
   tripId: number;
+  /** The trip's time zone: China trips link Apple Maps. */
+  tz?: string | null;
   tripTitle: string;
   slug: string;
   voters: string[];
@@ -909,8 +916,10 @@ export function DinnerBoard({ tripId, tripTitle, slug, voters, weights = {}, cho
   dinners: DinnerEntry[];
 }) {
   return (
-    <DinnerVoteProvider tripId={tripId} voters={voters} weights={weights} choosers={choosers} enabled={voters.length > 0 && dinners.length > 0}>
-      <BoardInner tripId={tripId} tripTitle={tripTitle} slug={slug} dinners={dinners} />
-    </DinnerVoteProvider>
+    <AppleMapsProvider value={usesAppleMaps(tz)}>
+      <DinnerVoteProvider tripId={tripId} voters={voters} weights={weights} choosers={choosers} enabled={voters.length > 0 && dinners.length > 0}>
+        <BoardInner tripId={tripId} tripTitle={tripTitle} slug={slug} dinners={dinners} />
+      </DinnerVoteProvider>
+    </AppleMapsProvider>
   );
 }

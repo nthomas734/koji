@@ -9,7 +9,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { VerdictValue } from '@/lib/supabase';
-import { mapsSearchUrl } from '@/lib/supabase';
+import { placeUrl } from '@/lib/maps';
+import { useAppleMaps } from './MapsContext';
 import type { VerdictDraft, VerdictRow } from '@/lib/verdicts';
 
 const TONES: Record<VerdictValue, { label: string; hint: string; glyph: string; ink: string; bg: string }> = {
@@ -120,6 +121,7 @@ export function VerdictSheet({ target, onSave, onRemove, onClose }: {
   const [name, setName]   = useState(target.draft.title);
   const nameRef = useRef<HTMLInputElement>(null);
   const isNew = target.mode === 'new';
+  const apple = useAppleMaps();
 
   useEffect(() => { if (isNew) nameRef.current?.focus(); }, [isNew]);
 
@@ -133,7 +135,7 @@ export function VerdictSheet({ target, onSave, onRemove, onClose }: {
   const named = (d: VerdictDraft): VerdictDraft => {
     if (!isNew) return d;
     const title = name.trim();
-    return { ...d, title, maps_url: title ? mapsSearchUrl(title, target.city) : null };
+    return { ...d, title, maps_url: title ? placeUrl(apple, title, target.city) : null };
   };
 
   // A verdict tap saves at once — that is the whole point of the stamp. Tapping
