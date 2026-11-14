@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomUUID, timingSafeEqual } from 'crypto';
-import { mapsSearchUrl, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
+import { placeUrl, usesAppleMaps } from '@/lib/maps';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,7 +105,7 @@ export async function POST(req: Request) {
   const db = supabaseAdmin();
   const { data: trips, error: tErr } = await db
     .from('koji_trips')
-    .select('id, slug, location, date_start, date_end')
+    .select('id, slug, location, date_start, date_end, tz')
     .lte('date_start', date)
     .order('date_start', { ascending: false })
     .limit(5);
@@ -134,7 +135,7 @@ export async function POST(req: Request) {
       day_id:     day?.id ?? null,
       stop_id:    null,
       title:      name,
-      maps_url:   mapsSearchUrl(name, city),
+      maps_url:   placeUrl(usesAppleMaps(trip.tz), name, city),
       source_url: link,
       verdict,
       note,

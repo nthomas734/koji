@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   if (!feedTokenOk(url.searchParams.get('k'))) return new Response('Not found', { status: 404 });
   const db = supabaseAdmin();
   const [{ data: trips, error: te }, { data: rows, error: be }] = await Promise.all([
-    db.from('koji_trips').select('id, slug, title'),
+    db.from('koji_trips').select('id, slug, title, tz'),
     db.from('koji_bookings').select('*').order('opens_on', { nullsFirst: false }).order('sort_order'),
   ]);
   if (te || be) return new Response((te ?? be)!.message, { status: 500 });

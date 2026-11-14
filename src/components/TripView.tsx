@@ -16,6 +16,8 @@ import { TripAlerts } from '@/components/TripAlerts';
 import { TripSearch, type SearchTarget } from '@/components/TripSearch';
 import { useQueueDrain, usePendingStatus } from '@/lib/komaQueue';
 import { mapsSearchUrl } from '@/lib/supabase';
+import { appleDirectionsUrl, placeUrl, usesAppleMaps } from '@/lib/maps';
+import { AppleMapsProvider, useAppleMaps } from '@/components/MapsContext';
 import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
 import { useKomaData } from '@/lib/komaData';
 import { useStopPrep } from '@/lib/stopPrep';
@@ -607,7 +609,7 @@ function parseLogisticsValue(value: string, category: string): { headline: strin
   };
 }
 
-function LogisticsSection({ logistics, theme, tonight }: { logistics: Logistics[]; theme: { bg: string; fg: string }; tonight?: { stay: Stay; label: string } | null }) {
+function LogisticsSection({ logistics, theme, tonight }: { logistics: Logistics[]; theme: { bg: string; fg: string }; tonight?: { stay: Stay; label: string; tz?: string | null } | null }) {
   const byCategory: Record<string, Logistics[]> = {};
   if (logistics.length) {
     logistics = [...logistics, { id: -1, trip_id: 0, column_key: 'logistics', category: 'info', label: 'Emergency', value_md: EMERGENCY_MD, sort_order: 999 } as Logistics];
@@ -640,7 +642,7 @@ function LogisticsSection({ logistics, theme, tonight }: { logistics: Logistics[
 
   return (
     <div style={{ padding: '12px 12px 40px' }}>
-      {tonight && <TonightCard stay={tonight.stay} label={tonight.label} />}
+      {tonight && <TonightCard stay={tonight.stay} label={tonight.label} tz={tonight.tz} />}
       {categories.map(cat => (
         <div key={cat} style={{ marginBottom: 16 }}>
 
@@ -751,6 +753,10 @@ function LogisticsSection({ logistics, theme, tonight }: { logistics: Logistics[
 // ── STOP ROW ────────────────────────────────────────────────────────────────
 // 3px accent bar on left matches the tag pill's color family.
 // Time label tinted in the pill's dark text color to tie everything together.
+function safeDecode(q: string): string {
+  try { return decodeURIComponent(q.replace(/\+/g, ' ')); } catch { return q; }
+}
+
 function StopRow({ stop, stamp, footer, accent, tz }: { stop: Stop; stamp?: React.ReactNode; footer?: React.ReactNode; accent?: string; tz?: string | null }) {
   // Trains you have to be on and flights get the ticket, in the day's colour.
   if (accent && !(stop.is_optional && !stop.added) && isJourney(stop)) {
@@ -765,8 +771,14 @@ function StopRow({ stop, stamp, footer, accent, tz }: { stop: Stop; stamp?: Reac
   const tagText = stop.duration_label ? `${baseTag} · ${stop.duration_label}` : baseTag;
   // Directions to the stop's first place link (review C), not for the travel
   // legs themselves. The link's query is already URL-encoded.
+  // China trips link Apple Maps (lib/maps.ts), so read its `q=` there instead.
+  const apple = useAppleMaps();
   const dirQuery = /^(travel|flight|train)/i.test(stop.tag) ? null
+    : apple ? stop.body_md?.match(/maps\.apple\.com\/\?(?:[^)\s"]*&)?q=([^&)\s"]+)/)?.[1] ?? null
     : stop.body_md?.match(/google\.com\/maps\/search\/\?api=1&query=([^)\s"]+)/)?.[1] ?? null;
+  const dirHref = !dirQuery ? null
+    : apple ? appleDirectionsUrl(safeDecode(dirQuery))
+    : `https://www.google.com/maps/dir/?api=1&destination=${dirQuery}&travelmode=transit`;
   return (
     <article id={`stop-${stop.id}`} style={{
       position: 'relative',
@@ -819,8 +831,8 @@ function StopRow({ stop, stamp, footer, accent, tz }: { stop: Stop; stamp?: Reac
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
         )}
-        {dirQuery && (
-          <a href={`https://www.google.com/maps/dir/?api=1&destination=${dirQuery}&travelmode=transit`}
+        {dirHref && (
+          <a href={dirHref}
             target="_blank" rel="noopener noreferrer"
             style={{ display: 'inline-block', marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.06em', color: tagColor.text, textDecoration: 'none', borderBottom: '1px solid currentColor' }}>
             Directions ↗
@@ -1551,6 +1563,8 @@ const TAB_HASHES: Record<string, Tab> = { logistics: 'logistics', weather: 'weat
 
 export function TripView({ trip, logistics, days, stays = [], part }: TripViewProps) {
   const router = useRouter();
+  // China trips link Apple Maps; see lib/maps.ts.
+  const appleMaps = usesAppleMaps(trip.tz);
   // Above koma on purpose: a frame marked underground has to keep trying once
   // there is signal, whether or not the mode is still open. See komaQueue.
   useQueueDrain();
@@ -1748,7 +1762,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         day_id: days[i].id,
         stop_id: stop.id,
         title: stop.title,
-        maps_url: row?.maps_url ?? mapsSearchUrl(stop.title, dayContext(i).city),
+        maps_url: row?.maps_url ?? (appleMaps ? placeUrl(true, stop.title, dayContext(i).city) : mapsSearchUrl(stop.title, dayContext(i).city)),
         verdict: row?.verdict ?? null,
         note: row?.note ?? null,
         source: 'stop',
@@ -2096,8 +2110,11 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   const tripActive = todayIdx >= 0;
   // Alerts only make sense until the last day is over
   const tripUpcoming = !!trip.date_start && (trip.date_end || trip.date_start) >= fmtLocalDate(new Date());
+  // The driver card's language follows the time zone of the stay's first night.
+  const tonightTz = tonight ? (days[firstDayOf(tonight.stay)]?.tz || trip.tz || null) : null;
 
   return (
+    <AppleMapsProvider value={appleMaps}>
     <div style={{
       maxWidth: 'var(--max-w)',
       margin: '0 auto',
@@ -2375,7 +2392,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
           {tripUpcoming && <TripAlerts slug={part ? `${trip.slug}/${part.key}` : trip.slug} title={trip.title} theme={theme} />}
           {/* Book Ahead is Nathan's to-do list (it mirrors the bookings board):
               Dez's copy of the tab leaves it out. */}
-          <LogisticsSection logistics={ownerLogistics} theme={theme} tonight={tonight} />
+          <LogisticsSection logistics={ownerLogistics} theme={theme} tonight={tonight && { ...tonight, tz: tonightTz }} />
         </>
       )}
 
@@ -2480,5 +2497,6 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
       )}
 
     </div>
+    </AppleMapsProvider>
   );
 }

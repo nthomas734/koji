@@ -12,6 +12,8 @@
 import { useEffect, useState } from 'react';
 import type { Stay, Stop } from '@/lib/supabase';
 import { mapsSearchUrl } from '@/lib/supabase';
+import { appleSearchUrl } from '@/lib/maps';
+import { useAppleMaps } from './MapsContext';
 import { renderMd } from '@/lib/markdown';
 
 import { STAY_PALETTE, heroIsLight } from '@/lib/stayColors';
@@ -112,6 +114,7 @@ function stampFor(stay: Stay, out: string, firstNight: number, today: string): {
 export function StayHeading({ stay, firstNight = 1 }: { stay: Stay; firstNight?: number }) {
   const ink = stayTone(stay, null);
   const out = addDays(stay.check_in, stay.nights);
+  const apple = useAppleMaps();
   // The page is prerendered, so "today" is only known in the browser. Read it
   // after mount, and again when the phone wakes up on a new day.
   const [today, setToday] = useState<string | null>(null);
@@ -122,7 +125,10 @@ export function StayHeading({ stay, firstNight = 1 }: { stay: Stay; firstNight?:
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
   const stamp = today ? stampFor(stay, out, firstNight, today) : null;
-  const hotelUrl = stay.hotel ? mapsSearchUrl(stay.hotel_query || [stay.hotel, stay.place].join(' ')) : null;
+  // China trips search Apple Maps by the Chinese name, which it finds reliably.
+  const hotelUrl = !stay.hotel ? null
+    : apple ? appleSearchUrl(stay.hotel_ja || stay.hotel_query || [stay.hotel, stay.place].join(' '))
+    : mapsSearchUrl(stay.hotel_query || [stay.hotel, stay.place].join(' '));
   return (
     <header id={`stay-${stay.id}`} style={{ margin: '34px 12px 0', scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}>
       {stay.photo_url && (
