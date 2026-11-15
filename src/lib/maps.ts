@@ -47,3 +47,18 @@ export function driverLang(tz: string | null | undefined): 'ja' | 'zh-Hans' | 'z
   if (tz === 'Asia/Hong_Kong' || tz === 'Asia/Macau' || tz === 'Asia/Taipei') return 'zh-Hant';
   return 'ja';
 }
+
+/**
+ * Which country's small touches a trip or day wears (stay stamps, season
+ * names, weekday characters, the first and last line). Unlike `driverLang`,
+ * an unknown zone is null: every trip outside Japan and China stays undressed.
+ * Use the day's `tz` where there is one, else the trip's.
+ */
+export type Dress = 'ja' | 'zh-Hans' | 'zh-Hant' | null;
+
+export function dressFor(tz: string | null | undefined): Dress {
+  if (tz === 'Asia/Tokyo') return 'ja';
+  if (tz === 'Asia/Shanghai') return 'zh-Hans';
+  if (tz === 'Asia/Hong_Kong' || tz === 'Asia/Macau' || tz === 'Asia/Taipei') return 'zh-Hant';
+  return null;
+}

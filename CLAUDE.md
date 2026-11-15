@@ -831,3 +831,42 @@ opening description. Hotel stops are silent unless they carry `alert_md`.
 Alerts turned on from a part link subscribe as `<slug>/<part>`: only that part's
 days, linking to the part's page (Dez's end with her part).
 
+
+## Destination dress (2026-11-15, step 1 of 3)
+
+Small touches that appear only on Japan and China trips. Every other trip
+renders exactly as before; check that any change here leaves a non-Asian
+trip's HTML unchanged.
+
+- **`dressFor(tz)`** in `lib/maps.ts`: `Asia/Tokyo` → `'ja'`, `Asia/Shanghai`
+  → `'zh-Hans'`, Hong Kong / Macau / Taipei → `'zh-Hant'`, anything else
+  null. Don't use `driverLang` for this (it returns `'ja'` for unknown
+  zones). Day-level touches use the day's `tz`, else the trip's, so a flight
+  day out of LA wears nothing; the weekday characters and the first/last line
+  use the trip's. What each dress looks like lives in `lib/dress.ts`.
+- **No web fonts.** CJK text uses system stacks (Hiragino / Yu Mincho;
+  Songti / STSong) with a `lang` attribute, because the service worker
+  doesn't cache cross-origin fonts. Pinyin is set in Georgia italic:
+  Fraunces italic draws the macron of ā off its letter.
+- **Stay mark** (`StayMark` in `Stays.tsx`) replaces the inline `local_name`
+  span: round station stamp in the stay colour (Japan), square cinnabar seal
+  `#B5322A` (China). 35% opacity before `check_in`, full from that day. It
+  sits in the heading's line box via negative margins, so the heading is no
+  taller. The tilted text stamp ("nights 3–5", "stayed") is unchanged.
+- **Season line** (`lib/seasons.ts`, `seasonFor(dress, isoDate)`): on the
+  full day header only on the first day of a season or the page's first
+  dressed day, never folded; on every Weather tab row. **The table holds
+  only the rows the brief listed** (six Japanese 候 for Feb 4–Mar 5, three
+  solar terms for Nov 22, 2027 – Jan 5, 2028); any other date returns null
+  and shows nothing. Japan's dates repeat every year. **The solar terms are
+  2027 only**: they move by a day between years, so a China trip in another
+  year needs new rows. Checked against the Hong Kong Observatory calendars;
+  冬至 runs to Jan 5 because 小寒 2028 is Jan 6 (the brief said Jan 4).
+- **Weekday character** after the date on each `DayRail` pill (日月火水木金土 /
+  日一二三四五六).
+- **First and last line** (`DoorLine`): 行ってきます / 一路平安 above day 1,
+  ただいま / 到家了 under "The end" in the footer. A part page shows each
+  only if the part contains the trip's first or last day (`opensTrip` /
+  `endsTrip`, worked out in the part page from the unsliced trip).
+- Steps 2 (station-board Tonight card) and 3 (ticket and phrase columns on
+  `koji_stops`) are not built yet.
