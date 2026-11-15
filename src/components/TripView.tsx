@@ -201,37 +201,132 @@ async function fetchWeather(
   }
 }
 
-// Seasonal averages: fetches the same date range from the previous year
-// via Open-Meteo's archive API. Returns a synthetic DayWeather array
-// representing typical conditions for the trip dates.
-// Fetches one year of archive data via the /api/weather proxy route.
-// Proxying server-side avoids browser timeout issues and gets edge caching.
-async function fetchArchiveYear(
-  lat: number,
-  lng: number,
-  dateStart: string,
-  dateEnd: string,
-  delta: number,
-): Promise<DayWeather[]> {
-  const start = shiftYear(dateStart, delta);
-  const end   = shiftYear(dateEnd,   delta);
+/** Like Promise.all over fn, at most `limit` running at once; results in order. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) { const i = next++; out[i] = await fn(items[i]); }
+  }));
+  return out;
+}
 
-  const url = new URL('/api/weather', window.location.origin);
-  url.searchParams.set('lat',   String(lat));
-  url.searchParams.set('lng',   String(lng));
-  url.searchParams.set('start', start);
-  url.searchParams.set('end',   end);
+// ── SEASONAL AVERAGES ────────────────────────────────────────────────────────
+// The same dates over the last five years, through the /api/weather proxy
+// (historical-forecast-api: archive-api is unreachable from Vercel). One year
+// was one day's luck (a storm read as "12.6 precip"), so this averages the
+// highs and lows, keeps the spread of highs, and counts how many of the years
+// rained. Wind and UV aren't averaged: a single gusty day says nothing about
+// a season.
+const SEASON_YEARS = [-1, -2, -3, -4, -5];
+const RAIN_MM = 1; // a day with at least 1 mm counts as a rainy one
 
-  const res = await fetchWithTimeout(url.toString(), 28000);
-  if (!res.ok) throw new Error(`Weather proxy ${res.status}`);
-  const json = await res.json();
+/** One location's date range in one past year: one upstream request. */
+interface ArchiveItem { lat: number; lng: number; start: string; end: string }
+type ArchiveDaily = Record<string, unknown[]>;
+
+const archiveKey = (it: ArchiveItem) => `${it.lat},${it.lng},${it.start},${it.end}`;
+
+// Finished years are kept on the phone (2026-11-15): a range that ended more
+// than a week ago never changes, so the second visit shows the weather at once
+// and offline. Only those are kept. A range still running or ahead (China
+// 2027's "last year" is Nov–Dec 2026) is fetched every time, and nothing from
+// the live forecast or the past-trip archive is ever stored here.
+const WX_STORE = 'koji:wx-season:v1';
+const WX_STABLE_DAYS = 7;
+const WX_KEEP_DAYS = 120; // drop entries no trip page has read for this long
+
+type WxStore = Record<string, { d: ArchiveDaily; u: string }>;
+
+function readWxStore(): WxStore {
+  try { return JSON.parse(localStorage.getItem(WX_STORE) ?? '{}') ?? {}; } catch { return {}; }
+}
+
+function writeWxStore(store: WxStore) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - WX_KEEP_DAYS);
+  const keep = fmtLocalDate(cutoff);
+  for (const k of Object.keys(store)) if (store[k].u < keep) delete store[k];
+  try { localStorage.setItem(WX_STORE, JSON.stringify(store)); } catch { /* full or private mode */ }
+}
+
+function isStableRange(end: string): boolean {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - WX_STABLE_DAYS);
+  return end < fmtLocalDate(cutoff);
+}
+
+/** The old one-request-per-item path, kept as the fallback for a failed batch. */
+async function fetchArchiveOne(it: ArchiveItem): Promise<ArchiveDaily | null> {
+  try {
+    const url = new URL('/api/weather', window.location.origin);
+    url.searchParams.set('lat',   String(it.lat));
+    url.searchParams.set('lng',   String(it.lng));
+    url.searchParams.set('start', it.start);
+    url.searchParams.set('end',   it.end);
+    const res = await fetchWithTimeout(url.toString(), 28000);
+    if (!res.ok) return null;
+    return (await res.json()).daily ?? null;
+  } catch { return null; }
+}
+
+const BATCH_MAX = 120; // under the proxy's 150, and keeps the URL to a few KB
+
+/**
+ * The `daily` block for every item, in order; null where that year failed.
+ * Kept years come from the phone; the rest go to the proxy in one request
+ * (it makes the same upstream calls side by side). If the batch itself fails
+ * (an old deploy, a timeout), each item is asked for on its own, five at a
+ * time, which is about what the old per-location loop sent.
+ */
+async function fetchArchiveDailies(items: ArchiveItem[]): Promise<(ArchiveDaily | null)[]> {
+  const store = readWxStore();
+  const today = fmtLocalDate(new Date());
+  const out: (ArchiveDaily | null)[] = items.map(it => store[archiveKey(it)]?.d ?? null);
+  const missing = items.map((_, i) => i).filter(i => out[i] == null);
+
+  for (let c = 0; c < missing.length; c += BATCH_MAX) {
+    const idx = missing.slice(c, c + BATCH_MAX);
+    let got: (ArchiveDaily | null)[] | null = null;
+    try {
+      const url = new URL('/api/weather', window.location.origin);
+      url.searchParams.set('q', idx.map(i => archiveKey(items[i])).join(';'));
+      const res = await fetchWithTimeout(url.toString(), 28000);
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json.results) && json.results.length === idx.length) {
+          got = json.results.map((r: { daily?: ArchiveDaily | null }) => r.daily ?? null);
+        }
+      }
+    } catch { /* fall through to one at a time */ }
+    if (!got) got = await mapLimit(idx, 5, i => fetchArchiveOne(items[i]));
+    idx.forEach((i, k) => { out[i] = got![k]; });
+  }
+
+  let dirty = missing.length > 0;
+  items.forEach((it, i) => {
+    const d = out[i];
+    if (!d) return;
+    const key = archiveKey(it);
+    if (store[key]) {
+      if (store[key].u !== today) { store[key].u = today; dirty = true; }
+    } else if (isStableRange(it.end) && Array.isArray(d.time) && d.time.length > 0) {
+      store[key] = { d, u: today };
+    }
+  });
+  if (dirty) writeWxStore(store);
+  return out;
+}
+
+// One year's `daily` block as DayWeather, dated back to the trip year so the
+// weatherMap keys match. Throws on an empty year, which the average skips.
+function parseArchiveYear(daily: ArchiveDaily | null, delta: number): DayWeather[] {
   const {
     time, temperature_2m_max, temperature_2m_min, weathercode,
     windspeed_10m_max, precipitation_sum, uv_index_max,
-  } = json.daily ?? {};
+  } = (daily ?? {}) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   if (!time || (time as string[]).length === 0) throw new Error('No data');
 
-  // Shift dates back to the trip year so weatherMap keys match
   const yearShift = -delta;
   return (time as string[]).map((date: string, i: number) => ({
     date:       shiftYear(date, yearShift),
@@ -246,27 +341,24 @@ async function fetchArchiveYear(
   }));
 }
 
-// Seasonal averages: the same dates over the last five years, through the
-// proxy. One year was one day's luck (a storm read as "12.6 precip"), so this
-// averages the highs and lows, keeps the spread of highs, and counts how many
-// of the years rained. Wind and UV aren't averaged: a single gusty day says
-// nothing about a season.
-const SEASON_YEARS = [-1, -2, -3, -4, -5];
-const RAIN_MM = 1; // a day with at least 1 mm counts as a rainy one
+/** Seasonal averages for every location group, in group order. */
+async function fetchSeasonalWeatherAll(
+  groups: { lat: number; lng: number; dateStart: string; dateEnd: string }[],
+): Promise<DayWeather[][]> {
+  const items: ArchiveItem[] = groups.flatMap(g => SEASON_YEARS.map(delta => ({
+    lat: g.lat, lng: g.lng, start: shiftYear(g.dateStart, delta), end: shiftYear(g.dateEnd, delta),
+  })));
+  const dailies = await fetchArchiveDailies(items);
+  return groups.map((_, gi) => averageYears(SEASON_YEARS.map((delta, yi) => {
+    try { return parseArchiveYear(dailies[gi * SEASON_YEARS.length + yi], delta); } catch { return null; }
+  })));
+}
 
-async function fetchSeasonalWeather(
-  lat: number,
-  lng: number,
-  dateStart: string,
-  dateEnd: string,
-): Promise<DayWeather[]> {
-  const years = await Promise.allSettled(
-    SEASON_YEARS.map(delta => fetchArchiveYear(lat, lng, dateStart, dateEnd, delta)),
-  );
+function averageYears(years: (DayWeather[] | null)[]): DayWeather[] {
   const byDate = new Map<string, DayWeather[]>();
   for (const y of years) {
-    if (y.status !== 'fulfilled') continue;
-    for (const w of y.value) byDate.set(w.date, [...(byDate.get(w.date) ?? []), w]);
+    if (!y) continue;
+    for (const w of y) byDate.set(w.date, [...(byDate.get(w.date) ?? []), w]);
   }
   const out: DayWeather[] = [];
   for (const [date, ws] of byDate) {
@@ -2180,14 +2272,15 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         return;
       }
 
-      const allResults: DayWeather[] = [];
-
-      for (const group of locationGroups) {
-        const results = useSeasonal
-          ? await fetchSeasonalWeather(group.lat, group.lng, group.dateStart, group.dateEnd)
-          : await fetchWeather(group.lat, group.lng, group.dateStart, group.dateEnd);
-        allResults.push(...results);
-      }
+      // Locations side by side (they used to go one after another, a round
+      // trip each). Group order is kept: where two groups' ranges share a
+      // date, the later group wins, as before. The forecast and past-trip
+      // calls go straight to Open-Meteo from the phone, four at a time: it
+      // refuses too many concurrent requests from one address.
+      const perGroup = useSeasonal
+        ? await fetchSeasonalWeatherAll(locationGroups)
+        : await mapLimit(locationGroups, 4, g => fetchWeather(g.lat, g.lng, g.dateStart, g.dateEnd));
+      const allResults: DayWeather[] = perGroup.flat();
 
       if (cancelled) return;
       if (useSeasonal && allResults.length > 0) setIsSeasonal(true);
