@@ -43,10 +43,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             alerts note took on this trip page last time, so the itinerary
             doesn't jump when they appear. See lib/hold.ts. */}
         <script dangerouslySetInnerHTML={{ __html: HOLD_SCRIPT }} />
-        {/* The deploy this page was built by. UpdateBanner compares it with the
-            server's, so a copy the service worker served from cache (offline,
-            or after its 3 s timeout) still offers the update. */}
-        {process.env.VERCEL_DEPLOYMENT_ID && <meta name="koji-deploy" content={process.env.VERCEL_DEPLOYMENT_ID} />}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
