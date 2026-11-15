@@ -4,11 +4,13 @@ import { renderMd } from '@/lib/markdown';
 import type { Prep } from '@/lib/stopPrep';
 
 // The owner's "before you go" note on a stop card, in Plan mode only. Amber
-// so it reads as a to-do, not as part of the plan; ticked notes go quiet.
+// so it reads as a to-do, not as part of the plan. A ticked note is gone from
+// the card; the row stays in koji_stop_prep with done_at set.
 const AMBER = '#B7791F';
 
 export function PrepStrip({ prep, onToggle }: { prep: Prep; onToggle: () => void }) {
   const done = !!prep.done_at;
+  if (done) return null;
   return (
     <div style={{
       display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 10, padding: '8px 10px',
