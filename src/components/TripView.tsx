@@ -31,7 +31,7 @@ import { NowCard, NowRule } from '@/components/NowCard';
 import { nowOverride, nowState, useZonedMinutes } from '@/lib/now';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
 import { JourneyTicket, isJourney } from '@/components/JourneyTicket';
-import { TravelThread, isThread } from '@/components/TravelThread';
+import { TravelStub, isStub } from '@/components/TravelStub';
 import { SayChip, hasPhrase } from '@/components/SayIt';
 import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
 
@@ -770,10 +770,10 @@ function StopRow({ stop, stamp, footer, accent, tz, dress = null }: {
   if (accent && !(stop.is_optional && !stop.added) && isJourney(stop)) {
     return <JourneyTicket stop={stop} accent={accent} tz={tz} dress={dress} stamp={stamp} footer={footer} />;
   }
-  // Short hops that opt in (hop_mode) are a thread, not a card; one with a
-  // phrase stays a card so the Say it chip keeps its place.
-  if (accent && isThread(stop) && !hasPhrase(stop, dress)) {
-    return <TravelThread stop={stop} accent={accent} stamp={stamp} footer={footer} />;
+  // Short hops that opt in (hop_mode) are a stub, the ticket's torn-off end;
+  // one with a phrase stays a card so the Say it chip keeps its place.
+  if (accent && isStub(stop) && !hasPhrase(stop, dress)) {
+    return <TravelStub stop={stop} accent={accent} stamp={stamp} footer={footer} />;
   }
   const tagColor = TAG_COLORS[stop.tag_color] ?? TAG_COLORS.gray;
   const bodyHtml = renderMd(stop.body_md);
