@@ -611,7 +611,7 @@ function parseLogisticsValue(value: string, category: string): { headline: strin
   };
 }
 
-function LogisticsSection({ logistics, theme, tonight }: { logistics: Logistics[]; theme: { bg: string; fg: string }; tonight?: { stay: Stay; label: string; tz?: string | null } | null }) {
+function LogisticsSection({ logistics, theme, tonight }: { logistics: Logistics[]; theme: { bg: string; fg: string }; tonight?: { stay: Stay; label: string; tz?: string | null; prev?: Stay | null; next?: Stay | null } | null }) {
   const byCategory: Record<string, Logistics[]> = {};
   if (logistics.length) {
     logistics = [...logistics, { id: -1, trip_id: 0, column_key: 'logistics', category: 'info', label: 'Emergency', value_md: EMERGENCY_MD, sort_order: 999 } as Logistics];
@@ -644,7 +644,7 @@ function LogisticsSection({ logistics, theme, tonight }: { logistics: Logistics[
 
   return (
     <div style={{ padding: '12px 12px 40px' }}>
-      {tonight && <TonightCard stay={tonight.stay} label={tonight.label} tz={tonight.tz} />}
+      {tonight && <TonightCard stay={tonight.stay} label={tonight.label} tz={tonight.tz} prev={tonight.prev} next={tonight.next} />}
       {categories.map(cat => (
         <div key={cat} style={{ marginBottom: 16 }}>
 
@@ -1887,9 +1887,11 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   const tonight = useMemo(() => {
     if (!stays?.length || !trip.date_start) return null;
     const sorted = [...stays].sort((a, b) => (a.check_in < b.check_in ? -1 : 1));
+    // The neighbours feed the platform sign's band on Japan and China trips.
+    const around = (st: Stay) => { const i = sorted.indexOf(st); return { prev: sorted[i - 1] ?? null, next: sorted[i + 1] ?? null }; };
     const st = todayIdx >= 0 ? stayForDate(sorted, dateForDay(trip.date_start, todayIdx)) : null;
-    if (st) return { stay: st, label: 'Tonight' };
-    if (todayIdx < 0 && (nowOverride()?.date ?? fmtLocalDate(new Date())) < trip.date_start) return { stay: sorted[0], label: 'First night' };
+    if (st) return { stay: st, label: 'Tonight', ...around(st) };
+    if (todayIdx < 0 && (nowOverride()?.date ?? fmtLocalDate(new Date())) < trip.date_start) return { stay: sorted[0], label: 'First night', ...around(sorted[0]) };
     return null;
   }, [stays, todayIdx, trip.date_start]);
 

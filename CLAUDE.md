@@ -832,7 +832,7 @@ Alerts turned on from a part link subscribe as `<slug>/<part>`: only that part's
 days, linking to the part's page (Dez's end with her part).
 
 
-## Destination dress (2026-11-15, step 1 of 3)
+## Destination dress (2026-11-15, steps 1–2 of 3)
 
 Small touches that appear only on Japan and China trips. Every other trip
 renders exactly as before; check that any change here leaves a non-Asian
@@ -868,5 +868,12 @@ trip's HTML unchanged.
   ただいま / 到家了 under "The end" in the footer. A part page shows each
   only if the part contains the trip's first or last day (`opensTrip` /
   `endsTrip`, worked out in the part page from the unsliced trip).
-- Steps 2 (station-board Tonight card) and 3 (ticket and phrase columns on
-  `koji_stops`) are not built yet.
+- **Platform sign** (step 2, `PlatformSign` in `Tonight.tsx`): on the
+  Logistics tab's Tonight card, a dressed stay with a `local_name` swaps the
+  mono eyebrow for a white station board: "Tonight" / "First night" small,
+  the local name large, the place under it, and a band with the previous stay
+  (◀) and next (▶) from `LogisticsSection`. Japan rounded with the band in the
+  stay colour; China square with railway blue `#2B5C9A`. Neighbours come from
+  the stays the page was given, so a part page's band stops at the part's
+  ends. Dress is `dressFor` of the stay's first-night zone.
+- Step 3 (ticket and phrase columns on `koji_stops`) is not built yet.
