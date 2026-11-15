@@ -882,19 +882,28 @@ trip's HTML unchanged.
   stay colour; China square with railway blue `#2B5C9A`. Neighbours come from
   the stays the page was given, so a part page's band stops at the part's
   ends. Dress is `dressFor` of the stay's first-night zone.
-- **Stop columns** (step 3, `sql/2026-11-15-koji-stop-dress.sql`): seven
-  nullable text columns on `koji_stops`. All null renders exactly as before,
+- **Stop columns** (step 3, `sql/2026-11-15-koji-stop-dress.sql` and
+  `sql/2026-11-15-koji-stop-station-names.sql`): nine nullable text columns
+  on `koji_stops`. All null renders exactly as before,
   and stops load with `select('*')`, so code deployed before the migration
   is fine. Public content like the rest of a stop; no editor fields.
   - **Ticket** (`JourneyTicket`, only on a stop that already renders as one,
-    i.e. a clock time plus a duration or arrival, 45 min or more):
-    `from_local` / `to_local` are the stations as the board shows them
-    (岡山, 重庆北), set above each time in the local serif; skipped on an
-    undressed trip. `service_label` ("のぞみ Nozomi 21", "G8602") sits on its
-    own line above the duration under the dotted route (on one line it ran
-    over the times at 375px), and the times hang from the top to stay level
-    with the line. `seat_label` ("7号車 12番 D・E席") is one mono line in the
-    lower half. The wash stays the day's colour; no JR green, no weave.
+    i.e. a clock time plus a duration or arrival, 45 min or more): above the
+    times, a row of its own with two equal halves. **The readable name
+    leads**: `from_name` / `to_name` ("Gora", "West Kowloon",
+    `sql/2026-11-15-koji-stop-station-names.sql`) in sans 600 at 16px, on
+    any trip. Nathan doesn't read kanji, and a ticket showing only 強羅 → 倉敷
+    hid where the train went. `from_local` / `to_local` (the board's name,
+    強羅, 重庆北) follow as the smaller partner, CJK serif 13px at 70%, and
+    need a dress; they are nowrap, so a pair that won't fit drops the
+    characters under the name. Characters with no name show alone, large, as
+    before. The row adds 23px on one line, 43px when a side wraps.
+    `service_label` ("のぞみ Nozomi 21", "G8602") sits above the duration
+    under the dotted route, in flow so a long one ("ロマンスカー Romancecar")
+    wraps inside the route column instead of running over the times, which
+    hang from the top to stay level with the line. `seat_label`
+    ("7号車 12番 D・E席") is one mono line in the lower half. The wash stays
+    the day's colour; no JR green, no weave.
   - **Say it / Show it** (`SayIt.tsx`): `say_local` turns on a small chip in
     the Directions row ("Say it" on Japan, "Show it" on China; its own row
     when there's no Directions link). It opens a full-screen card like
@@ -906,7 +915,8 @@ trip's HTML unchanged.
     else the trip's (so a flight day out of LA can still name 東京).
   - Filling them in SQL (look up by slug and `sort_order`, never by id):
     ```sql
-    update koji_stops s set from_local = '岡山', to_local = '博多',
+    update koji_stops s set from_name = 'Okayama', to_name = 'Hakata',
+      from_local = '岡山', to_local = '博多',
       service_label = 'のぞみ Nozomi 21', seat_label = '7号車 12番 D・E席'
     from koji_days d join koji_trips t on t.id = d.trip_id
     where s.day_id = d.id and t.slug = 'japan-2027'

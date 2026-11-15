@@ -148,3 +148,7 @@ alter table koji_stops add column if not exists seat_label    text;
 alter table koji_stops add column if not exists say_local     text;
 alter table koji_stops add column if not exists say_reading   text;
 alter table koji_stops add column if not exists say_gloss     text;
+
+-- Station names in Latin letters (sql/2026-11-15-koji-stop-station-names.sql).
+alter table koji_stops add column if not exists from_name     text;
+alter table koji_stops add column if not exists to_name       text;

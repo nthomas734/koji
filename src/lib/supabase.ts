@@ -140,6 +140,10 @@ export interface Stop {
   to_local?:      string | null;
   service_label?: string | null;
   seat_label?:    string | null;
+  /** The stations in Latin letters ("Gora", "West Kowloon"). They lead on the
+   *  ticket, on any trip; the local names ride beside them, smaller. */
+  from_name?:     string | null;
+  to_name?:       string | null;
   /** A phrase for the Say it (Japan) / Show it (China) chip: the local script,
    *  how to say it (romaji / pinyin) and the English. say_local turns the chip on. */
   say_local?:     string | null;

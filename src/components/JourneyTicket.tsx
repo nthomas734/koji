@@ -18,8 +18,9 @@ import { SayChip, hasPhrase } from './SayIt';
 // one, i.e. a flight that crosses them. "Land at ..." stops, hops without a
 // duration and untimed errands stay ordinary stop cards.
 //
-// Destination dress (step 3a, Japan and China only): from_local / to_local
-// name the stations as the board shows them above each time, service_label
+// Destination dress (step 3a): from_name / to_name ("Gora") lead above each
+// time on any trip, with from_local / to_local (強羅) beside them as the
+// smaller partner on Japan and China trips, service_label
 // ("のぞみ Nozomi 21", "G8602") joins the label on the route, and seat_label
 // is one line in the lower half. Each shows only when set, so a ticket with
 // none of them renders exactly as before. The wash stays the day's colour.
@@ -200,19 +201,50 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   const routeLabel = stop.duration_label || '';
   const service = stop.service_label?.trim() || '';
   const seat = stop.seat_label?.trim() || '';
-  // Station names need a dress to pick the font and lang; without one they're skipped.
+  // Where it goes, readably: from_name / to_name ("Gora", "West Kowloon") lead
+  // on any trip. The local names (強羅) need a dress for the font and lang, and
+  // ride beside the name as its smaller partner; alone, they show as before.
+  const fromName = stop.from_name?.trim() || '';
+  const toName = stop.to_name?.trim() || '';
   const fromLocal = dress ? stop.from_local?.trim() || '' : '';
   const toLocal = dress ? stop.to_local?.trim() || '' : '';
+  const hasStations = !!(fromName || toName || fromLocal || toLocal);
   const phrase = hasPhrase(stop, dress);
-  // With a train name the route label runs to two lines, so the route box grows
-  // and the times hang from the top, their middle level with the dotted line.
-  const lift: React.CSSProperties | undefined = service ? { alignSelf: 'start', paddingTop: 6 } : undefined;
-  const station = (name: string, align: 'left' | 'right') => (
-    <div lang={dress ?? undefined} style={{
-      textAlign: align, fontFamily: cjkFont(dress ?? 'ja'), fontWeight: 700, fontSize: 19, lineHeight: 1.15,
-      letterSpacing: '0.04em', color: deep, whiteSpace: 'nowrap',
-    }}>{name}</div>
+  const durationParts = (
+    <>
+      {routeLabel.split(/\s*·\s*/)[0]}
+      {routeLabel.split(/\s*·\s*/).slice(1).map((part, i) => (
+        <span key={i} style={{ fontSize: 11, fontWeight: 400, opacity: 0.75 }}> · {part}</span>
+      ))}
+    </>
   );
+  // With a train name the route label runs to two lines or more, so the route
+  // box grows and the times hang from the top, their middle level with the line.
+  const lift: React.CSSProperties | undefined = service ? { alignSelf: 'start', paddingTop: 6 } : undefined;
+  // Each end gets half the ticket. The name may wrap but never truncates; the
+  // characters are nowrap, so when the pair won't fit they drop under the name.
+  const station = (name: string, local: string, align: 'left' | 'right') => {
+    if (!name && !local) return <span />;
+    if (!name) return (
+      <div lang={dress ?? undefined} style={{
+        textAlign: align, fontFamily: cjkFont(dress ?? 'ja'), fontWeight: 700, fontSize: 19, lineHeight: 1.15,
+        letterSpacing: '0.04em', color: deep, whiteSpace: 'nowrap',
+      }}>{local}</div>
+    );
+    return (
+      <div style={{ textAlign: align, minWidth: 0, overflowWrap: 'anywhere', lineHeight: 1.25, color: deep }}>
+        <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 16 }}>{name}</span>
+        {local && (
+          <>
+            {' '}
+            <span lang={dress ?? undefined} style={{
+              fontFamily: cjkFont(dress ?? 'ja'), fontSize: 13, letterSpacing: '0.04em', opacity: 0.7, whiteSpace: 'nowrap',
+            }}>{local}</span>
+          </>
+        )}
+      </div>
+    );
+  };
 
   return (
     <article id={`stop-${stop.id}`} style={{
@@ -233,17 +265,17 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
           {stamp}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 10, marginTop: 8, ...(fromLocal || toLocal ? { rowGap: 3 } : null) }}>
-          {(fromLocal || toLocal) && (
-            <>
-              {fromLocal ? station(fromLocal, 'left') : <span />}
-              <span />
-              {toLocal ? station(toLocal, 'right') : <span />}
-            </>
-          )}
+        {hasStations && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', columnGap: 16, alignItems: 'end', marginTop: 8 }}>
+            {station(fromName, fromLocal, 'left')}
+            {station(toName, toLocal, 'right')}
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 10, marginTop: hasStations ? 3 : 8 }}>
           <TicketTime c={dep} under={depZone} align="left" lift={lift} />
 
-          <div style={{ position: 'relative', height: service ? 58 : 42, minWidth: 60 }}>
+          <div style={service ? { position: 'relative', minWidth: 60, minHeight: 42, paddingTop: 26 } : { position: 'relative', height: 42, minWidth: 60 }}>
             <div style={{ position: 'absolute', left: 0, right: 0, top: 21, borderTop: `1.5px dotted ${accent}`, opacity: 0.7 }} />
             {Array.from({ length: changes }, (_, i) => (
               <span key={i} style={{
@@ -255,25 +287,29 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
             <span style={{ position: 'absolute', left: '50%', top: 1, transform: 'translateX(-50%)', color: accent, background: tint, padding: '0 4px' }}>
               <JourneyGlyph mode={mode} />
             </span>
-            {(routeLabel || service) && (
+            {service ? (
+              // The train's name sits on its own line above the duration, in
+              // flow so it can wrap inside the route column: a long one
+              // ("ロマンスカー Romancecar") ran over the departure time.
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '0.02em',
+                fontVariantNumeric: 'tabular-nums', color: deep, lineHeight: 1.2,
+              }}>
+                <span lang={dress ?? undefined} style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 500, letterSpacing: 0, marginBottom: 1, overflowWrap: 'anywhere' }}>
+                  {service}
+                </span>
+                {routeLabel && <span style={{ whiteSpace: 'nowrap', background: tint, padding: '0 5px' }}>{durationParts}</span>}
+              </div>
+            ) : routeLabel && (
               // The time is the thing you glance for: big and plain, with the
               // changes beside it in a quieter voice ("1 h 50 · 1 change").
-              // The train's name, when there is one, sits on its own line above
-              // the duration: on one line it ran over the times at 375px.
               <span style={{
                 position: 'absolute', left: '50%', top: 26, transform: 'translateX(-50%)', whiteSpace: 'nowrap',
                 fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '0.02em',
                 fontVariantNumeric: 'tabular-nums', color: deep, background: tint, padding: '0 5px', lineHeight: 1.2,
               }}>
-                {service && (
-                  <span lang={dress ?? undefined} style={{ display: 'block', textAlign: 'center', fontSize: 11.5, fontWeight: 500, letterSpacing: 0, marginBottom: 1 }}>
-                    {service}
-                  </span>
-                )}
-                {routeLabel.split(/\s*·\s*/)[0]}
-                {routeLabel.split(/\s*·\s*/).slice(1).map((part, i) => (
-                  <span key={i} style={{ fontSize: 11, fontWeight: 400, opacity: 0.75 }}> · {part}</span>
-                ))}
+                {durationParts}
               </span>
             )}
           </div>
