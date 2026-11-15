@@ -13,6 +13,8 @@ import { useEffect, useState } from 'react';
 import type { Stay, Stop } from '@/lib/supabase';
 import { mapsSearchUrl } from '@/lib/supabase';
 import { appleSearchUrl } from '@/lib/maps';
+import type { Dress } from '@/lib/maps';
+import { CINNABAR, cjkFont } from '@/lib/dress';
 import { useAppleMaps } from './MapsContext';
 import { renderMd } from '@/lib/markdown';
 
@@ -111,7 +113,58 @@ function stampFor(stay: Stay, out: string, firstNight: number, today: string): {
   return { text: stay.nights === 1 ? `night ${firstNight}` : `nights ${firstNight}–${last}`, ghost: false };
 }
 
-export function StayHeading({ stay, firstNight = 1 }: { stay: Stay; firstNight?: number }) {
+// ── STAY MARK ───────────────────────────────────────────────────────────────
+// On a Japan or China trip the local name is drawn as a mark at the end of the
+// heading: a round station stamp (Japan, in the stay colour) or a square name
+// seal (China, always cinnabar). Faint until check-in, inked from that day.
+// Negative vertical margins keep it inside the heading's existing line box.
+function StayMark({ stay, dress, inked, ink }: { stay: Stay; dress: Exclude<Dress, null>; inked: boolean; ink: string }) {
+  const name = stay.local_name!;
+  const chars = Array.from(name);
+  const font = cjkFont(dress);
+  const common: React.CSSProperties = {
+    display: 'inline-block', verticalAlign: 'middle', flexShrink: 0,
+    opacity: inked ? 1 : 0.35,
+  };
+  if (dress === 'ja') {
+    const arcId = `stay-arc-${stay.id}`;
+    const latin = stay.place.toUpperCase();
+    const [y, m, d] = stay.check_in.split('-').map(Number);
+    return (
+      <svg viewBox="0 0 120 120" width={44} height={44} role="img" aria-label={`${stay.place} station stamp, ${name}`} lang="ja"
+        style={{ ...common, margin: '-12px 0 -10px 8px', transform: 'rotate(-9deg)' }}>
+        <path id={arcId} d="M 19 62 A 41 41 0 0 1 101 62" fill="none" />
+        <circle cx="60" cy="60" r="56" fill="none" stroke={ink} strokeWidth="4" />
+        <circle cx="60" cy="60" r="49" fill="none" stroke={ink} strokeWidth="1.5" />
+        <text fontFamily="var(--font-mono)" fontSize={latin.length > 8 ? 9 : 11} fontWeight="600" letterSpacing={latin.length > 8 ? 1.5 : 3} fill={ink}>
+          <textPath href={`#${arcId}`} startOffset="50%" textAnchor="middle">{latin}</textPath>
+        </text>
+        <text x="60" y={chars.length > 2 ? 74 : 76} textAnchor="middle" fontFamily={font} fontWeight="700" fontSize={chars.length > 2 ? 24 : 32} fill={ink}>{name}</text>
+        <text x="60" y="96" textAnchor="middle" fontFamily="var(--font-mono)" fontSize="10" letterSpacing="1" fill={ink}>{`${y}.${m}.${d}`}</text>
+      </svg>
+    );
+  }
+  // Seal: characters top to bottom, in a thin inner frame. Four or more go in
+  // two columns, read right column first, the way a seal is cut.
+  const paper = 'var(--surface)';
+  const cols = chars.length >= 4 ? [chars.slice(0, Math.ceil(chars.length / 2)), chars.slice(Math.ceil(chars.length / 2))] : [chars];
+  const rows = cols[0].length;
+  const cell = 28 / rows;
+  const size = Math.min(13, cell * 0.92) * (cols.length > 1 ? 0.95 : 1);
+  const xs = cols.length > 1 ? [26.5, 13.5] : [20];
+  return (
+    <svg viewBox="0 0 40 40" width={34} height={34} role="img" aria-label={`${stay.place} name seal, ${name}`} lang={dress}
+      style={{ ...common, margin: '-8px 0 -6px 9px', transform: 'rotate(3deg)' }}>
+      <rect x="1" y="1" width="38" height="38" rx="4" fill={CINNABAR} />
+      <rect x="4" y="4" width="32" height="32" rx="2" fill="none" stroke={paper} strokeWidth="1" />
+      {cols.map((col, c) => col.map((ch, r) => (
+        <text key={`${c}-${r}`} x={xs[c]} y={6 + cell * (r + 1) - cell * 0.16} textAnchor="middle" fontFamily={font} fontWeight="900" fontSize={size} fill={paper}>{ch}</text>
+      )))}
+    </svg>
+  );
+}
+
+export function StayHeading({ stay, firstNight = 1, dress = null }: { stay: Stay; firstNight?: number; dress?: Dress }) {
   const ink = stayTone(stay, null);
   const out = addDays(stay.check_in, stay.nights);
   const apple = useAppleMaps();
@@ -138,7 +191,9 @@ export function StayHeading({ stay, firstNight = 1 }: { stay: Stay; firstNight?:
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'end', gap: '4px 12px', padding: '0 4px 9px', borderBottom: `2px solid ${ink}` }}>
         <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 28, lineHeight: 1, color: 'var(--ink)', margin: 0 }}>
           {stay.place}
-          {stay.local_name && <span style={{ fontSize: 15, fontWeight: 400, color: ink, marginLeft: 7 }}>{stay.local_name}</span>}
+          {stay.local_name && (dress
+            ? <StayMark stay={stay} dress={dress} inked={!!today && today >= stay.check_in} ink={ink} />
+            : <span style={{ fontSize: 15, fontWeight: 400, color: ink, marginLeft: 7 }}>{stay.local_name}</span>)}
         </h2>
         <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.04em', color: 'var(--ink-3)', textAlign: 'right', lineHeight: 1.45 }}>
           {stay.nights} night{stay.nights === 1 ? '' : 's'}<br />{shortDate(stay.check_in)} – {shortDate(out)}

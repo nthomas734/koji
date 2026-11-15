@@ -16,7 +16,9 @@ import { TripAlerts } from '@/components/TripAlerts';
 import { TripSearch, type SearchTarget } from '@/components/TripSearch';
 import { useQueueDrain, usePendingStatus } from '@/lib/komaQueue';
 import { mapsSearchUrl } from '@/lib/supabase';
-import { appleDirectionsUrl, placeUrl, usesAppleMaps } from '@/lib/maps';
+import { appleDirectionsUrl, dressFor, placeUrl, usesAppleMaps, type Dress } from '@/lib/maps';
+import { cjkFont, doorLine, weekdayChar } from '@/lib/dress';
+import { seasonFor, seasonSpan, type Season } from '@/lib/seasons';
 import { AppleMapsProvider, useAppleMaps } from '@/components/MapsContext';
 import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
 import { useKomaData } from '@/lib/komaData';
@@ -851,6 +853,44 @@ const DAY_HEADER_MARGIN = 20;
 // The header is glass and sticks under the status bar while its stops scroll, so
 // the date stays readable over the cards beneath it. The wrapping <section> is
 // the sticky container, so each header releases when the next day arrives.
+// ── DESTINATION DRESS ────────────────────────────────────────────────────────
+// Japan and China trips only (dressFor in lib/maps.ts); every other trip
+// renders none of this.
+
+/** The season's name: local name in the day's colour, the English, the span. One line. */
+function SeasonLine({ season, dress, accent, span = true }: { season: Season; dress: Exclude<Dress, null>; accent: string; span?: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0, whiteSpace: 'nowrap' }}>
+      <span lang={dress} style={{ fontFamily: cjkFont(dress), fontWeight: 600, fontSize: 14, letterSpacing: '0.08em', color: accent, flexShrink: 0 }}>
+        {season.local}
+      </span>
+      <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 300, fontSize: 13.5, color: 'var(--ink-2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {season.english}
+      </span>
+      {span && (
+        <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.1em', color: 'var(--ink-4)', marginLeft: 'auto', flexShrink: 0 }}>
+          {seasonSpan(season)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** What people say at the door: on the way out above day 1, coming home in the footer. */
+function DoorLine({ dress, which }: { dress: Exclude<Dress, null>; which: 'out' | 'home' }) {
+  const { local, reading } = doorLine(dress, which);
+  // Japan: the reading is the larger (Nathan learns by sound). China: the characters.
+  const ja = dress === 'ja';
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 8, whiteSpace: 'nowrap', color: 'var(--ink-2)' }}>
+      <span lang={dress} style={{ fontFamily: cjkFont(dress), fontSize: ja ? 13 : 16, letterSpacing: '0.1em', color: ja ? 'var(--ink-3)' : 'var(--ink-2)' }}>{local}</span>
+      <span aria-hidden style={{ color: 'var(--ink-4)', fontSize: 12 }}>·</span>
+      {/* Pinyin in Georgia: Fraunces italic draws the macron of ā off its letter. */}
+      <span style={{ fontFamily: ja ? 'var(--font-serif)' : "Georgia, 'Times New Roman', serif", fontStyle: 'italic', fontWeight: ja ? 300 : 400, fontSize: ja ? 16 : 14, color: ja ? 'var(--ink-2)' : 'var(--ink-3)' }}>{reading}</span>
+    </div>
+  );
+}
+
 function DayBlock({
   day,
   weather,
@@ -872,7 +912,12 @@ function DayBlock({
   maybe,
   afterStop,
   nowMin,
+  season,
+  dress = null,
 }: {
+  /** The season's name, only on the day it starts (or the trip's first dressed day). */
+  season?: Season | null;
+  dress?: Dress;
   /** Today only: minutes after midnight in the day's zone, for the Now card. */
   nowMin?: number | null;
   /** Where you sleep tonight: names the town and colours the accent. */
@@ -1133,6 +1178,11 @@ function DayBlock({
             </div>
             {weatherPill && <span style={{ marginTop: 2, display: 'inline-flex' }}>{weatherPill}</span>}
           </div>
+          {season && dress && (
+            <div style={{ marginTop: 5 }}>
+              <SeasonLine season={season} dress={dress} accent={accent} />
+            </div>
+          )}
         </div>
       </div>
       <div style={{ padding: '0 12px' }}>
@@ -1256,6 +1306,15 @@ function WeatherTab({
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-4)', marginTop: 4 }}>
               No weather data
             </div>
+            {(() => {
+              const dr = dressFor(day.tz || trip.tz);
+              const se = seasonFor(dr, date);
+              return se && dr ? (
+                <div style={{ marginTop: 5 }}>
+                  <SeasonLine season={se} dress={dr} accent="var(--ink-3)" span={false} />
+                </div>
+              ) : null;
+            })()}
           </div>
         );
 
@@ -1303,6 +1362,15 @@ function WeatherTab({
                 }}>
                   {city} · Day {i + 1}
                 </div>
+                {(() => {
+                  const dr = dressFor(day.tz || trip.tz);
+                  const se = seasonFor(dr, date);
+                  return se && dr ? (
+                    <div style={{ marginTop: 5 }}>
+                      <SeasonLine season={se} dress={dr} accent={accentColor} span={false} />
+                    </div>
+                  ) : null;
+                })()}
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <div style={{ fontSize: 28, fontWeight: 300, color: 'var(--ink)', lineHeight: 1 }}>
@@ -1429,7 +1497,9 @@ type Tab = 'itinerary' | 'logistics' | 'weather';
 // ── DAY RAIL ─────────────────────────────────────────────────────────────────
 // One row of day chips. Lives in the dark hero and drops out of a pinned day header;
 // the variant only changes the colours.
-function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme, toneFor }: {
+function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme, toneFor, dress = null }: {
+  /** Japan / China trips: the weekday character after the date. */
+  dress?: Dress;
   /** The town colour under each pill, from where you sleep that night. */
   toneFor?: (i: number) => string | null;
   days: Day[];
@@ -1493,6 +1563,11 @@ function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme, to
           >
             {today && <span style={{ width: 5, height: 5, borderRadius: '50%', background: on ? 'var(--brass)' : 'var(--brass)' }} />}
             {chipLabel(dateStart, i)}
+            {dress && (
+              <span aria-hidden lang={dress} style={{ fontFamily: cjkFont(dress), fontSize: 12, lineHeight: 1, letterSpacing: 0, marginLeft: -2, opacity: on ? 0.75 : 0.6 }}>
+                {weekdayChar(dress, dateForDay(dateStart, i))}
+              </span>
+            )}
             {day.icon && <span aria-hidden style={{ fontSize: 11, lineHeight: 1 }}>{day.icon}</span>}
             {tone && (
               <span aria-hidden style={{ position: 'absolute', left: 10, right: 10, bottom: 0, height: 3, borderRadius: '3px 3px 0 0', background: tone }} />
@@ -1556,7 +1631,7 @@ interface TripViewProps {
   days: Day[];
   stays?: Stay[];
   /** Set on /trips/<slug>/<part>: the page shows only that part's dates. */
-  part?: { key: string; label: string; wholeHref: string };
+  part?: { key: string; label: string; wholeHref: string; opensTrip?: boolean; endsTrip?: boolean };
 }
 
 const TAB_HASHES: Record<string, Tab> = { logistics: 'logistics', weather: 'weather', itinerary: 'itinerary' };
@@ -1565,6 +1640,12 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   const router = useRouter();
   // China trips link Apple Maps; see lib/maps.ts.
   const appleMaps = usesAppleMaps(trip.tz);
+  // Japan / China touches; null for every other trip. Day-level things use the
+  // day's zone where it has one (a flight day from LA wears nothing).
+  const tripDress = dressFor(trip.tz);
+  const dayDress = (i: number): Dress => dressFor(days[i]?.tz || trip.tz);
+  const seasonOf = (i: number): Season | null =>
+    trip.date_start ? seasonFor(dayDress(i), dateForDay(trip.date_start, i)) : null;
   // Above koma on purpose: a frame marked underground has to keep trying once
   // there is signal, whether or not the mode is still open. See komaQueue.
   useQueueDrain();
@@ -2234,7 +2315,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         </div>
         {showRail && activeTab === 'itinerary' && (
           <div style={{ marginTop: 10 }}>
-            <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme}
+            <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme} dress={tripDress}
               toneFor={i => { const st = stayFor(i); return st ? stayTone(st, theme) : null; }} />
           </div>
         )}
@@ -2289,6 +2370,9 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         <>
           {tripUpcoming && <TripAlerts slug={part ? `${trip.slug}/${part.key}` : trip.slug} title={trip.title} theme={theme} hideWhenOn />}
           <main>
+            {tripDress && (!part || part.opensTrip) && (
+              <div style={{ margin: '22px 16px -4px' }}><DoorLine dress={tripDress} which="out" /></div>
+            )}
             {days.map((day, i) => {
               const stay = stayFor(i);
               const opens = !!stay && !!trip.date_start && dateForDay(trip.date_start, i) === stay.check_in;
@@ -2296,10 +2380,17 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
               const timeline = all.map(st => (st.is_optional && isAdded(st) ? { ...st, added: true } : st));
               return (
               <Fragment key={day.id}>
-              {opens && stay && <StayHeading stay={stay} firstNight={1 + stays.reduce((n, o) => (o.check_in < stay.check_in ? n + o.nights : n), 0)} />}
+              {opens && stay && <StayHeading stay={stay} dress={dayDress(i)} firstNight={1 + stays.reduce((n, o) => (o.check_in < stay.check_in ? n + o.nights : n), 0)} />}
               <DayBlock
                 day={day}
                 stay={stay}
+                dress={dayDress(i)}
+                season={(() => {
+                  // Only where a season starts: its first day, or the first
+                  // dressed day of the page. Never on the folded header.
+                  const se = seasonOf(i);
+                  return se && (i === 0 || seasonOf(i - 1)?.from !== se.from) ? se : null;
+                })()}
                 stops={timeline}
                 footerFor={verdicts.owner ? (st => {
                   const shot = bigShots.find(s => s.stop_id === st.id && s.day_id === day.id);
@@ -2375,7 +2466,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
                   </>
                 ) : undefined}
                 rail={showRail ? (
-                  <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme}
+                  <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} dress={tripDress}
                     toneFor={j => { const st = stayFor(j); return st ? stayTone(st, null) : null; }} />
                 ) : null}
               />
@@ -2469,6 +2560,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-4)' }}>
               {when ? `The end · ${when}` : trip.title}
             </div>
+            {tripDress && (!part || part.endsTrip) && <DoorLine dress={tripDress} which="home" />}
             {lastStop && (
               <div style={{ fontFamily: 'var(--font-serif)', fontSize: 17, color: 'var(--ink-2)', lineHeight: 1.35, maxWidth: 320 }}>
                 {lastStop.title}{ends ? <span style={{ color: 'var(--ink-3)' }}>{`, ${ends}`}</span> : null}
