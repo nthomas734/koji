@@ -1,5 +1,5 @@
 -- koji — SCHEMA-SYNC.sql
--- ============================================================
+-- =====================================================
 -- What this is: the complete koji_ schema as it exists in the live Kura
 -- Supabase project (project lrbmtcyhqzuyczovajnj). Reverse-engineered from
 -- the live database on 2026-07-18 by introspection only.
@@ -20,7 +20,7 @@
 -- anon SELECT only (and only on published trips) — there are no anon write
 -- policies. Writes go through the SQL Editor / service role. That is
 -- reproduced faithfully below; do not add write policies to "fix" it.
--- ============================================================
+-- =====================================================
 
 -- ---------- 1. trigger function ----------
 
@@ -152,3 +152,15 @@ alter table koji_stops add column if not exists say_gloss     text;
 -- Station names in Latin letters (sql/2026-11-15-koji-stop-station-names.sql).
 alter table koji_stops add column if not exists from_name     text;
 alter table koji_stops add column if not exists to_name       text;
+
+-- The thread (sql/2026-11-15-koji-stop-thread.sql). All nullable.
+
+alter table koji_stops add column if not exists hop_mode   text;
+alter table koji_stops add column if not exists hop_line   text;
+alter table koji_stops add column if not exists line_color text;
+alter table koji_stops drop constraint if exists koji_stops_hop_mode_check;
+alter table koji_stops add constraint koji_stops_hop_mode_check
+  check (hop_mode is null or hop_mode in ('train', 'metro', 'bus', 'taxi', 'car', 'walk', 'boat'));
+alter table koji_stops drop constraint if exists koji_stops_line_color_check;
+alter table koji_stops add constraint koji_stops_line_color_check
+  check (line_color is null or line_color ~ '^#[0-9A-Fa-f]{6}$');
