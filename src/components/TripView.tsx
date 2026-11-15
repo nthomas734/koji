@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Fragment, createContext, useState, useEffect, useRef, useCallback, useMemo, useContext, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Day, Logistics, Shot, Stay, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
@@ -914,6 +914,53 @@ function DoorLine({ dress, which }: { dress: Exclude<Dress, null>; which: 'out' 
   );
 }
 
+// ── WHICH DAY IS IN VIEW ─────────────────────────────────────────────────────
+// The scroll tracker's state (the day in view, the pinned and leaving headers,
+// whether the rail under a folded header is open) lives in this small store,
+// not in TripView's state (2026-11-15). As state it re-rendered the whole trip
+// at every day boundary: 34 DayBlocks and 240 stop rows on Japan, ~60 ms at a
+// 4x CPU slowdown, and a tap on the day rail did that 11 times over. Only the
+// headers and the two DayRails read it, each through a selector, so a boundary
+// now re-renders the day being left, the day being entered and the rails.
+// Don't move these back into useState on TripView.
+interface DayScroll { active: number; pinned: number; leaving: number; railOpen: boolean }
+const DAY_SCROLL_START: DayScroll = { active: 0, pinned: -1, leaving: -1, railOpen: false };
+
+function createDayScroll() {
+  let state = DAY_SCROLL_START;
+  const subs = new Set<() => void>();
+  return {
+    get: () => state,
+    set(patch: Partial<DayScroll> | ((s: DayScroll) => Partial<DayScroll>)) {
+      const next = { ...state, ...(typeof patch === 'function' ? patch(state) : patch) };
+      if (next.active === state.active && next.pinned === state.pinned
+        && next.leaving === state.leaving && next.railOpen === state.railOpen) return;
+      state = next;
+      subs.forEach(f => f());
+    },
+    subscribe(f: () => void) { subs.add(f); return () => { subs.delete(f); }; },
+  };
+}
+type DayScrollStore = ReturnType<typeof createDayScroll>;
+const DayScrollContext = createContext<DayScrollStore | null>(null);
+const noSubscribe = () => () => {};
+
+/** A slice of the scroll state; re-renders only when the slice changes. Return a primitive. */
+function useDayScroll<T>(select: (s: DayScroll) => T): T {
+  const store = useContext(DayScrollContext);
+  return useSyncExternalStore(
+    store ? store.subscribe : noSubscribe,
+    () => select(store ? store.get() : DAY_SCROLL_START),
+    () => select(DAY_SCROLL_START),
+  );
+}
+
+/** DayRail with its active chip read from the scroll store. */
+function LiveDayRail(props: Omit<React.ComponentProps<typeof DayRail>, 'active'>) {
+  const active = useDayScroll(s => s.active);
+  return <DayRail {...props} active={active} />;
+}
+
 function DayBlock({
   day,
   weather,
@@ -921,9 +968,6 @@ function DayBlock({
   dayTotal,
   themeColor,
   isToday,
-  pinned,
-  railOpen,
-  onToggleRail,
   rail,
   showToday,
   onToday,
@@ -965,9 +1009,6 @@ function DayBlock({
   dayTotal: number;
   themeColor: { bg: string; fg: string };
   isToday: boolean;
-  pinned: boolean;
-  railOpen: boolean;
-  onToggleRail: () => void;
   rail: React.ReactNode;
   showToday: boolean;
   onToday: () => void;
@@ -998,7 +1039,11 @@ function DayBlock({
   });
   const now = nowMin != null ? nowState(list, nowMin) : null;
   const accent = isToday ? 'var(--brass)' : stay ? stayTone(stay, null) : themeColor.bg;
-  const folded = pinned;
+  // Folded while its header is pinned, or on its way out under the next day's
+  const folded = useDayScroll(s => s.pinned === dayIndex || s.leaving === dayIndex);
+  const railOpen = useDayScroll(s => s.railOpen && s.pinned === dayIndex);
+  const dayScroll = useContext(DayScrollContext);
+  const onToggleRail = () => dayScroll?.set(s => ({ railOpen: !s.railOpen }));
 
   const weatherPill = weather && (
     <span className="num" style={{
@@ -1903,10 +1948,8 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   // Day awareness. todayIdx is -1 outside the trip; computed on the client so
   // the server render (UTC) never disagrees with the phone.
   const [todayIdx, setTodayIdx]   = useState(-1);
-  const [activeDay, setActiveDay] = useState(0);
-  const [pinnedDay, setPinnedDay] = useState(-1);
-  const [leavingDay, setLeavingDay] = useState(-1);
-  const [railOpen, setRailOpen]   = useState(false);
+  // Day in view, pinned / leaving headers, rail open: a store, not state (see DayScroll)
+  const [dayScroll] = useState(createDayScroll);
   const pendingDay = useRef<number | null>(null);
   const todayTz = todayIdx >= 0 ? (days[todayIdx].tz || trip.tz || null) : null;
   const nowMin = useZonedMinutes(todayTz, todayIdx >= 0);
@@ -1955,9 +1998,8 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
     if (!el) return;
     // scroll-margin-top on the section keeps the full header clear of the status bar
     el.scrollIntoView({ block: 'start', behavior });
-    setActiveDay(i);
-    setRailOpen(false);
-  }, []);
+    dayScroll.set({ active: i, railOpen: false });
+  }, [dayScroll]);
 
   // A day jump requested before the itinerary was on screen
   useEffect(() => {
@@ -1980,7 +2022,6 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
       blocks.forEach(b => {
         if (b.getBoundingClientRect().top <= 80) { current = Number(b.dataset.dayIdx); currentEl = b; }
       });
-      setActiveDay(current);
       // A header is pinned once it sits lower in its section than its own top margin
       let pinned = -1;
       if (currentEl) {
@@ -1991,10 +2032,6 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
           if (offset > DAY_HEADER_MARGIN + 2) pinned = current;
         }
       }
-      setPinnedDay(prev => {
-        if (prev !== pinned) setRailOpen(false);
-        return pinned;
-      });
       // The day before the current one, while its header is still on screen
       // being pushed up by the next section: keep it folded rather than letting
       // it spring back to two lines on its way out.
@@ -2008,7 +2045,8 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         const sec = b.getBoundingClientRect();
         if (sec.bottom > 0 && header.getBoundingClientRect().top - sec.top > DAY_HEADER_MARGIN + 2) leaving = current - 1;
       });
-      setLeavingDay(leaving);
+      // One update for the frame; a change of pinned day folds the rail away
+      dayScroll.set(s => ({ active: current, pinned, leaving, railOpen: s.pinned === pinned && s.railOpen }));
     };
     // rAF is paused in background tabs, so run synchronously there; otherwise
     // coalesce to one pass per frame
@@ -2029,7 +2067,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
       window.removeEventListener('resize', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [activeTab]);
+  }, [activeTab, dayScroll]);
 
   // ── tabs ─────────────────────────────────────────────────────────────────
   const setActiveTab = useCallback((t: Tab) => {
@@ -2224,6 +2262,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   const tonightTz = tonight ? (days[firstDayOf(tonight.stay)]?.tz || trip.tz || null) : null;
 
   return (
+    <DayScrollContext.Provider value={dayScroll}>
     <AppleMapsProvider value={appleMaps}>
     <div style={{
       maxWidth: 'var(--max-w)',
@@ -2344,7 +2383,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         </div>
         {showRail && activeTab === 'itinerary' && (
           <div style={{ marginTop: 10 }}>
-            <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme} dress={tripDress}
+            <LiveDayRail days={days} dateStart={trip.date_start!} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme} dress={tripDress}
               toneFor={i => { const st = stayFor(i); return st ? stayTone(st, theme) : null; }} />
           </div>
         )}
@@ -2466,9 +2505,6 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
                 themeColor={theme}
                 isToday={i === todayIdx}
                 nowMin={i === todayIdx ? nowMin : null}
-                pinned={i === pinnedDay || i === leavingDay}
-                railOpen={railOpen && i === pinnedDay}
-                onToggleRail={() => setRailOpen(v => !v)}
                 showToday={tripActive && i !== todayIdx}
                 onToday={goToday}
                 stampFor={stamping ? (stop => (
@@ -2496,7 +2532,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
                   </>
                 ) : undefined}
                 rail={showRail ? (
-                  <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} dress={tripDress}
+                  <LiveDayRail days={days} dateStart={trip.date_start!} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} dress={tripDress}
                     toneFor={j => { const st = stayFor(j); return st ? stayTone(st, null) : null; }} />
                 ) : null}
               />
@@ -2620,5 +2656,6 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
 
     </div>
     </AppleMapsProvider>
+    </DayScrollContext.Provider>
   );
 }
