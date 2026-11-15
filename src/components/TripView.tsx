@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, createContext, useState, useEffect, useRef, useCallback, useMemo, useContext, useSyncExternalStore } from 'react';
+import { Fragment, createContext, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useContext, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Day, Logistics, Shot, Stay, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
@@ -17,6 +17,7 @@ import { TripSearch, type SearchTarget } from '@/components/TripSearch';
 import { useQueueDrain, usePendingStatus } from '@/lib/komaQueue';
 import { appleDirectionsUrl, dressFor, mapsSearchUrl, placeUrl, usesAppleMaps, type Dress } from '@/lib/maps';
 import { cjkFont, doorLine, weekdayChar } from '@/lib/dress';
+import { HOLD_VARS, rememberHeight } from '@/lib/hold';
 import { seasonFor, seasonSpan, type Season } from '@/lib/seasons';
 import { AppleMapsProvider, useAppleMaps } from '@/components/MapsContext';
 import { newPlaceKey, useVerdicts } from '@/lib/verdicts';
@@ -517,26 +518,52 @@ function WeatherHeroCard({
   loading,
   weather,
   isSeasonal,
+  expectSeasonal,
   fg,
 }: {
   loading: boolean;
   weather: DayWeather[];
   isSeasonal: boolean;
+  /** Seasonal averages are coming (the trip starts beyond the forecast window):
+   *  the pill will carry a second line, so the shimmer reserves it too. */
+  expectSeasonal: boolean;
   fg: string;
 }) {
   if (loading && weather.length === 0) {
-    // Shimmer skeleton in the shape of the loaded pill
+    // Shimmer skeleton in the shape of the loaded pill. It is in the server
+    // HTML, so it should be as tall as the pill that replaces it. The pill's
+    // height depends on how its condition text wraps, so: the height this
+    // phone saw on this page last time if there is one (lib/hold.ts), else the
+    // pill's own line boxes, invisible (one line, or two for seasonal).
+    // expectSeasonal comes from the date, which the prerender and the phone can
+    // disagree on near the 16-day line; only a display value differs then.
+    const ghost: React.CSSProperties = { visibility: 'hidden' };
     return (
       <div
         className="shimmer-anim"
         aria-label="Loading weather"
         style={{
-          height: 38,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
           maxWidth: 230,
+          height: `var(${HOLD_VARS.w}, auto)`,
+          padding: '10px 18px',
+          border: '0.5px solid transparent',
           borderRadius: 999,
           backgroundImage: `linear-gradient(90deg, ${fg}14 25%, ${fg}2e 50%, ${fg}14 75%)`,
         }}
-      />
+      >
+        <span aria-hidden style={{ ...ghost, fontSize: 17, lineHeight: 1 }}>&nbsp;</span>
+        <span aria-hidden style={{ ...ghost, fontSize: 13, fontWeight: 500 }}>&nbsp;</span>
+        {/* The right column, one line or two; both always rendered so the
+            server and the phone agree on the elements, only display differs */}
+        <span aria-hidden suppressHydrationWarning style={{ ...ghost, display: expectSeasonal ? 'none' : 'block', marginLeft: 'auto', fontSize: 12, lineHeight: 1.3 }}>&nbsp;</span>
+        <span aria-hidden suppressHydrationWarning style={{ ...ghost, display: expectSeasonal ? 'block' : 'none', marginLeft: 'auto', fontSize: 12, lineHeight: 1.3 }}>
+          &nbsp;<br />
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.1em' }}>&nbsp;</span>
+        </span>
+      </div>
     );
   }
 
@@ -1873,7 +1900,11 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
     setShots(cur => cur.map(s => (s.id === next.id ? next : s)));
   }, []);
   const [weatherMap, setWeatherMap]     = useState<Record<string, DayWeather>>({});
-  const [weatherLoading, setLoading]    = useState(false);
+  // Starts true whenever the weather effect will run (same condition), so the
+  // shimmer is in the server HTML and the itinerary below it never moves when
+  // it appears (2026-11-15; it used to pop in after hydration, ~50px).
+  const [weatherLoading, setLoading]    = useState(() => !!trip.date_start && (
+    (trip.lat != null && trip.lng != null) || days.some(d => d.lat != null && d.lng != null)));
   const [isSeasonal, setIsSeasonal]     = useState(false);
   const theme = THEMES[trip.header_theme] ?? THEMES.forest;
 
@@ -2348,6 +2379,18 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
 
   const showRail = !!trip.date_start && days.length > 1;
   const tripActive = todayIdx >= 0;
+  // How tall the weather pill came out, for the next load's shimmer (lib/hold.ts)
+  const pageKey = part ? `${trip.slug}/${part.key}` : trip.slug;
+  const wxRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!weatherLoading && wxRef.current) rememberHeight(pageKey, 'w', wxRef.current.getBoundingClientRect().height);
+  }, [weatherLoading, pageKey]);
+  // The same test the weather effect makes, for the shimmer's height
+  const expectSeasonal = !!trip.date_start && (() => {
+    const forecastLimit = new Date();
+    forecastLimit.setDate(forecastLimit.getDate() + 16);
+    return new Date(trip.date_start + 'T00:00') > forecastLimit;
+  })();
   // Alerts only make sense until the last day is over
   const tripUpcoming = !!trip.date_start && (trip.date_end || trip.date_start) >= fmtLocalDate(new Date());
   // The driver card's language follows the time zone of the stay's first night.
@@ -2456,12 +2499,15 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         </div>
 
         {hasCoords && (
-          <WeatherHeroCard
-            loading={weatherLoading}
-            weather={tripWeather}
-            isSeasonal={isSeasonal}
-            fg={theme.fg}
-          />
+          <div ref={wxRef}>
+            <WeatherHeroCard
+              loading={weatherLoading}
+              weather={tripWeather}
+              isSeasonal={isSeasonal}
+              expectSeasonal={expectSeasonal}
+              fg={theme.fg}
+            />
+          </div>
         )}
 
         {stays.length > 0 && trip.date_start && (

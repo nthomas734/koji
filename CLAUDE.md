@@ -722,6 +722,16 @@ date against `dateForDay`. During the trip the page opens scrolled to today
 the day chip and header are marked in brass. The hero's `DayRail` is where day
 jumping lives from the top of the page.
 
+**Nothing above the itinerary may pop in** (2026-11-15). The weather pill and
+the alerts note are only known after the page runs, and used to push the
+itinerary down 50-120px (layout shift 0.08). Now the weather shimmer is in the
+server HTML (`weatherLoading` starts true under the effect's own condition) and
+both hold space: `lib/hold.ts` records how tall each came out on this phone per
+trip page, and an inline script in `layout.tsx` (`HOLD_SCRIPT`, before first
+paint) sets `--koji-wx-h` / `--koji-alerts-h` for the placeholders. A phone
+that didn't show the note holds nothing. Keep the script in `<head>` and keep
+`suppressHydrationWarning` on `<html>` (the script writes its style).
+
 `viewport-fit: cover` in `layout.tsx` stays (safe-area insets pad the header
 and the bottom of the page), and `html` carries an explicit background and
 `color-scheme: light` because Safari tints its toolbar from it.

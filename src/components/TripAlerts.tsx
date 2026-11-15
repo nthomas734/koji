@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { pushState, subscribe, unsubscribe, type PushState } from '@/lib/push';
+import { HOLD_VARS, rememberHeight } from '@/lib/hold';
 
 // The alerts toggle, for trips that haven't ended. Styled as a one-row
 // QuickStrip card. On the itinerary it is a one-time setup prompt: with
@@ -18,6 +19,7 @@ export function TripAlerts({ slug, title, theme, hideWhenOn = false }: {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [dismissed, setDismissed] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try { setDismissed(localStorage.getItem(DISMISS_KEY) === '1'); } catch { /* private mode */ }
@@ -32,7 +34,15 @@ export function TripAlerts({ slug, title, theme, hideWhenOn = false }: {
       })
       .catch(() => setState('unsupported'));
   }, [slug]);
-  if (state == null || state === 'unsupported') return null;
+
+  // Remember how tall the itinerary copy came out, for next load (lib/hold.ts)
+  useLayoutEffect(() => {
+    if (hideWhenOn && state != null) rememberHeight(slug, 'a', boxRef.current?.getBoundingClientRect().height ?? 0);
+  }, [hideWhenOn, state, dismissed, slug]);
+
+  // Not known yet: hold the space this phone showed last time (0 if none)
+  if (state == null) return hideWhenOn ? <div aria-hidden style={{ height: `var(${HOLD_VARS.a}, 0px)` }} /> : null;
+  if (state === 'unsupported') return null;
   if (hideWhenOn && onAtLoad && state === 'on') return null;
   // A note you can't act on from here (install, or blocked in Settings) can be
   // waved away once per phone; the Logistics copy (no hideWhenOn) stays.
@@ -64,7 +74,7 @@ export function TripAlerts({ slug, title, theme, hideWhenOn = false }: {
   };
 
   return (
-    <div style={{ padding: '12px 12px 0' }}>
+    <div ref={boxRef} style={{ padding: '12px 12px 0' }}>
       <div style={{
         background: 'var(--surface)',
         border: '0.5px solid var(--border)',
