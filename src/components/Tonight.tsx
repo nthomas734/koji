@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { Stay } from '@/lib/supabase';
 import { stayTone } from './Stays';
 import { appleDirectionsUrl, dressFor, driverLang, type Dress } from '@/lib/maps';
 import { cjkFont } from '@/lib/dress';
 import { useAppleMaps } from './MapsContext';
+import { Placard, PlacardRule } from './Placard';
 
 // Logistics opens on where you sleep tonight (review D), with the two things
 // you need at a taxi rank: directions, and the address in Japanese to show.
@@ -114,24 +115,21 @@ function PlatformSign({ stay, label, dress, tone, prev, next }: {
   );
 }
 
-/** Full screen, parchment on ink, big enough to hold up to a taxi window. */
+/** Full screen on the shared placard, big enough to hold up to a taxi window. */
 export function DriverCard({ stay, lang = 'ja', onClose }: { stay: Stay; lang?: keyof typeof DRIVER_ASK; onClose: () => void }) {
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
-  }, [onClose]);
+  const font = cjkFont(lang);
   return (
-    <div role="dialog" aria-label="Show to driver" onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 1000, background: '#1E1B17', color: '#F3EEE4',
-      display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24,
-      padding: 'calc(env(safe-area-inset-top, 0px) + 28px) 24px calc(env(safe-area-inset-bottom, 0px) + 28px)',
-    }}>
-      <div style={{ fontSize: 16, opacity: 0.7 }} lang={lang}>{DRIVER_ASK[lang]}</div>
-      <div lang={lang} style={{ fontSize: 'clamp(30px, 9vw, 52px)', fontWeight: 700, lineHeight: 1.25 }}>{stay.hotel_ja || stay.hotel}</div>
-      <div lang={lang} style={{ fontSize: 'clamp(22px, 6.5vw, 36px)', lineHeight: 1.45 }}>{stay.address_ja}</div>
-      {stay.phone && <div style={{ fontSize: 22, fontFamily: 'var(--font-mono)' }}>☎ {stay.phone}</div>}
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.55 }}>Tap anywhere to close</div>
-    </div>
+    <Placard label={`Show to driver · ${stay.place}`} seal={lang === 'zh-Hans' ? '车' : '車'} sealLang={lang} sealFont={font} onClose={onClose}>
+      <div style={{ fontSize: 17, opacity: 0.7, fontFamily: font }} lang={lang}>{DRIVER_ASK[lang]}</div>
+      <div lang={lang} style={{ fontFamily: font, fontSize: 'clamp(30px, 9vw, 52px)', fontWeight: 700, lineHeight: 1.25 }}>{stay.hotel_ja || stay.hotel}</div>
+      <PlacardRule />
+      <div lang={lang} style={{ fontFamily: font, fontSize: 'clamp(22px, 6.5vw, 36px)', lineHeight: 1.45 }}>{stay.address_ja}</div>
+      {stay.phone && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.45 }}>Tel</span>
+          <span style={{ fontSize: 22, fontFamily: 'var(--font-mono)' }}>{stay.phone}</span>
+        </div>
+      )}
+    </Placard>
   );
 }

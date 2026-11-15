@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { Stop } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
+import { gloss } from '@/lib/glossary';
 import { zoneAbbr } from '@/lib/bookings';
 import { WhoChip } from './WhoChip';
 import type { Dress } from '@/lib/maps';
@@ -186,6 +187,25 @@ function TicketTime({ c, approx, under, align, lift }: { c: Clock; approx?: bool
   );
 }
 
+// The ferry's water: a wave drawn as a mask, so it takes the ticket's colour.
+const WAVE_SVG = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="14" height="6" viewBox="0 0 14 6"><path d="M0 3.2 C2.3 0.6 4.7 0.6 7 3.2 S11.7 5.8 14 3.2" fill="none" stroke="#000" stroke-width="1.5"/></svg>')}")`;
+const WAVE: React.CSSProperties = {
+  WebkitMaskImage: WAVE_SVG, maskImage: WAVE_SVG,
+  WebkitMaskRepeat: 'repeat-x', maskRepeat: 'repeat-x',
+  WebkitMaskSize: '14px 6px', maskSize: '14px 6px',
+  WebkitMaskPosition: 'center', maskPosition: 'center',
+};
+
+/** Two short strokes trailing off the stern, so the boat reads as under way. */
+function Wake() {
+  return (
+    <svg viewBox="0 0 14 8" width="14" height="8" aria-hidden="true" style={{ position: 'absolute', right: '100%', bottom: 1, marginRight: -3, opacity: 0.55 }}>
+      <path d="M13 2.2 C9.5 2.2 7 1 3.5 1.2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M13 5.8 C9 5.8 5.5 7.2 1 6.8" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }: {
   stop: Stop;
   /** Japan / China: the font and lang for the local station names, and the phrase chip. */
@@ -204,8 +224,9 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   // A named zone on the arrival means the trip crosses zones: name both ends.
   const depZone = given?.note && tz ? zoneAbbr(tz, new Date()) : undefined;
   const mode = modeOf(stop);
+  const ferry = mode === 'ferry';
   const changes = Number(stop.duration_label?.match(/(\d+)\s*change/)?.[1] ?? 0);
-  const bodyHtml = renderMd(stop.body_md);
+  const bodyHtml = gloss(renderMd(stop.body_md), dress);
   const tint = `color-mix(in srgb, ${accent} 17%, var(--surface))`;
   const deep = `color-mix(in srgb, ${accent} 62%, var(--ink))`;
   const routeLabel = stop.duration_label || '';
@@ -333,7 +354,10 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
           <TicketTime c={dep} under={depZone} align="left" lift={lift} />
 
           <div ref={routeRef} style={flow ? { position: 'relative', minWidth: 60, minHeight: 42, paddingTop: 26 } : { position: 'relative', height: 42, minWidth: 60 }}>
-            <div style={{ position: 'absolute', left: 0, right: 0, top: 21, borderTop: `1.5px dotted ${accent}`, opacity: 0.7 }} />
+            {ferry
+              // By sea the route is water, not a dotted rail: a soft wave line.
+              ? <div style={{ position: 'absolute', left: 0, right: 0, top: 18, height: 6, background: accent, opacity: 0.6, ...WAVE }} />
+              : <div style={{ position: 'absolute', left: 0, right: 0, top: 21, borderTop: `1.5px dotted ${accent}`, opacity: 0.7 }} />}
             {Array.from({ length: changes }, (_, i) => (
               <span key={i} style={{
                 position: 'absolute', top: 21, left: `${((i + 1) * 100) / (changes + 1)}%`,
@@ -343,6 +367,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
             ))}
             <span style={{ position: 'absolute', left: '50%', top: 1, transform: 'translateX(-50%)', color: accent, background: tint, padding: '0 4px' }}>
               <JourneyGlyph mode={mode} />
+              {ferry && <Wake />}
             </span>
             {flow ? (
               // The train's name sits on its own line above the duration, in
@@ -384,7 +409,9 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
       {(bodyHtml || stop.aircraft || seat || phrase || footer) && (
         <>
           {/* the tear line, with a notch cut from each side */}
-          <div style={{ position: 'relative', margin: '0 14px', borderTop: `1.5px dashed color-mix(in srgb, ${accent} 35%, transparent)` }}>
+          <div style={{ position: 'relative', margin: '0 14px', borderTop: ferry ? undefined : `1.5px dashed color-mix(in srgb, ${accent} 35%, transparent)` }}>
+            {/* by sea, the tear is a wave too */}
+            {ferry && <span style={{ position: 'absolute', left: 6, right: 6, top: -3, height: 6, background: `color-mix(in srgb, ${accent} 40%, transparent)`, ...WAVE }} />}
             <span style={{ position: 'absolute', top: -9, left: -23, width: 16, height: 16, borderRadius: '50%', background: 'var(--bg)' }} />
             <span style={{ position: 'absolute', top: -9, right: -23, width: 16, height: 16, borderRadius: '50%', background: 'var(--bg)' }} />
           </div>
