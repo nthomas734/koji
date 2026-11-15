@@ -9,6 +9,25 @@
   font-display: swap;
 }
 
+/* ── Long vowels ───────────────────────────────────────────────────────────
+   Fraunces draws the macron of ā ē ī ō ū beside its letter instead of over it
+   ("Arigato¯"), in roman and italic alike. Romaji and pinyin both need those
+   letters, so they come from a system serif, the same way the ampersand does.
+   Upper and lower case of the five vowels only; everything else stays Fraunces. */
+@font-face {
+  font-family: 'MacronSerif';
+  src: local('Georgia'), local('Iowan Old Style'), local('Times New Roman'), local('Charter');
+  unicode-range: U+0100-0101, U+0112-0113, U+012A-012B, U+014C-014D, U+016A-016B;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'MacronSerif';
+  font-style: italic;
+  src: local('Georgia Italic'), local('Georgia-Italic'), local('Iowan Old Style Italic'), local('Times New Roman Italic'), local('Charter Italic');
+  unicode-range: U+0100-0101, U+0112-0113, U+012A-012B, U+014C-014D, U+016A-016B;
+  font-display: swap;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 :root {
@@ -77,7 +96,7 @@
   --trip-lacquer:   #9E1B1B;  --trip-lacquer-fg:  #F2CF7E;
 
   --font-sans:    'Manrope', system-ui, sans-serif;
-  --font-serif:   'AmpSerif', 'Fraunces', Georgia, serif;
+  --font-serif:   'AmpSerif', 'MacronSerif', 'Fraunces', Georgia, serif;
   --font-mono:    'Geist Mono', 'SF Mono', monospace;
 
   --max-w: 640px;
