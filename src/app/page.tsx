@@ -89,10 +89,10 @@ function NextTrip({ trip, stays, today }: { trip: Trip; stays: Stay[]; today: st
   );
 }
 
-function TripTile({ trip, wide }: { trip: Trip; wide?: boolean }) {
+function TripTile({ trip, wide, prefetch }: { trip: Trip; wide?: boolean; prefetch?: boolean }) {
   const theme = themeOf(trip);
   return (
-    <Link href={`/trips/${trip.slug}`} className={`home-tile pressable${wide ? ' wide' : ''}`} style={{ background: theme.bg, color: theme.fg }}>
+    <Link href={`/trips/${trip.slug}`} prefetch={prefetch} className={`home-tile pressable${wide ? ' wide' : ''}`} style={{ background: theme.bg, color: theme.fg }}>
       <div className="e">{monthYear(trip.date_start)}</div>
       <div className="t">{trip.title}</div>
       {trip.subtitle && <div className="s">{trip.subtitle}</div>}
@@ -100,10 +100,13 @@ function TripTile({ trip, wide }: { trip: Trip; wide?: boolean }) {
   );
 }
 
-function TileGrid({ trips }: { trips: Trip[] }) {
+// Past tiles pass prefetch={false}: prefetching every past trip cost ~150 KB
+// on each cold home visit for pages rarely opened. The trade is that a past
+// trip isn't in the offline cache until it has been opened once (CLAUDE.md).
+function TileGrid({ trips, prefetch }: { trips: Trip[]; prefetch?: boolean }) {
   return (
     <div className="home-grid">
-      {trips.map((t, i) => <TripTile key={t.id} trip={t} wide={trips.length % 2 === 1 && i === trips.length - 1} />)}
+      {trips.map((t, i) => <TripTile key={t.id} trip={t} prefetch={prefetch} wide={trips.length % 2 === 1 && i === trips.length - 1} />)}
     </div>
   );
 }
@@ -160,7 +163,7 @@ export default async function HomePage() {
             {past.length > 0 && (
               <div className="home-side">
                 <div className="home-lbl">Past trips · {past.length}</div>
-                <TileGrid trips={past} />
+                <TileGrid trips={past} prefetch={false} />
               </div>
             )}
           </div>
