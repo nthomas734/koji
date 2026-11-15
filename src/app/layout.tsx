@@ -3,6 +3,7 @@ import './globals.css';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { SWRegister } from '@/components/SWRegister';
 import { ICON_180 } from './icon-data';
+import { HOLD_SCRIPT } from '@/lib/hold';
 
 export const metadata: Metadata = {
   title: 'koji',
@@ -35,8 +36,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the script below sets a style on <html> before React loads
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Before the first paint: hold the space the weather pill and the
+            alerts note took on this trip page last time, so the itinerary
+            doesn't jump when they appear. See lib/hold.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: HOLD_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
