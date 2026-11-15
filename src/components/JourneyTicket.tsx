@@ -187,6 +187,29 @@ function TicketTime({ c, approx, under, align, lift }: { c: Clock; approx?: bool
   );
 }
 
+// What kind of train a named service is, said under its name on the ticket
+// ("のぞみ Nozomi" / "fastest bullet train"), since the names alone don't say.
+const KINDS: [RegExp, string, boolean][] = [
+  [/nozomi|のぞみ/i, 'fastest', true],
+  [/hikari|ひかり/i, 'semi-fast', true],
+  [/kodama|こだま/i, 'all-stops', true],
+  [/mizuho|みずほ/i, 'fastest', true],
+  [/sakura|さくら/i, 'semi-fast', true],
+  [/relay kamome|リレーかもめ/i, 'limited express', false],
+  [/kamome|かもめ/i, 'Nishi-Kyushu', true],
+  [/midori|みどり|huis ten bosch|ハウステンボス|romancecar|ロマンスカー/i, 'limited express', false],
+];
+export function trainKind(service: string): string {
+  if (!service) return '';
+  const parts = service.split(/\s*\+\s*/).map(part => KINDS.find(([re]) => re.test(part))).filter(Boolean) as [RegExp, string, boolean][];
+  if (!parts.length) return '';
+  if (parts.every(p => p[2])) {
+    const words = parts.map(p => p[1]);
+    return words.length === 1 ? `${words[0]} bullet train` : `${words.join(', then ')} bullet trains`;
+  }
+  return parts.map(p => p[2] ? `${p[1]} bullet train` : p[1]).join(', then ');
+}
+
 // The ferry's water: a wave drawn as a mask, so it takes the ticket's colour.
 const WAVE_SVG = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="14" height="6" viewBox="0 0 14 6"><path d="M0 3.2 C2.3 0.6 4.7 0.6 7 3.2 S11.7 5.8 14 3.2" fill="none" stroke="#000" stroke-width="1.5"/></svg>')}")`;
 const WAVE: React.CSSProperties = {
@@ -231,6 +254,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   const deep = `color-mix(in srgb, ${accent} 62%, var(--ink))`;
   const routeLabel = stop.duration_label || '';
   const service = stop.service_label?.trim() || '';
+  const kind = trainKind(service);
   const seat = stop.seat_label?.trim() || '';
   // Where it goes, readably: from_name / to_name ("Gora", "West Kowloon") lead
   // on any trip. The local names (強羅) need a dress for the font and lang, and
@@ -381,6 +405,11 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
                 {service && (
                   <span lang={dress ?? undefined} style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 500, letterSpacing: 0, marginBottom: 1, overflowWrap: 'anywhere' }}>
                     {service}
+                  </span>
+                )}
+                {kind && (
+                  <span style={{ textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400, letterSpacing: 0, opacity: 0.7, marginTop: -1, marginBottom: 2 }}>
+                    {kind}
                   </span>
                 )}
                 {routeLabel && (split ? splitParts : <span ref={labelRef} style={{ whiteSpace: 'nowrap', background: tint, padding: '0 5px' }}>{durationParts}</span>)}

@@ -7,7 +7,8 @@
 //
 // Matching is whole-word and case-insensitive, never inside a link (a place
 // name like "Shinsho Soba" stays a plain tap to the map), and only once per
-// card. Longer terms win over shorter ones ("sara udon" before "udon").
+// card (per meaning, so "Edo-era" and "Edo period" don't both underline).
+// Longer terms win over shorter ones ("relay kamome" before "kamome").
 
 import type { Dress } from './maps';
 
@@ -46,6 +47,26 @@ const JA: Record<string, string> = {
   'ekimae': '"In front of the station": the station-square side of town.',
   'hondori': 'The main shopping street; Hondōri means "main street".',
   'kappa': 'A water spirit from folklore, Kizakura\'s mascot: a turtle-like imp with a dish on its head.',
+  // Trains, so each bullet train says what kind it is.
+  'nozomi': 'The fastest shinkansen on the Tokyo–Osaka–Hakata line; stops only at the big stations.',
+  'hikari': 'The middle-speed shinkansen on the Tokyo–Osaka line: a few more stops than the Nozomi.',
+  'kodama': 'The all-stops shinkansen: slowest, and the one that serves small stations like Mihara.',
+  'kamome': 'The Nishi-Kyushu shinkansen, Takeo-Onsen to Nagasaki, about 30 minutes.',
+  'relay kamome': 'The limited express that links Hakata to Takeo-Onsen, across the platform from the Kamome.',
+  'midori': 'A JR Kyushu limited express (not a bullet train), Hakata to Sasebo via Arita.',
+  'huis ten bosch': 'A JR Kyushu limited express named after the Dutch-themed park it runs to.',
+  'special rapid': 'A JR train a step up from a local: skips stops, no reservation, no extra fare.',
+  // People and eras the plan names in passing.
+  'edo-era': 'The Edo period, 1603 to 1868, when the shoguns ruled from Edo (now Tokyo).',
+  'edo period': 'The Edo period, 1603 to 1868, when the shoguns ruled from Edo (now Tokyo).',
+  'hideyoshi': 'Toyotomi Hideyoshi, the 16th-century warlord who unified Japan.',
+  'sakamoto ryoma': 'A samurai who helped bring down the shogunate in the 1860s; killed in Kyoto in 1867.',
+  // Everyday things.
+  'paypay': "Japan's most common phone-payment app (QR codes); needs a Japanese account, so think of it as cash only.",
+  'tabelog': "Japan's main restaurant-review site. Scores run low: 3.5 and up is very good.",
+  'tai somen': 'Sea bream laid over thin wheat noodles in its own broth, a Seto Inland Sea dish.',
+  'shimanami kaido': 'The 70 km route over seven bridges from Onomichi to Shikoku, famous for cycling.',
+  'morning service': '"Mōningu": a cheap breakfast deal at a coffee shop, usually toast and an egg with your coffee.',
 };
 
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
@@ -77,10 +98,10 @@ export function gloss(html: string, dress: Dress): string {
     }
     if (inLink || !part) return part;
     return part.replace(PATTERN, (word: string) => {
-      const key = word.toLowerCase();
-      if (seen.has(key)) return word;
-      seen.add(key);
-      return `<span class="gl" role="button" tabindex="0" data-gl="${esc(JA[key])}">${word}</span>`;
+      const def = JA[word.toLowerCase()];
+      if (seen.has(def)) return word;
+      seen.add(def);
+      return `<span class="gl" role="button" tabindex="0" data-gl="${esc(def)}">${word}</span>`;
     });
   }).join('');
 }
