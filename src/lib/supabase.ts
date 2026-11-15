@@ -133,6 +133,18 @@ export interface Stop {
   alert_off?: boolean | null;
   /** On a trip that splits: whose stop this is ("Dez", "Nathan"). Null = everyone. */
   who?: string | null;
+  /** Destination dress (sql/2026-11-15-koji-stop-dress.sql). Ticket details, shown
+   *  only on a stop that already renders as a JourneyTicket: the stations in the
+   *  local script (岡山, 博多), the train ("のぞみ Nozomi 21"), the car and seat. */
+  from_local?:    string | null;
+  to_local?:      string | null;
+  service_label?: string | null;
+  seat_label?:    string | null;
+  /** A phrase for the Say it (Japan) / Show it (China) chip: the local script,
+   *  how to say it (romaji / pinyin) and the English. say_local turns the chip on. */
+  say_local?:     string | null;
+  say_reading?:   string | null;
+  say_gloss?:     string | null;
 }
 
 // ── STAYS ───────────────────────────────────────────────────────────────────

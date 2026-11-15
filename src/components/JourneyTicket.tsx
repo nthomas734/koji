@@ -4,6 +4,9 @@ import type { Stop } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { zoneAbbr } from '@/lib/bookings';
 import { WhoChip } from './WhoChip';
+import type { Dress } from '@/lib/maps';
+import { cjkFont } from '@/lib/dress';
+import { SayChip, hasPhrase } from './SayIt';
 
 // ── JOURNEY TICKET ──────────────────────────────────────────────────────────
 // A travel stop you have to be on time for: one with a clock time and either a
@@ -14,6 +17,12 @@ import { WhoChip } from './WhoChip';
 // ticket doesn't repeat it. Zones (PT, JST) show only when the arrival names
 // one, i.e. a flight that crosses them. "Land at ..." stops, hops without a
 // duration and untimed errands stay ordinary stop cards.
+//
+// Destination dress (step 3a, Japan and China only): from_local / to_local
+// name the stations as the board shows them above each time, service_label
+// ("のぞみ Nozomi 21", "G8602") joins the label on the route, and seat_label
+// is one line in the lower half. Each shows only when set, so a ticket with
+// none of them renders exactly as before. The wash stays the day's colour.
 
 const PLANE_LAB = 'https://san-plane-lab.vercel.app/#';
 
@@ -157,17 +166,19 @@ const small: React.CSSProperties = {
 };
 
 /** "11:30" with a smaller "am" set right after it, and an optional line under. */
-function TicketTime({ c, approx, under, align }: { c: Clock; approx?: boolean; under?: string; align: 'left' | 'right' }) {
+function TicketTime({ c, approx, under, align, lift }: { c: Clock; approx?: boolean; under?: string; align: 'left' | 'right'; lift?: React.CSSProperties }) {
   return (
-    <div className="num" style={{ textAlign: align, fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 30, lineHeight: 1, whiteSpace: 'nowrap' }}>
+    <div className="num" style={{ textAlign: align, fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 30, lineHeight: 1, whiteSpace: 'nowrap', ...lift }}>
       {approx ? '~' : ''}{fmt(c)}<span style={{ fontSize: 15, marginLeft: 1 }}>{c.mer}</span>
       {under && <small style={small}>{under}</small>}
     </div>
   );
 }
 
-export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
+export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }: {
   stop: Stop;
+  /** Japan / China: the font and lang for the local station names, and the phrase chip. */
+  dress?: Dress;
   /** The day's zone, for the departure's "PT" when a flight crosses zones. */
   tz?: string | null;
   /** The day's colour: tonight's town, or the trip's. */
@@ -187,6 +198,21 @@ export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
   const tint = `color-mix(in srgb, ${accent} 17%, var(--surface))`;
   const deep = `color-mix(in srgb, ${accent} 62%, var(--ink))`;
   const routeLabel = stop.duration_label || '';
+  const service = stop.service_label?.trim() || '';
+  const seat = stop.seat_label?.trim() || '';
+  // Station names need a dress to pick the font and lang; without one they're skipped.
+  const fromLocal = dress ? stop.from_local?.trim() || '' : '';
+  const toLocal = dress ? stop.to_local?.trim() || '' : '';
+  const phrase = hasPhrase(stop, dress);
+  // With a train name the route label runs to two lines, so the route box grows
+  // and the times hang from the top, their middle level with the dotted line.
+  const lift: React.CSSProperties | undefined = service ? { alignSelf: 'start', paddingTop: 6 } : undefined;
+  const station = (name: string, align: 'left' | 'right') => (
+    <div lang={dress ?? undefined} style={{
+      textAlign: align, fontFamily: cjkFont(dress ?? 'ja'), fontWeight: 700, fontSize: 19, lineHeight: 1.15,
+      letterSpacing: '0.04em', color: deep, whiteSpace: 'nowrap',
+    }}>{name}</div>
+  );
 
   return (
     <article id={`stop-${stop.id}`} style={{
@@ -207,10 +233,17 @@ export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
           {stamp}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 10, marginTop: 8 }}>
-          <TicketTime c={dep} under={depZone} align="left" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 10, marginTop: 8, ...(fromLocal || toLocal ? { rowGap: 3 } : null) }}>
+          {(fromLocal || toLocal) && (
+            <>
+              {fromLocal ? station(fromLocal, 'left') : <span />}
+              <span />
+              {toLocal ? station(toLocal, 'right') : <span />}
+            </>
+          )}
+          <TicketTime c={dep} under={depZone} align="left" lift={lift} />
 
-          <div style={{ position: 'relative', height: 42, minWidth: 60 }}>
+          <div style={{ position: 'relative', height: service ? 58 : 42, minWidth: 60 }}>
             <div style={{ position: 'absolute', left: 0, right: 0, top: 21, borderTop: `1.5px dotted ${accent}`, opacity: 0.7 }} />
             {Array.from({ length: changes }, (_, i) => (
               <span key={i} style={{
@@ -222,14 +255,21 @@ export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
             <span style={{ position: 'absolute', left: '50%', top: 1, transform: 'translateX(-50%)', color: accent, background: tint, padding: '0 4px' }}>
               <JourneyGlyph mode={mode} />
             </span>
-            {routeLabel && (
+            {(routeLabel || service) && (
               // The time is the thing you glance for: big and plain, with the
               // changes beside it in a quieter voice ("1 h 50 · 1 change").
+              // The train's name, when there is one, sits on its own line above
+              // the duration: on one line it ran over the times at 375px.
               <span style={{
                 position: 'absolute', left: '50%', top: 26, transform: 'translateX(-50%)', whiteSpace: 'nowrap',
                 fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '0.02em',
                 fontVariantNumeric: 'tabular-nums', color: deep, background: tint, padding: '0 5px', lineHeight: 1.2,
               }}>
+                {service && (
+                  <span lang={dress ?? undefined} style={{ display: 'block', textAlign: 'center', fontSize: 11.5, fontWeight: 500, letterSpacing: 0, marginBottom: 1 }}>
+                    {service}
+                  </span>
+                )}
                 {routeLabel.split(/\s*·\s*/)[0]}
                 {routeLabel.split(/\s*·\s*/).slice(1).map((part, i) => (
                   <span key={i} style={{ fontSize: 11, fontWeight: 400, opacity: 0.75 }}> · {part}</span>
@@ -238,7 +278,7 @@ export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
             )}
           </div>
 
-          <div style={{ opacity: 0.8 }}>
+          <div style={{ opacity: 0.8, ...lift }}>
             {arr && <TicketTime c={arr} approx={!given} under={given?.note || undefined} align="right" />}
           </div>
         </div>
@@ -246,7 +286,7 @@ export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
         <h3 style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35, marginTop: 12, color: deep }}>{stop.title}</h3>
       </div>
 
-      {(bodyHtml || stop.aircraft || footer) && (
+      {(bodyHtml || stop.aircraft || seat || phrase || footer) && (
         <>
           {/* the tear line, with a notch cut from each side */}
           <div style={{ position: 'relative', margin: '0 14px', borderTop: `1.5px dashed color-mix(in srgb, ${accent} 35%, transparent)` }}>
@@ -258,8 +298,18 @@ export function JourneyTicket({ stop, accent, tz, stamp, footer }: {
               <div className="body-content" style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-2)' }}
                 dangerouslySetInnerHTML={{ __html: bodyHtml }} />
             )}
+            {(seat || phrase) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: bodyHtml ? 10 : 0 }}>
+                {seat && (
+                  <span lang={dress ?? undefined} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.04em', color: deep, minWidth: 0 }}>
+                    {seat}
+                  </span>
+                )}
+                {phrase && dress && <span style={{ marginLeft: 'auto' }}><SayChip stop={stop} dress={dress} color={deep} /></span>}
+              </div>
+            )}
             {stop.aircraft && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: bodyHtml ? 10 : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: bodyHtml || seat || phrase ? 10 : 0 }}>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.04em' }}>{aircraftName(stop.aircraft)}</span>
                 <a href={`${PLANE_LAB}${encodeURIComponent(stop.aircraft)}`} target="_blank" rel="noopener noreferrer" style={{
                   marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5,
