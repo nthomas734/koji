@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { Fragment, createContext, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useContext, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Day, Logistics, Shot, Stay, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
@@ -15,8 +15,7 @@ import { LAST_TRIP_KEY } from '@/components/OwnerNav';
 import { TripAlerts } from '@/components/TripAlerts';
 import { TripSearch, type SearchTarget } from '@/components/TripSearch';
 import { useQueueDrain, usePendingStatus } from '@/lib/komaQueue';
-import { mapsSearchUrl } from '@/lib/supabase';
-import { appleDirectionsUrl, dressFor, placeUrl, usesAppleMaps, type Dress } from '@/lib/maps';
+import { appleDirectionsUrl, dressFor, mapsSearchUrl, placeUrl, usesAppleMaps, type Dress } from '@/lib/maps';
 import { cjkFont, doorLine, weekdayChar } from '@/lib/dress';
 import { HOLD_VARS, rememberHeight } from '@/lib/hold';
 import { seasonFor, seasonSpan, type Season } from '@/lib/seasons';
@@ -203,37 +202,132 @@ async function fetchWeather(
   }
 }
 
-// Seasonal averages: fetches the same date range from the previous year
-// via Open-Meteo's archive API. Returns a synthetic DayWeather array
-// representing typical conditions for the trip dates.
-// Fetches one year of archive data via the /api/weather proxy route.
-// Proxying server-side avoids browser timeout issues and gets edge caching.
-async function fetchArchiveYear(
-  lat: number,
-  lng: number,
-  dateStart: string,
-  dateEnd: string,
-  delta: number,
-): Promise<DayWeather[]> {
-  const start = shiftYear(dateStart, delta);
-  const end   = shiftYear(dateEnd,   delta);
+/** Like Promise.all over fn, at most `limit` running at once; results in order. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) { const i = next++; out[i] = await fn(items[i]); }
+  }));
+  return out;
+}
 
-  const url = new URL('/api/weather', window.location.origin);
-  url.searchParams.set('lat',   String(lat));
-  url.searchParams.set('lng',   String(lng));
-  url.searchParams.set('start', start);
-  url.searchParams.set('end',   end);
+// ── SEASONAL AVERAGES ────────────────────────────────────────────────────────
+// The same dates over the last five years, through the /api/weather proxy
+// (historical-forecast-api: archive-api is unreachable from Vercel). One year
+// was one day's luck (a storm read as "12.6 precip"), so this averages the
+// highs and lows, keeps the spread of highs, and counts how many of the years
+// rained. Wind and UV aren't averaged: a single gusty day says nothing about
+// a season.
+const SEASON_YEARS = [-1, -2, -3, -4, -5];
+const RAIN_MM = 1; // a day with at least 1 mm counts as a rainy one
 
-  const res = await fetchWithTimeout(url.toString(), 28000);
-  if (!res.ok) throw new Error(`Weather proxy ${res.status}`);
-  const json = await res.json();
+/** One location's date range in one past year: one upstream request. */
+interface ArchiveItem { lat: number; lng: number; start: string; end: string }
+type ArchiveDaily = Record<string, unknown[]>;
+
+const archiveKey = (it: ArchiveItem) => `${it.lat},${it.lng},${it.start},${it.end}`;
+
+// Finished years are kept on the phone (2026-11-15): a range that ended more
+// than a week ago never changes, so the second visit shows the weather at once
+// and offline. Only those are kept. A range still running or ahead (China
+// 2027's "last year" is Nov–Dec 2026) is fetched every time, and nothing from
+// the live forecast or the past-trip archive is ever stored here.
+const WX_STORE = 'koji:wx-season:v1';
+const WX_STABLE_DAYS = 7;
+const WX_KEEP_DAYS = 120; // drop entries no trip page has read for this long
+
+type WxStore = Record<string, { d: ArchiveDaily; u: string }>;
+
+function readWxStore(): WxStore {
+  try { return JSON.parse(localStorage.getItem(WX_STORE) ?? '{}') ?? {}; } catch { return {}; }
+}
+
+function writeWxStore(store: WxStore) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - WX_KEEP_DAYS);
+  const keep = fmtLocalDate(cutoff);
+  for (const k of Object.keys(store)) if (store[k].u < keep) delete store[k];
+  try { localStorage.setItem(WX_STORE, JSON.stringify(store)); } catch { /* full or private mode */ }
+}
+
+function isStableRange(end: string): boolean {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - WX_STABLE_DAYS);
+  return end < fmtLocalDate(cutoff);
+}
+
+/** The old one-request-per-item path, kept as the fallback for a failed batch. */
+async function fetchArchiveOne(it: ArchiveItem): Promise<ArchiveDaily | null> {
+  try {
+    const url = new URL('/api/weather', window.location.origin);
+    url.searchParams.set('lat',   String(it.lat));
+    url.searchParams.set('lng',   String(it.lng));
+    url.searchParams.set('start', it.start);
+    url.searchParams.set('end',   it.end);
+    const res = await fetchWithTimeout(url.toString(), 28000);
+    if (!res.ok) return null;
+    return (await res.json()).daily ?? null;
+  } catch { return null; }
+}
+
+const BATCH_MAX = 120; // under the proxy's 150, and keeps the URL to a few KB
+
+/**
+ * The `daily` block for every item, in order; null where that year failed.
+ * Kept years come from the phone; the rest go to the proxy in one request
+ * (it makes the same upstream calls side by side). If the batch itself fails
+ * (an old deploy, a timeout), each item is asked for on its own, five at a
+ * time, which is about what the old per-location loop sent.
+ */
+async function fetchArchiveDailies(items: ArchiveItem[]): Promise<(ArchiveDaily | null)[]> {
+  const store = readWxStore();
+  const today = fmtLocalDate(new Date());
+  const out: (ArchiveDaily | null)[] = items.map(it => store[archiveKey(it)]?.d ?? null);
+  const missing = items.map((_, i) => i).filter(i => out[i] == null);
+
+  for (let c = 0; c < missing.length; c += BATCH_MAX) {
+    const idx = missing.slice(c, c + BATCH_MAX);
+    let got: (ArchiveDaily | null)[] | null = null;
+    try {
+      const url = new URL('/api/weather', window.location.origin);
+      url.searchParams.set('q', idx.map(i => archiveKey(items[i])).join(';'));
+      const res = await fetchWithTimeout(url.toString(), 28000);
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json.results) && json.results.length === idx.length) {
+          got = json.results.map((r: { daily?: ArchiveDaily | null }) => r.daily ?? null);
+        }
+      }
+    } catch { /* fall through to one at a time */ }
+    if (!got) got = await mapLimit(idx, 5, i => fetchArchiveOne(items[i]));
+    idx.forEach((i, k) => { out[i] = got![k]; });
+  }
+
+  let dirty = missing.length > 0;
+  items.forEach((it, i) => {
+    const d = out[i];
+    if (!d) return;
+    const key = archiveKey(it);
+    if (store[key]) {
+      if (store[key].u !== today) { store[key].u = today; dirty = true; }
+    } else if (isStableRange(it.end) && Array.isArray(d.time) && d.time.length > 0) {
+      store[key] = { d, u: today };
+    }
+  });
+  if (dirty) writeWxStore(store);
+  return out;
+}
+
+// One year's `daily` block as DayWeather, dated back to the trip year so the
+// weatherMap keys match. Throws on an empty year, which the average skips.
+function parseArchiveYear(daily: ArchiveDaily | null, delta: number): DayWeather[] {
   const {
     time, temperature_2m_max, temperature_2m_min, weathercode,
     windspeed_10m_max, precipitation_sum, uv_index_max,
-  } = json.daily ?? {};
+  } = (daily ?? {}) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   if (!time || (time as string[]).length === 0) throw new Error('No data');
 
-  // Shift dates back to the trip year so weatherMap keys match
   const yearShift = -delta;
   return (time as string[]).map((date: string, i: number) => ({
     date:       shiftYear(date, yearShift),
@@ -248,27 +342,24 @@ async function fetchArchiveYear(
   }));
 }
 
-// Seasonal averages: the same dates over the last five years, through the
-// proxy. One year was one day's luck (a storm read as "12.6 precip"), so this
-// averages the highs and lows, keeps the spread of highs, and counts how many
-// of the years rained. Wind and UV aren't averaged: a single gusty day says
-// nothing about a season.
-const SEASON_YEARS = [-1, -2, -3, -4, -5];
-const RAIN_MM = 1; // a day with at least 1 mm counts as a rainy one
+/** Seasonal averages for every location group, in group order. */
+async function fetchSeasonalWeatherAll(
+  groups: { lat: number; lng: number; dateStart: string; dateEnd: string }[],
+): Promise<DayWeather[][]> {
+  const items: ArchiveItem[] = groups.flatMap(g => SEASON_YEARS.map(delta => ({
+    lat: g.lat, lng: g.lng, start: shiftYear(g.dateStart, delta), end: shiftYear(g.dateEnd, delta),
+  })));
+  const dailies = await fetchArchiveDailies(items);
+  return groups.map((_, gi) => averageYears(SEASON_YEARS.map((delta, yi) => {
+    try { return parseArchiveYear(dailies[gi * SEASON_YEARS.length + yi], delta); } catch { return null; }
+  })));
+}
 
-async function fetchSeasonalWeather(
-  lat: number,
-  lng: number,
-  dateStart: string,
-  dateEnd: string,
-): Promise<DayWeather[]> {
-  const years = await Promise.allSettled(
-    SEASON_YEARS.map(delta => fetchArchiveYear(lat, lng, dateStart, dateEnd, delta)),
-  );
+function averageYears(years: (DayWeather[] | null)[]): DayWeather[] {
   const byDate = new Map<string, DayWeather[]>();
   for (const y of years) {
-    if (y.status !== 'fulfilled') continue;
-    for (const w of y.value) byDate.set(w.date, [...(byDate.get(w.date) ?? []), w]);
+    if (!y) continue;
+    for (const w of y) byDate.set(w.date, [...(byDate.get(w.date) ?? []), w]);
   }
   const out: DayWeather[] = [];
   for (const [date, ws] of byDate) {
@@ -941,6 +1032,53 @@ function DoorLine({ dress, which }: { dress: Exclude<Dress, null>; which: 'out' 
   );
 }
 
+// ── WHICH DAY IS IN VIEW ─────────────────────────────────────────────────────
+// The scroll tracker's state (the day in view, the pinned and leaving headers,
+// whether the rail under a folded header is open) lives in this small store,
+// not in TripView's state (2026-11-15). As state it re-rendered the whole trip
+// at every day boundary: 34 DayBlocks and 240 stop rows on Japan, ~60 ms at a
+// 4x CPU slowdown, and a tap on the day rail did that 11 times over. Only the
+// headers and the two DayRails read it, each through a selector, so a boundary
+// now re-renders the day being left, the day being entered and the rails.
+// Don't move these back into useState on TripView.
+interface DayScroll { active: number; pinned: number; leaving: number; railOpen: boolean }
+const DAY_SCROLL_START: DayScroll = { active: 0, pinned: -1, leaving: -1, railOpen: false };
+
+function createDayScroll() {
+  let state = DAY_SCROLL_START;
+  const subs = new Set<() => void>();
+  return {
+    get: () => state,
+    set(patch: Partial<DayScroll> | ((s: DayScroll) => Partial<DayScroll>)) {
+      const next = { ...state, ...(typeof patch === 'function' ? patch(state) : patch) };
+      if (next.active === state.active && next.pinned === state.pinned
+        && next.leaving === state.leaving && next.railOpen === state.railOpen) return;
+      state = next;
+      subs.forEach(f => f());
+    },
+    subscribe(f: () => void) { subs.add(f); return () => { subs.delete(f); }; },
+  };
+}
+type DayScrollStore = ReturnType<typeof createDayScroll>;
+const DayScrollContext = createContext<DayScrollStore | null>(null);
+const noSubscribe = () => () => {};
+
+/** A slice of the scroll state; re-renders only when the slice changes. Return a primitive. */
+function useDayScroll<T>(select: (s: DayScroll) => T): T {
+  const store = useContext(DayScrollContext);
+  return useSyncExternalStore(
+    store ? store.subscribe : noSubscribe,
+    () => select(store ? store.get() : DAY_SCROLL_START),
+    () => select(DAY_SCROLL_START),
+  );
+}
+
+/** DayRail with its active chip read from the scroll store. */
+function LiveDayRail(props: Omit<React.ComponentProps<typeof DayRail>, 'active'>) {
+  const active = useDayScroll(s => s.active);
+  return <DayRail {...props} active={active} />;
+}
+
 function DayBlock({
   day,
   weather,
@@ -948,9 +1086,6 @@ function DayBlock({
   dayTotal,
   themeColor,
   isToday,
-  pinned,
-  railOpen,
-  onToggleRail,
   rail,
   showToday,
   onToday,
@@ -992,9 +1127,6 @@ function DayBlock({
   dayTotal: number;
   themeColor: { bg: string; fg: string };
   isToday: boolean;
-  pinned: boolean;
-  railOpen: boolean;
-  onToggleRail: () => void;
   rail: React.ReactNode;
   showToday: boolean;
   onToday: () => void;
@@ -1025,7 +1157,11 @@ function DayBlock({
   });
   const now = nowMin != null ? nowState(list, nowMin) : null;
   const accent = isToday ? 'var(--brass)' : stay ? stayTone(stay, null) : themeColor.bg;
-  const folded = pinned;
+  // Folded while its header is pinned, or on its way out under the next day's
+  const folded = useDayScroll(s => s.pinned === dayIndex || s.leaving === dayIndex);
+  const railOpen = useDayScroll(s => s.railOpen && s.pinned === dayIndex);
+  const dayScroll = useContext(DayScrollContext);
+  const onToggleRail = () => dayScroll?.set(s => ({ railOpen: !s.railOpen }));
 
   const weatherPill = weather && (
     <span className="num" style={{
@@ -1934,10 +2070,8 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   // Day awareness. todayIdx is -1 outside the trip; computed on the client so
   // the server render (UTC) never disagrees with the phone.
   const [todayIdx, setTodayIdx]   = useState(-1);
-  const [activeDay, setActiveDay] = useState(0);
-  const [pinnedDay, setPinnedDay] = useState(-1);
-  const [leavingDay, setLeavingDay] = useState(-1);
-  const [railOpen, setRailOpen]   = useState(false);
+  // Day in view, pinned / leaving headers, rail open: a store, not state (see DayScroll)
+  const [dayScroll] = useState(createDayScroll);
   const pendingDay = useRef<number | null>(null);
   const todayTz = todayIdx >= 0 ? (days[todayIdx].tz || trip.tz || null) : null;
   const nowMin = useZonedMinutes(todayTz, todayIdx >= 0);
@@ -1986,9 +2120,8 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
     if (!el) return;
     // scroll-margin-top on the section keeps the full header clear of the status bar
     el.scrollIntoView({ block: 'start', behavior });
-    setActiveDay(i);
-    setRailOpen(false);
-  }, []);
+    dayScroll.set({ active: i, railOpen: false });
+  }, [dayScroll]);
 
   // A day jump requested before the itinerary was on screen
   useEffect(() => {
@@ -2011,7 +2144,6 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
       blocks.forEach(b => {
         if (b.getBoundingClientRect().top <= 80) { current = Number(b.dataset.dayIdx); currentEl = b; }
       });
-      setActiveDay(current);
       // A header is pinned once it sits lower in its section than its own top margin
       let pinned = -1;
       if (currentEl) {
@@ -2022,10 +2154,6 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
           if (offset > DAY_HEADER_MARGIN + 2) pinned = current;
         }
       }
-      setPinnedDay(prev => {
-        if (prev !== pinned) setRailOpen(false);
-        return pinned;
-      });
       // The day before the current one, while its header is still on screen
       // being pushed up by the next section: keep it folded rather than letting
       // it spring back to two lines on its way out.
@@ -2039,7 +2167,8 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         const sec = b.getBoundingClientRect();
         if (sec.bottom > 0 && header.getBoundingClientRect().top - sec.top > DAY_HEADER_MARGIN + 2) leaving = current - 1;
       });
-      setLeavingDay(leaving);
+      // One update for the frame; a change of pinned day folds the rail away
+      dayScroll.set(s => ({ active: current, pinned, leaving, railOpen: s.pinned === pinned && s.railOpen }));
     };
     // rAF is paused in background tabs, so run synchronously there; otherwise
     // coalesce to one pass per frame
@@ -2060,7 +2189,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
       window.removeEventListener('resize', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [activeTab]);
+  }, [activeTab, dayScroll]);
 
   // ── tabs ─────────────────────────────────────────────────────────────────
   const setActiveTab = useCallback((t: Tab) => {
@@ -2217,14 +2346,15 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         return;
       }
 
-      const allResults: DayWeather[] = [];
-
-      for (const group of locationGroups) {
-        const results = useSeasonal
-          ? await fetchSeasonalWeather(group.lat, group.lng, group.dateStart, group.dateEnd)
-          : await fetchWeather(group.lat, group.lng, group.dateStart, group.dateEnd);
-        allResults.push(...results);
-      }
+      // Locations side by side (they used to go one after another, a round
+      // trip each). Group order is kept: where two groups' ranges share a
+      // date, the later group wins, as before. The forecast and past-trip
+      // calls go straight to Open-Meteo from the phone, four at a time: it
+      // refuses too many concurrent requests from one address.
+      const perGroup = useSeasonal
+        ? await fetchSeasonalWeatherAll(locationGroups)
+        : await mapLimit(locationGroups, 4, g => fetchWeather(g.lat, g.lng, g.dateStart, g.dateEnd));
+      const allResults: DayWeather[] = perGroup.flat();
 
       if (cancelled) return;
       if (useSeasonal && allResults.length > 0) setIsSeasonal(true);
@@ -2267,6 +2397,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   const tonightTz = tonight ? (days[firstDayOf(tonight.stay)]?.tz || trip.tz || null) : null;
 
   return (
+    <DayScrollContext.Provider value={dayScroll}>
     <AppleMapsProvider value={appleMaps}>
     <div style={{
       maxWidth: 'var(--max-w)',
@@ -2390,7 +2521,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         </div>
         {showRail && activeTab === 'itinerary' && (
           <div style={{ marginTop: 10 }}>
-            <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme} dress={tripDress}
+            <LiveDayRail days={days} dateStart={trip.date_start!} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme} dress={tripDress}
               toneFor={i => { const st = stayFor(i); return st ? stayTone(st, theme) : null; }} />
           </div>
         )}
@@ -2512,9 +2643,6 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
                 themeColor={theme}
                 isToday={i === todayIdx}
                 nowMin={i === todayIdx ? nowMin : null}
-                pinned={i === pinnedDay || i === leavingDay}
-                railOpen={railOpen && i === pinnedDay}
-                onToggleRail={() => setRailOpen(v => !v)}
                 showToday={tripActive && i !== todayIdx}
                 onToday={goToday}
                 stampFor={stamping ? (stop => (
@@ -2542,7 +2670,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
                   </>
                 ) : undefined}
                 rail={showRail ? (
-                  <DayRail days={days} dateStart={trip.date_start!} active={activeDay} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} dress={tripDress}
+                  <LiveDayRail days={days} dateStart={trip.date_start!} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} dress={tripDress}
                     toneFor={j => { const st = stayFor(j); return st ? stayTone(st, null) : null; }} />
                 ) : null}
               />
@@ -2666,5 +2794,6 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
 
     </div>
     </AppleMapsProvider>
+    </DayScrollContext.Provider>
   );
 }

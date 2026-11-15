@@ -47,6 +47,7 @@ Conventions that hold everywhere:
 ## Data flow
 
 - **Public pages** (`/` and `/trips/[slug]`) are async Server Components with `export const revalidate = 60`. They read through the anon Supabase client in `src/lib/supabase.ts` (RLS-enforced) and pass fully-resolved props into the client component `TripView`.
+- **Client components never import a value from `lib/supabase.ts`** (`import type` is fine). The file calls `createClient` at the top, so one value import puts supabase-js (~65 KB compressed) into every reader's trip page. That is how `mapsSearchUrl` did it until 2026-11-15; it now lives in `lib/maps.ts`, and `lib/push.ts` talks to `koji_push` with plain `fetch` against PostgREST. Check with `npm run build`: `/trips/[slug]` First Load JS is ~177 kB, not ~242 kB.
 - **Admin pages** are Server Components that check the cookie themselves and `redirect('/admin/login')`, then fetch with `supabaseAdmin()` (service key, bypasses RLS) and hand data to the client editor.
 - **Admin writes** never touch Supabase from the browser. `TripEditor` holds `useState` copies of trip/logistics/days, updates local state optimistically, and `fetch`es the `/api/admin/*` routes. There is no `router.refresh()` after save — local state *is* the post-save truth until reload.
 
@@ -70,6 +71,7 @@ All of this lives in `src/components/TripView.tsx` and runs client-side in a `us
 - Live forecast comes straight from `api.open-meteo.com` in the browser; fetches are wrapped in `fetchWithTimeout` (AbortController).
 - Trips more than **16 days in the future fall back to seasonal averages**: `fetchSeasonalWeather` / `fetchArchiveYear` fetch the same date range from 1 then 2 years ago **through the `/api/weather` proxy** (`historical-forecast-api` — confirmed reachable from Vercel) and shift the dates forward to match `weatherMap` keys. This path was dead code between commit `baca617` ("claude gave up on weather") and its re-enable; the browser-direct `archive-api.open-meteo.com` call still exists only for *past* trips and must not be moved server-side (unreachable from Vercel).
 - Forecast requests **clamp `end_date` to today+16** (`fetchWeather`) — Open-Meteo rejects out-of-range end dates, and without the clamp a trip partially inside the window would get no weather at all.
+- **Seasonal averages go in one request and stay on the phone (2026-11-15).** The years for every location go to `/api/weather?q=lat,lng,start,end;…` as one batch (`fetchArchiveDailies`); the proxy makes the same upstream calls as before, **six at a time** with a retry on "Too many concurrent requests": Open-Meteo refused 55 of 70 sent all at once. Don't lift that cap. If the batch fails, the old one-per-item GET (still served) runs five at a time. Each year's `daily` block is kept in localStorage (`koji:wx-season:v1`) **only once its range ended more than 7 days ago**. China 2027's "last year" is Nov–Dec 2026 and is fetched every visit until then. Live forecasts and the past-trip archive are never stored. Location groups now run side by side (forecast and past-trip calls four at a time), and group order is kept, because where two groups' ranges share a date the later one wins.
 - WMO weather codes are mapped to emoji + label by `wmoDisplay`; `summarizeWeather` averages highs/lows and picks a dominant condition bucket for the hero card.
 
 ## Rendering & presentation conventions
@@ -703,6 +705,16 @@ inside that box may change height on scroll. The day before the current one
 also stays folded (`leavingDay`) until its section has scrolled off, judged by
 the section's rect, not the header's. To check: scroll to each boundary, stop,
 and confirm the next section's top is identical across 10+ animation frames.
+
+**Scrolling must not re-render the trip** (2026-11-15). The tracker's output
+(day in view, pinned and leaving headers, rail open) is a small store
+(`createDayScroll` / `useDayScroll` in `TripView.tsx`), not state on `TripView`.
+Each `DayBlock` subscribes to its own two booleans and the two rails
+(`LiveDayRail`) to the active day, so crossing a boundary re-renders two days,
+not all of them (Japan at 4x CPU: 46 ms to 7 ms; a rail tap 230 ms to ~65 ms).
+Don't put these back into `useState` on `TripView`, and don't pass them down as
+props. `React.memo` on `DayBlock` would not do it, because its callbacks are
+fresh closures on every `TripView` render.
 
 Day awareness: `todayIdx` is computed on the client from the phone's local
 date against `dateForDay`. During the trip the page opens scrolled to today
