@@ -198,9 +198,10 @@ export function TravelThread({ stop, accent, stamp, footer }: {
       marginTop: 8,
       scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 64px)',
     }}>
-      {/* The route, through the gap: reaches into the 8px margins above and below. */}
+      {/* The route, through the gap: reaches into the 8px margin above and the
+          next stop's margin below (10px before a ticket; under a card it is hidden). */}
       <div aria-hidden="true" style={{
-        position: 'absolute', left: 12, top: -8, bottom: -8, borderLeft: `2px dotted ${color}`,
+        position: 'absolute', left: 12, top: -8, bottom: -10, borderLeft: `2px dotted ${color}`,
       }} />
       <div style={{ gridColumn: 1, gridRow: 1, alignSelf: 'center', position: 'relative', height: 26 }}>
         <span style={{
