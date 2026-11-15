@@ -1,3 +1,6 @@
+-- Superseded the same day: the thread became the stub, and the column comments
+-- below were replaced by sql/2026-11-15-koji-stop-stub.sql. The columns stand.
+
 -- koji: the thread. Three nullable text columns on koji_stops that turn a short
 -- travel stop into a thread (src/components/TravelThread.tsx): no card, a dotted
 -- line down the gap between two stops in the line's colour, the mode in a small

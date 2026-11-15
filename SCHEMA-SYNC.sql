@@ -153,7 +153,8 @@ alter table koji_stops add column if not exists say_gloss     text;
 alter table koji_stops add column if not exists from_name     text;
 alter table koji_stops add column if not exists to_name       text;
 
--- The thread (sql/2026-11-15-koji-stop-thread.sql). All nullable.
+-- The stub for short hops (sql/2026-11-15-koji-stop-thread.sql, comments in
+-- sql/2026-11-15-koji-stop-stub.sql). All nullable.
 
 alter table koji_stops add column if not exists hop_mode   text;
 alter table koji_stops add column if not exists hop_line   text;
