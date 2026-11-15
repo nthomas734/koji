@@ -80,6 +80,12 @@ All of this lives in `src/components/TripView.tsx` and runs client-side in a `us
   A `@font-face` in `globals.css` scoped to `unicode-range: U+0026` pulls the
   ampersand from a system serif while everything else stays Fraunces. Don't
   remove it from `--font-serif`, and don't rewrite day labels to avoid `&`.
+- **`MacronSerif` sits second in the serif stack for the same reason.** Fraunces
+  draws the macron of ā ē ī ō ū beside the letter ("Arigato¯"), roman and italic.
+  A second `unicode-range` face in `globals.css` takes just those ten letters from
+  a system serif, so romaji on the Say it card and anywhere else in serif reads
+  correctly. Pinyin lines are still set wholly in Georgia (`SayIt.tsx`,
+  `TripView.tsx`), since they carry other tone marks too.
 - **Styling is inline React style objects plus CSS custom properties** in `src/app/globals.css`. There is no Tailwind, CSS-in-JS library, or component library. The design tokens (parchment `--bg: #F5F0E8`, `--ink-*`, `--brass`, tag colors, the 18 `--trip-*` theme pairs, `--font-serif` Fraunces / `--font-sans` Manrope / `--font-mono` Geist Mono, `--max-w: 640px`, `--px`) are the vocabulary — use them instead of literal hex values. Fonts load from Google Fonts via `<link>` in `layout.tsx`, not `next/font`.
 - The `HeaderTheme` → `{bg, fg}` map is **duplicated** as a JS object in both `src/app/page.tsx` (`THEME_COLORS`) and `TripView.tsx` (`THEMES`), and again as CSS vars. Adding a theme means touching all three.
 - Only genuinely responsive/pseudo-selector things are classes in `globals.css` (`.stop-row`, `.stop-tag`, `.logistics-grid`, `.body-content`), with a `max-width: 480px` breakpoint.
