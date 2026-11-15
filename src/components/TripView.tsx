@@ -4,6 +4,8 @@ import { Fragment, createContext, useState, useEffect, useLayoutEffect, useRef, 
 import { useRouter } from 'next/navigation';
 import type { Day, Logistics, Shot, Stay, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
+import { gloss } from '@/lib/glossary';
+import { GlossTip } from '@/components/GlossTip';
 import { KojiMark } from '@/components/KojiMark';
 import { KomaView, KomaShotCard } from '@/components/KomaView';
 import { ShotNote, TimedShot } from '@/components/ShotNote';
@@ -891,10 +893,10 @@ function StopRow({ stop, stamp, footer, accent, tz, dress = null }: {
   // Short hops that opt in (hop_mode) are a stub, the ticket's torn-off end;
   // one with a phrase stays a card so the Say it chip keeps its place.
   if (accent && isStub(stop) && !hasPhrase(stop, dress)) {
-    return <TravelStub stop={stop} accent={accent} stamp={stamp} footer={footer} />;
+    return <TravelStub stop={stop} accent={accent} dress={dress} stamp={stamp} footer={footer} />;
   }
   const tagColor = TAG_COLORS[stop.tag_color] ?? TAG_COLORS.gray;
-  const bodyHtml = renderMd(stop.body_md);
+  const bodyHtml = gloss(renderMd(stop.body_md), dress);
   // An optional stop only reaches the timeline once it has been added from the
   // maybes; then it is part of the plan and no longer reads as optional.
   const faded = stop.is_optional && !stop.added;
@@ -2576,6 +2578,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         <>
           {tripUpcoming && <TripAlerts slug={part ? `${trip.slug}/${part.key}` : trip.slug} title={trip.title} theme={theme} hideWhenOn />}
           <main>
+            {tripDress === 'ja' && <GlossTip />}
             {tripDress && (!part || part.opensTrip) && (
               <div style={{ margin: '22px 16px -4px' }}><DoorLine dress={tripDress} which="out" /></div>
             )}

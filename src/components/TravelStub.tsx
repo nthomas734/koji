@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import type { HopMode, Stop } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
-import { appleDirectionsUrl } from '@/lib/maps';
+import { gloss } from '@/lib/glossary';
+import { appleDirectionsUrl, type Dress } from '@/lib/maps';
 import { useAppleMaps } from './MapsContext';
 import { WhoChip } from './WhoChip';
 import { isJourney } from './JourneyTicket';
@@ -159,8 +160,10 @@ const notch: React.CSSProperties = {
   background: 'var(--bg)', transform: 'translateY(-50%)',
 };
 
-export function TravelStub({ stop, accent, stamp, footer }: {
+export function TravelStub({ stop, accent, dress = null, stamp, footer }: {
   stop: Stop;
+  /** For the glossary underlines (Japan trips only). */
+  dress?: Dress;
   /** The day's colour: tonight's town, or the trip's. Used when the stop has no line_color. */
   accent: string;
   stamp?: React.ReactNode;
@@ -170,7 +173,7 @@ export function TravelStub({ stop, accent, stamp, footer }: {
   const mode = stop.hop_mode as HopMode;
   const color = stop.line_color?.trim() || accent;
   const { wash, deep } = stubTones(color);
-  const bodyHtml = renderMd(stop.body_md);
+  const bodyHtml = gloss(renderMd(stop.body_md), dress);
   const tappable = !!bodyHtml;
   const hop = stop.hop_line?.trim();
 
