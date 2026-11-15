@@ -1,5 +1,6 @@
 'use client';
 
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { Stop } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { zoneAbbr } from '@/lib/bookings';
@@ -86,12 +87,21 @@ export function isJourney(stop: Stop): boolean {
   return mins == null || mins >= TICKET_MIN_MINUTES;
 }
 
-/** "4:30pm JST · Fri" → the time, and "JST · Fri" for the line under it. */
-function parseArrival(label: string | null | undefined): { at: Clock; note: string } | null {
+/**
+ * "4:30pm JST · Fri" → the time, and "JST · Fri" for the line under it.
+ * "7:25am · Wed" → "Wed": the separator after the time is dropped, or the
+ * note opened on a stray dot. "~7:00pm" → the time, approximate, and no note:
+ * the tilde used to stop the time matching, so the whole label was repeated.
+ */
+function parseArrival(label: string | null | undefined): { at: Clock; note: string; approx: boolean } | null {
   const at = parseClock(label ?? null);
   if (!at || !label) return null;
-  const note = label.replace(/^\s*\d{1,2}(?::\d{2})?\s*(am|pm)\s*/i, '').trim();
-  return { at, note };
+  const approx = /^\s*~/.test(label);
+  const note = label
+    .replace(/^\s*~?\s*\d{1,2}(?::\d{2})?\s*(am|pm)\s*/i, '')
+    .replace(/^[·•,\-–—\s]+/, '')
+    .trim();
+  return { at, note, approx };
 }
 
 function modeOf(stop: Stop): 'plane' | 'ferry' | 'train' {
@@ -210,17 +220,64 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   const toLocal = dress ? stop.to_local?.trim() || '' : '';
   const hasStations = !!(fromName || toName || fromLocal || toLocal);
   const phrase = hasPhrase(stop, dress);
+  const labelParts = routeLabel.split(/\s*·\s*/);
   const durationParts = (
     <>
-      {routeLabel.split(/\s*·\s*/)[0]}
-      {routeLabel.split(/\s*·\s*/).slice(1).map((part, i) => (
+      {labelParts[0]}
+      {labelParts.slice(1).map((part, i) => (
         <span key={i} style={{ fontSize: 11, fontWeight: 400, opacity: 0.75 }}> · {part}</span>
       ))}
     </>
   );
-  // With a train name the route label runs to two lines or more, so the route
-  // box grows and the times hang from the top, their middle level with the line.
-  const lift: React.CSSProperties | undefined = service ? { alignSelf: 'start', paddingTop: 6 } : undefined;
+  // A duration label that would run under a time ("50 min · 1 change" beside
+  // "10:30pm") breaks at its first "·" (or before a "+"): the time on one line,
+  // the rest under it. Measured after mount, against where the times' digits actually end, so
+  // a label that fits renders exactly as before, server HTML included.
+  const routeRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const [split, setSplit] = useState(false);
+  // Where to break: at the first "·", else before a "+" ("car 1½ h + train").
+  const breakAt: [string, string] | null = labelParts.length > 1
+    ? [labelParts[0], labelParts.slice(1).join(' · ')]
+    : /\s\+\s/.test(routeLabel) ? [routeLabel.split(/\s\+\s/)[0], '+ ' + routeLabel.split(/\s\+\s/).slice(1).join(' + ')] : null;
+  useLayoutEffect(() => {
+    const route = routeRef.current, label = labelRef.current, grid = route?.parentElement;
+    if (!route || !label || !grid || !breakAt) return;
+    const natural = label.getBoundingClientRect().width;
+    // The digits' own extent: the time's box can be wider (a note under it).
+    const digits = (el: Element | undefined) => {
+      const box = el?.matches('.num') ? el : el?.querySelector('.num');
+      if (!box) return null;
+      const range = document.createRange();
+      range.selectNodeContents(box);
+      const small = box.querySelector('small');
+      if (small) range.setEndBefore(small);
+      return range.getBoundingClientRect();
+    };
+    const check = () => {
+      const r = route.getBoundingClientRect();
+      const mid = r.left + r.width / 2;
+      const dep = digits(grid.children[0] ?? undefined);
+      const arr = digits(grid.children[2] ?? undefined);
+      setSplit((!!dep && mid - natural / 2 < dep.right - 1) || (!!arr && arr.width > 0 && mid + natural / 2 > arr.left + 1));
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(route);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeLabel]);
+  const flow = !!service || split;
+  const splitParts = breakAt && (
+    <>
+      <span style={{ whiteSpace: 'nowrap', background: tint, padding: '0 5px' }}>{breakAt[0]}</span>
+      <span style={{ whiteSpace: 'nowrap', fontSize: 11, fontWeight: 400, opacity: 0.75 }}>{breakAt[1]}</span>
+    </>
+  );
+  // When the route label runs to two lines or more (a train name, or a split
+  // duration), the route box grows and the times hang from the top, their
+  // middle level with the dotted line.
+  const lift: React.CSSProperties | undefined = flow ? { alignSelf: 'start', paddingTop: 6 } : undefined;
   // Each end gets half the ticket. The name may wrap but never truncates; the
   // characters are nowrap, so when the pair won't fit they drop under the name.
   const station = (name: string, local: string, align: 'left' | 'right') => {
@@ -275,7 +332,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 10, marginTop: hasStations ? 3 : 8 }}>
           <TicketTime c={dep} under={depZone} align="left" lift={lift} />
 
-          <div style={service ? { position: 'relative', minWidth: 60, minHeight: 42, paddingTop: 26 } : { position: 'relative', height: 42, minWidth: 60 }}>
+          <div ref={routeRef} style={flow ? { position: 'relative', minWidth: 60, minHeight: 42, paddingTop: 26 } : { position: 'relative', height: 42, minWidth: 60 }}>
             <div style={{ position: 'absolute', left: 0, right: 0, top: 21, borderTop: `1.5px dotted ${accent}`, opacity: 0.7 }} />
             {Array.from({ length: changes }, (_, i) => (
               <span key={i} style={{
@@ -287,7 +344,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
             <span style={{ position: 'absolute', left: '50%', top: 1, transform: 'translateX(-50%)', color: accent, background: tint, padding: '0 4px' }}>
               <JourneyGlyph mode={mode} />
             </span>
-            {service ? (
+            {flow ? (
               // The train's name sits on its own line above the duration, in
               // flow so it can wrap inside the route column: a long one
               // ("ロマンスカー Romancecar") ran over the departure time.
@@ -296,15 +353,17 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
                 fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '0.02em',
                 fontVariantNumeric: 'tabular-nums', color: deep, lineHeight: 1.2,
               }}>
-                <span lang={dress ?? undefined} style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 500, letterSpacing: 0, marginBottom: 1, overflowWrap: 'anywhere' }}>
-                  {service}
-                </span>
-                {routeLabel && <span style={{ whiteSpace: 'nowrap', background: tint, padding: '0 5px' }}>{durationParts}</span>}
+                {service && (
+                  <span lang={dress ?? undefined} style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 500, letterSpacing: 0, marginBottom: 1, overflowWrap: 'anywhere' }}>
+                    {service}
+                  </span>
+                )}
+                {routeLabel && (split ? splitParts : <span ref={labelRef} style={{ whiteSpace: 'nowrap', background: tint, padding: '0 5px' }}>{durationParts}</span>)}
               </div>
             ) : routeLabel && (
               // The time is the thing you glance for: big and plain, with the
               // changes beside it in a quieter voice ("1 h 50 · 1 change").
-              <span style={{
+              <span ref={labelRef} style={{
                 position: 'absolute', left: '50%', top: 26, transform: 'translateX(-50%)', whiteSpace: 'nowrap',
                 fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '0.02em',
                 fontVariantNumeric: 'tabular-nums', color: deep, background: tint, padding: '0 5px', lineHeight: 1.2,
@@ -315,7 +374,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
           </div>
 
           <div style={{ opacity: 0.8, ...lift }}>
-            {arr && <TicketTime c={arr} approx={!given} under={given?.note || undefined} align="right" />}
+            {arr && <TicketTime c={arr} approx={!given || given.approx} under={given?.note || undefined} align="right" />}
           </div>
         </div>
 
