@@ -137,3 +137,14 @@ create policy koji_public_read_trips     on koji_trips     for select using (pub
 create policy koji_public_read_days      on koji_days      for select using (true);
 create policy koji_public_read_stops     on koji_stops     for select using (true);
 create policy koji_public_read_logistics on koji_logistics for select using (true);
+
+-- ---------- 6. later koji_stops columns ----------
+-- Destination dress, step 3 (sql/2026-11-15-koji-stop-dress.sql). All nullable.
+
+alter table koji_stops add column if not exists from_local    text;
+alter table koji_stops add column if not exists to_local      text;
+alter table koji_stops add column if not exists service_label text;
+alter table koji_stops add column if not exists seat_label    text;
+alter table koji_stops add column if not exists say_local     text;
+alter table koji_stops add column if not exists say_reading   text;
+alter table koji_stops add column if not exists say_gloss     text;

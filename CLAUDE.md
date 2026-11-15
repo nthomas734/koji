@@ -832,7 +832,7 @@ Alerts turned on from a part link subscribe as `<slug>/<part>`: only that part's
 days, linking to the part's page (Dez's end with her part).
 
 
-## Destination dress (2026-11-15, steps 1–2 of 3)
+## Destination dress (2026-11-15, steps 1–3)
 
 Small touches that appear only on Japan and China trips. Every other trip
 renders exactly as before; check that any change here leaves a non-Asian
@@ -876,4 +876,35 @@ trip's HTML unchanged.
   stay colour; China square with railway blue `#2B5C9A`. Neighbours come from
   the stays the page was given, so a part page's band stops at the part's
   ends. Dress is `dressFor` of the stay's first-night zone.
-- Step 3 (ticket and phrase columns on `koji_stops`) is not built yet.
+- **Stop columns** (step 3, `sql/2026-11-15-koji-stop-dress.sql`): seven
+  nullable text columns on `koji_stops`. All null renders exactly as before,
+  and stops load with `select('*')`, so code deployed before the migration
+  is fine. Public content like the rest of a stop; no editor fields.
+  - **Ticket** (`JourneyTicket`, only on a stop that already renders as one,
+    i.e. a clock time plus a duration or arrival, 45 min or more):
+    `from_local` / `to_local` are the stations as the board shows them
+    (岡山, 重庆北), set above each time in the local serif; skipped on an
+    undressed trip. `service_label` ("のぞみ Nozomi 21", "G8602") sits on its
+    own line above the duration under the dotted route (on one line it ran
+    over the times at 375px), and the times hang from the top to stay level
+    with the line. `seat_label` ("7号車 12番 D・E席") is one mono line in the
+    lower half. The wash stays the day's colour; no JR green, no weave.
+  - **Say it / Show it** (`SayIt.tsx`): `say_local` turns on a small chip in
+    the Directions row ("Say it" on Japan, "Show it" on China; its own row
+    when there's no Directions link). It opens a full-screen card like
+    `DriverCard`, portalled to `<body>`, tap anywhere to close. Japan leads
+    with `say_reading` (romaji) very large, `say_local` under it, `say_gloss`
+    smaller; China leads with `say_local` (the waiter reads it), pinyin in
+    Georgia italic and the English under it. A ticket stop can carry one too:
+    the chip sits at the right of the seat line. Dress for both is the day's,
+    else the trip's (so a flight day out of LA can still name 東京).
+  - Filling them in SQL (look up by slug and `sort_order`, never by id):
+    ```sql
+    update koji_stops s set from_local = '岡山', to_local = '博多',
+      service_label = 'のぞみ Nozomi 21', seat_label = '7号車 12番 D・E席'
+    from koji_days d join koji_trips t on t.id = d.trip_id
+    where s.day_id = d.id and t.slug = 'japan-2027'
+      and d.sort_order = 90 and s.sort_order = <n>;
+    ```
+    Romaji as said aloud, sentence case with its "?"; pinyin with tone marks
+    (wēi là), never tone numbers. Keep phrases rare, one or two a day.

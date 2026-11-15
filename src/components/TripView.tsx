@@ -31,6 +31,7 @@ import { NowCard, NowRule } from '@/components/NowCard';
 import { nowOverride, nowState, useZonedMinutes } from '@/lib/now';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
 import { JourneyTicket, isJourney } from '@/components/JourneyTicket';
+import { SayChip, hasPhrase } from '@/components/SayIt';
 import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
@@ -759,10 +760,14 @@ function safeDecode(q: string): string {
   try { return decodeURIComponent(q.replace(/\+/g, ' ')); } catch { return q; }
 }
 
-function StopRow({ stop, stamp, footer, accent, tz }: { stop: Stop; stamp?: React.ReactNode; footer?: React.ReactNode; accent?: string; tz?: string | null }) {
+function StopRow({ stop, stamp, footer, accent, tz, dress = null }: {
+  stop: Stop; stamp?: React.ReactNode; footer?: React.ReactNode; accent?: string; tz?: string | null;
+  /** Destination dress for this stop's own fields (local station names, the phrase chip). */
+  dress?: Dress;
+}) {
   // Trains you have to be on and flights get the ticket, in the day's colour.
   if (accent && !(stop.is_optional && !stop.added) && isJourney(stop)) {
-    return <JourneyTicket stop={stop} accent={accent} tz={tz} stamp={stamp} footer={footer} />;
+    return <JourneyTicket stop={stop} accent={accent} tz={tz} dress={dress} stamp={stamp} footer={footer} />;
   }
   const tagColor = TAG_COLORS[stop.tag_color] ?? TAG_COLORS.gray;
   const bodyHtml = renderMd(stop.body_md);
@@ -833,7 +838,19 @@ function StopRow({ stop, stamp, footer, accent, tz }: { stop: Stop; stamp?: Reac
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
         )}
-        {dirHref && (
+        {hasPhrase(stop, dress) ? (
+          // Say it / Show it shares the Directions row, or makes one of its own.
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 6 }}>
+            {dirHref && (
+              <a href={dirHref}
+                target="_blank" rel="noopener noreferrer"
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.06em', color: tagColor.text, textDecoration: 'none', borderBottom: '1px solid currentColor' }}>
+                Directions ↗
+              </a>
+            )}
+            <SayChip stop={stop} dress={dress} color={tagColor.text} />
+          </div>
+        ) : dirHref && (
           <a href={dirHref}
             target="_blank" rel="noopener noreferrer"
             style={{ display: 'inline-block', marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.06em', color: tagColor.text, textDecoration: 'none', borderBottom: '1px solid currentColor' }}>
@@ -914,10 +931,14 @@ function DayBlock({
   nowMin,
   season,
   dress = null,
+  stopDress = null,
 }: {
   /** The season's name, only on the day it starts (or the trip's first dressed day). */
   season?: Season | null;
   dress?: Dress;
+  /** For the stops' own dressed fields: the day's dress, else the trip's. A flight
+   *  day out of LA wears no season, but its ticket can still name 東京 in Japanese. */
+  stopDress?: Dress;
   /** Today only: minutes after midnight in the day's zone, for the Now card. */
   nowMin?: number | null;
   /** Where you sleep tonight: names the town and colours the accent. */
@@ -1205,7 +1226,7 @@ function DayBlock({
             <Fragment key={stop.id}>
               {now && nowMin != null && k === now.next && <NowRule nowMin={nowMin} accent={accent} />}
               <div style={past ? { opacity: 0.5 } : undefined}>
-                <StopRow stop={stop} accent={accent} tz={day.tz} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />
+                <StopRow stop={stop} accent={accent} tz={day.tz} dress={stopDress} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />
               </div>
               {insteadOf.has(stop.id) && maybeRun(insteadOf.get(stop.id)!)}
               {afterStop?.(stop)}
@@ -2387,6 +2408,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
                 day={day}
                 stay={stay}
                 dress={dayDress(i)}
+                stopDress={dayDress(i) ?? tripDress}
                 season={(() => {
                   // Only where a season starts: its first day, or the first
                   // dressed day of the page. Never on the folded header.
