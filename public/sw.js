@@ -3,6 +3,12 @@
 // Strategy:
 //   - network-first for same-origin pages & RSC payloads (fresh when online,
 //     last-seen copy when not — e.g. on the Tube or in a rural dead zone)
+//   - page navigations with a cached copy race the network against
+//     NAV_TIMEOUT_MS: a network that hasn't answered by then loses to the
+//     cached copy, and its response refreshes the cache in the background
+//     (along with the /_next/static files it names, so the copy it leaves
+//     never points at scripts this phone doesn't have). No cached copy:
+//     wait for the network, as before.
 //   - cache-first for /_next/static (content-hashed, immutable)
 //   - cache-first for koma reference photographs, which live on Supabase
 //     storage: cross-origin, uploaded once, never changed, and the entire
@@ -15,7 +21,9 @@
 // Bump VERSION to invalidate all old caches on the next deploy of this file.
 // v3 (2026-11-11): pages cached before koma went private still hold the shot
 // plan in their payload; the bump clears them off every phone.
-const VERSION = 'koji-v3';
+// v4 (2026-11-15): navigations time out to the cached copy after 3 s.
+const VERSION = 'koji-v4';
+const NAV_TIMEOUT_MS = 3000;
 const ASSET_CACHE = `${VERSION}-assets`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const REF_CACHE = `${VERSION}-refs`;
@@ -55,6 +63,8 @@ self.addEventListener('fetch', (event) => {
 
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(cacheFirst(req, ASSET_CACHE));
+  } else if (req.mode === 'navigate') {
+    event.respondWith(navigate(event));
   } else {
     event.respondWith(networkFirst(req));
   }
@@ -88,6 +98,54 @@ async function networkFirst(req) {
     }
     throw err;
   }
+}
+
+// A stalled network (a train between stations) doesn't throw, it just waits,
+// so network-first alone held a cached trip back for as long as the network
+// took. Only navigations get the timer: RSC fetches stay network-first.
+async function navigate(event) {
+  const req = event.request;
+  const cache = await caches.open(PAGE_CACHE);
+  const hit = await cache.match(req);
+  if (!hit) return networkFirst(req);
+
+  const network = fetch(req);
+  const timer = new Promise((resolve) => setTimeout(resolve, NAV_TIMEOUT_MS, null));
+  const first = await Promise.race([network.catch(() => null), timer]);
+  if (first) {
+    if (first.ok) event.waitUntil(cache.put(req, first.clone()));
+    return first;
+  }
+  // Too slow, or failed: show the cached copy, and keep the worker alive
+  // until the late response has been stored. Chrome can cancel that first
+  // fetch once the cached copy is chosen (it shares the browser's own preload
+  // of the page), so on failure ask again, past the HTTP cache, whose lock
+  // would otherwise hold the retry until the cancelled request is cleared.
+  // Safari lets the first one finish.
+  const late = network.catch(() =>
+    fetch(req.url, { credentials: 'same-origin', redirect: 'manual', cache: 'no-store' }));
+  event.waitUntil(late.then((res) => refresh(cache, req, res)).catch(() => {}));
+  return hit;
+}
+
+// Store a page that arrived after its cached copy was shown. It was never
+// rendered, so its scripts were never fetched; fetch them now, from the same
+// deploy that served the page. Otherwise, after a deploy that changed chunk
+// hashes, this copy could be shown offline pointing at files the phone never
+// got and the server no longer has.
+async function refresh(cache, req, res) {
+  if (!res.ok) return;
+  const html = await res.clone().text();
+  const assets = await caches.open(ASSET_CACHE);
+  const urls = [...new Set(html.match(/\/_next\/static\/[^"'\s\\)]+/g) || [])];
+  await Promise.all(urls.map(async (u) => {
+    try {
+      if (await assets.match(u)) return;
+      const r = await fetch(u);
+      if (r.ok) await assets.put(u, r);
+    } catch { /* the page still stores; the asset is fetched on first use */ }
+  }));
+  await cache.put(req, res);
 }
 
 // Trip alerts (Web Push from /api/notify). iOS requires every push to show a

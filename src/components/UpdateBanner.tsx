@@ -11,7 +11,11 @@ export function UpdateBanner() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    let deploymentId: string | null = null;
+    // Baseline: the deploy that built this page (layout.tsx), so a cached copy
+    // from an older deploy shows the banner at once. Without it (local
+    // builds), the first check sets the baseline, as before.
+    let deploymentId: string | null =
+      document.querySelector<HTMLMetaElement>('meta[name="koji-deploy"]')?.content || null;
     let lastChecked = 0;
 
     async function check() {
