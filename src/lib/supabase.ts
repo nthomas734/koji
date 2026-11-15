@@ -149,7 +149,16 @@ export interface Stop {
   say_local?:     string | null;
   say_reading?:   string | null;
   say_gloss?:     string | null;
+  /** The thread (sql/2026-11-15-koji-stop-thread.sql): a short hop drawn as a
+   *  dotted line between two stops instead of a card. hop_mode turns it on and
+   *  picks the glyph; hop_line follows the bold title; line_color is the
+   *  operator's own colour for the line (#RRGGBB), else the day's accent. */
+  hop_mode?:      HopMode | null;
+  hop_line?:      string | null;
+  line_color?:    string | null;
 }
+
+export type HopMode = 'train' | 'metro' | 'bus' | 'taxi' | 'car' | 'walk' | 'boat';
 
 // ── STAYS ───────────────────────────────────────────────────────────────────
 // One row per place you sleep. Drives the stays strip in the hero, the town
