@@ -9,6 +9,7 @@ import { WhoChip } from './WhoChip';
 import type { Dress } from '@/lib/maps';
 import { cjkFont } from '@/lib/dress';
 import { SayChip, hasPhrase } from './SayIt';
+import { LiveryLine, ServicePills, SpeedStreaks, hasLivery, liveryParts } from './TrainLivery';
 
 // ── JOURNEY TICKET ──────────────────────────────────────────────────────────
 // A travel stop you have to be on time for: one with a clock time and either a
@@ -255,6 +256,9 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   const routeLabel = stop.duration_label || '';
   const service = stop.service_label?.trim() || '';
   const kind = trainKind(service);
+  const parts = mode === 'train' ? liveryParts(service) : [];
+  const livery = hasLivery(parts);
+  const nozomi = parts.some(p => p.livery?.line === 'dash');
   const seat = stop.seat_label?.trim() || '';
   // Where it goes, readably: from_name / to_name ("Gora", "West Kowloon") lead
   // on any trip. The local names (強羅) need a dress for the font and lang, and
@@ -381,7 +385,9 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
             {ferry
               // By sea the route is water, not a dotted rail: a soft wave line.
               ? <div style={{ position: 'absolute', left: 0, right: 0, top: 18, height: 6, background: accent, opacity: 0.6, ...WAVE }} />
-              : <div style={{ position: 'absolute', left: 0, right: 0, top: 21, borderTop: `1.5px dotted ${accent}`, opacity: 0.7 }} />}
+              : livery
+                ? <LiveryLine parts={parts} accent={accent} top={22} />
+                : <div style={{ position: 'absolute', left: 0, right: 0, top: 21, borderTop: `1.5px dotted ${accent}`, opacity: 0.7 }} />}
             {Array.from({ length: changes }, (_, i) => (
               <span key={i} style={{
                 position: 'absolute', top: 21, left: `${((i + 1) * 100) / (changes + 1)}%`,
@@ -392,6 +398,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
             <span style={{ position: 'absolute', left: '50%', top: 1, transform: 'translateX(-50%)', color: accent, background: tint, padding: '0 4px' }}>
               <JourneyGlyph mode={mode} />
               {ferry && <Wake />}
+              {nozomi && <SpeedStreaks />}
             </span>
             {flow ? (
               // The train's name sits on its own line above the duration, in
@@ -402,11 +409,13 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
                 fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '0.02em',
                 fontVariantNumeric: 'tabular-nums', color: deep, lineHeight: 1.2,
               }}>
-                {service && (
+                {service && (livery
+                  ? <ServicePills parts={parts} lang={dress ?? undefined} color={deep} />
+                  : (
                   <span lang={dress ?? undefined} style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 500, letterSpacing: 0, marginBottom: 1, overflowWrap: 'anywhere' }}>
                     {service}
                   </span>
-                )}
+                ))}
                 {kind && (
                   <span style={{ textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400, letterSpacing: 0, opacity: 0.7, marginTop: -1, marginBottom: 2 }}>
                     {kind}
