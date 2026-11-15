@@ -47,6 +47,7 @@ Conventions that hold everywhere:
 ## Data flow
 
 - **Public pages** (`/` and `/trips/[slug]`) are async Server Components with `export const revalidate = 60`. They read through the anon Supabase client in `src/lib/supabase.ts` (RLS-enforced) and pass fully-resolved props into the client component `TripView`.
+- **Client components never import a value from `lib/supabase.ts`** (`import type` is fine). The file calls `createClient` at the top, so one value import puts supabase-js (~65 KB compressed) into every reader's trip page. That is how `mapsSearchUrl` did it until 2026-11-15; it now lives in `lib/maps.ts`, and `lib/push.ts` talks to `koji_push` with plain `fetch` against PostgREST. Check with `npm run build`: `/trips/[slug]` First Load JS is ~177 kB, not ~242 kB.
 - **Admin pages** are Server Components that check the cookie themselves and `redirect('/admin/login')`, then fetch with `supabaseAdmin()` (service key, bypasses RLS) and hand data to the client editor.
 - **Admin writes** never touch Supabase from the browser. `TripEditor` holds `useState` copies of trip/logistics/days, updates local state optimistically, and `fetch`es the `/api/admin/*` routes. There is no `router.refresh()` after save — local state *is* the post-save truth until reload.
 
