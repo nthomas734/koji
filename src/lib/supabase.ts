@@ -235,11 +235,9 @@ export interface Verdict {
   updated_at: string;
 }
 
-/** The Google Maps search link every place in the kura apps uses. */
-export function mapsSearchUrl(...parts: (string | null | undefined)[]): string {
-  const q = parts.filter(Boolean).join(' ').trim().split(/\s+/).map(encodeURIComponent).join('+');
-  return `https://www.google.com/maps/search/?api=1&query=${q}`;
-}
+// mapsSearchUrl lives in lib/maps.ts: importing it from here pulled the whole
+// Supabase client into every reader's trip page. Re-exported for server code.
+export { mapsSearchUrl } from './maps';
 
 // ── KOMA ────────────────────────────────────────────────────────────────────
 // The shooting plan. Hidden rather than locked: the mode is reached by a

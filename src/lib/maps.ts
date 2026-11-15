@@ -22,6 +22,14 @@ export function appleDirectionsUrl(query: string): string {
   return `https://maps.apple.com/?daddr=${encodeURIComponent(query)}&dirflg=r`;
 }
 
+/** The Google Maps search link every place in the kura apps uses. Lives here,
+ *  not in lib/supabase.ts: a client component importing it from there ships the
+ *  whole Supabase client (~65 KB compressed) to every reader. */
+export function mapsSearchUrl(...parts: (string | null | undefined)[]): string {
+  const q = parts.filter(Boolean).join(' ').trim().split(/\s+/).map(encodeURIComponent).join('+');
+  return `https://www.google.com/maps/search/?api=1&query=${q}`;
+}
+
 /** Google search, the long-standing kura form ("+" between words). */
 export function googleSearchUrl(...parts: (string | null | undefined)[]): string {
   const q = join(parts).split(' ').map(encodeURIComponent).join('+');

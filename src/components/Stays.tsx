@@ -11,8 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Stay, Stop } from '@/lib/supabase';
-import { mapsSearchUrl } from '@/lib/supabase';
-import { appleSearchUrl } from '@/lib/maps';
+import { appleSearchUrl, mapsSearchUrl } from '@/lib/maps';
 import type { Dress } from '@/lib/maps';
 import { CINNABAR, cjkFont } from '@/lib/dress';
 import { useAppleMaps } from './MapsContext';
