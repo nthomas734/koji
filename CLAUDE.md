@@ -706,6 +706,16 @@ also stays folded (`leavingDay`) until its section has scrolled off, judged by
 the section's rect, not the header's. To check: scroll to each boundary, stop,
 and confirm the next section's top is identical across 10+ animation frames.
 
+**Scrolling must not re-render the trip** (2026-11-15). The tracker's output
+(day in view, pinned and leaving headers, rail open) is a small store
+(`createDayScroll` / `useDayScroll` in `TripView.tsx`), not state on `TripView`.
+Each `DayBlock` subscribes to its own two booleans and the two rails
+(`LiveDayRail`) to the active day, so crossing a boundary re-renders two days,
+not all of them (Japan at 4x CPU: 46 ms to 7 ms; a rail tap 230 ms to ~65 ms).
+Don't put these back into `useState` on `TripView`, and don't pass them down as
+props. `React.memo` on `DayBlock` would not do it, because its callbacks are
+fresh closures on every `TripView` render.
+
 Day awareness: `todayIdx` is computed on the client from the phone's local
 date against `dateForDay`. During the trip the page opens scrolled to today
 (unless the URL carries `#logistics`, `#weather`, `#day-N` or `#stop-N`), and
