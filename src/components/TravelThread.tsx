@@ -11,8 +11,8 @@ import { isJourney } from './JourneyTicket';
 // ── THE THREAD ──────────────────────────────────────────────────────────────
 // The journey ticket's little sibling, for a short hop (a 15-minute Odakyu
 // ride, a car to the station). No card: a dotted line in the line's own colour
-// runs down the gap between the stops above and below, level with their edge
-// bars, with the mode in a small ring. Beside it, the time and duration in
+// runs down the gap between the stops above and below, the ring's left edge
+// in line with the cards', with the mode in a small ring. Beside it, the time and duration in
 // mono, then the title in bold and the hop line. About 52px tall.
 //
 // A stop opts in with hop_mode (sql/2026-11-15-koji-stop-thread.sql). The body
@@ -192,10 +192,9 @@ export function TravelThread({ stop, accent, stamp, footer }: {
       position: 'relative',
       display: 'grid',
       gridTemplateColumns: stamp ? '26px minmax(0, 1fr) auto' : '26px minmax(0, 1fr)',
-      columnGap: 8,
-      // The dotted line sits at 13px inside the article, so pulling it 12px
-      // left puts it on the cards' 3px edge bars.
-      marginLeft: -12,
+      // The ring's left edge lines up with the cards' left edge; the dotted
+      // line runs through its centre, as in the mockup.
+      columnGap: 10,
       marginTop: 8,
       scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 64px)',
     }}>
