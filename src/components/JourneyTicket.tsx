@@ -366,11 +366,13 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
     }}>
       <div style={{ padding: '13px 16px 10px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent }}>
+          {/* Baseline, not centre: the tag (mono caps) and the train note (sans)
+              are different fonts, and centring them set their text at two heights. */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8, rowGap: 2, fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent }}>
             {stop.tag}
             <WhoChip who={stop.who} color={accent} />
             {/* Which train, said in passing beside the tag: a note, not a destination. */}
-            {service && <TrainNote parts={liveryParts(service)} kind={kind} color={deep} />}
+            {service && <TrainNote parts={liveryParts(service)} kind={kind} color={deep} glossed={dress === 'ja'} />}
           </div>
           {stamp}
         </div>
