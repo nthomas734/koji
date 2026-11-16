@@ -13,15 +13,30 @@
 //   Romancecar  a double stripe in Odakyu's rose vermilion.
 //   Midori  JR Kyushu green (みどり, "green").
 // A "Kodama + Nozomi" label splits the line: ticks, then dashes.
+//
+// China's labels are train numbers, and the letter in front is the type:
+//   G  the fastest class: the Nozomi's dashes that lengthen toward the arrival,
+//      and a dot in China Railway red (#E60012, the fill of the CR logo on
+//      Wikimedia Commons, File:China_Railways.svg; no official brand value).
+//   D  a slower class: steady, even dashes, and the dot in the day's colour,
+//      since no source gives a colour for it (the Hexie trains' blue band has
+//      no published value).
+// Both trail speed streaks. C (intercity) and anything else keep the plain
+// dotted line. China renumbers its trains in late December 2026 (new letters
+// T, K and X; D narrows to 200 km/h or less): add them here once a 2027
+// ticket carries one.
 // Anything not listed keeps the plain dotted line.
 
 import { glossOf } from '@/lib/glossary';
 
-export type LineKind = 'dots' | 'speedup' | 'beam' | 'ticks' | 'gull' | 'stripe';
+export type LineKind = 'dots' | 'speedup' | 'beam' | 'ticks' | 'gull' | 'stripe' | 'steady';
 
-type Livery = { re: RegExp; line: LineKind; bg: string; fg: string; glow?: boolean; bullet?: boolean };
+type Livery = { re: RegExp; line: LineKind; bg: string; fg: string; glow?: boolean; bullet?: boolean;
+  /** The note's dot takes the day's colour instead (no sourced colour of its own). */
+  accentDot?: boolean };
 
 const BOARD = '#17140F';
+const CR_RED = '#E60012';
 const LIVERIES: Livery[] = [
   { re: /nozomi|のぞみ/i, line: 'speedup', bg: BOARD, fg: '#F6C744', glow: true, bullet: true },
   { re: /hikari|ひかり/i, line: 'beam', bg: BOARD, fg: '#FF5A4E', glow: true, bullet: true },
@@ -31,6 +46,9 @@ const LIVERIES: Livery[] = [
   { re: /romancecar|ロマンスカー/i, line: 'stripe', bg: '#D9512C', fg: '#FFFFFF' },
   { re: /midori|みどり/i, line: 'dots', bg: '#2E8B57', fg: '#FFFFFF' },
   { re: /huis ten bosch|ハウステンボス/i, line: 'dots', bg: '#E8761B', fg: '#FFFFFF' },
+  // China: the number's letter. Anchored, so a Japanese name never matches.
+  { re: /^G\d{1,4}\b/, line: 'speedup', bg: CR_RED, fg: '#FFFFFF', bullet: true },
+  { re: /^D\d{1,4}\b/, line: 'steady', bg: '', fg: '', bullet: true, accentDot: true },
 ];
 
 export type LiveryPart = { text: string; livery: Livery | null };
@@ -47,7 +65,8 @@ export function hasLivery(parts: LiveryPart[]): boolean {
 }
 
 /** The train's colour on the departure board, for the small dot beside its name. */
-function dotColor(l: Livery): string {
+function dotColor(l: Livery, accent?: string): string {
+  if (l.accentDot && accent) return accent;
   return l.bg === BOARD || l.bg === '#FFFFFF' ? l.fg : l.bg;
 }
 
@@ -56,8 +75,10 @@ function dotColor(l: Livery): string {
  * board's colour, the name in romaji, and what kind of train it is
  * ("● Hikari · semi-fast bullet train"). The kana are dropped here.
  */
-export function TrainNote({ parts, kind, color, glossed = false }: {
+export function TrainNote({ parts, kind, color, accent, glossed = false }: {
   parts: LiveryPart[]; kind: string; color: string;
+  /** The day's colour, for a dot with none of its own (China's D trains). */
+  accent?: string;
   /** Japan trips: the train's name taps open its glossary line, like the body text. */
   glossed?: boolean;
 }) {
@@ -75,7 +96,7 @@ export function TrainNote({ parts, kind, color, glossed = false }: {
           <span key={i} style={{ whiteSpace: 'nowrap' }}>
             {i > 0 && <span style={{ opacity: 0.5, margin: '0 6px' }}>→</span>}
             {p.livery && <span aria-hidden style={{
-              display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: dotColor(p.livery),
+              display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: dotColor(p.livery, accent),
               boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.12)', marginRight: 5, verticalAlign: '0.05em',
             }} />}
             {def ? <span className="gl" role="button" tabIndex={0} data-gl={def}>{name}</span> : name}
@@ -120,6 +141,9 @@ function Segment({ kind, accent }: { kind: LineKind; accent: string }) {
           <div style={mid({ height: 7, background: `repeating-linear-gradient(90deg, transparent 0 5px, ${accent} 5px 6.5px, transparent 6.5px 12px)` })} />
         </div>
       );
+    case 'steady':
+      // The D train: even dashes, no gathering speed.
+      return <div style={base}><div style={mid({ height: 1.5, background: `repeating-linear-gradient(90deg, ${accent} 0 5px, transparent 5px 9px)` })} /></div>;
     case 'stripe':
       return <div style={base}><div style={mid({ height: 5, borderTop: `1.5px solid ${accent}`, borderBottom: `1.5px solid ${accent}` })} /></div>;
     default:
