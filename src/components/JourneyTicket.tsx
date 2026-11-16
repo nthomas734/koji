@@ -9,7 +9,7 @@ import { WhoChip } from './WhoChip';
 import type { Dress } from '@/lib/maps';
 import { cjkFont } from '@/lib/dress';
 import { SayChip, hasPhrase } from './SayIt';
-import { LiveryLine, ServicePills, SpeedStreaks, hasLivery, liveryParts } from './TrainLivery';
+import { LiveryLine, SpeedStreaks, TrainNote, hasLivery, liveryParts } from './TrainLivery';
 
 // ── JOURNEY TICKET ──────────────────────────────────────────────────────────
 // A travel stop you have to be on time for: one with a clock time and either a
@@ -206,7 +206,9 @@ export function trainKind(service: string): string {
   if (!parts.length) return '';
   if (parts.every(p => p[2])) {
     const words = parts.map(p => p[1]);
-    return words.length === 1 ? `${words[0]} bullet train` : `${words.join(', then ')} bullet trains`;
+    // Two named trains say which kind each is through their dots and route
+    // line; the note just says they're both bullet trains.
+    return words.length === 1 ? `${words[0]} bullet train` : 'bullet trains';
   }
   return parts.map(p => p[2] ? `${p[1]} bullet train` : p[1]).join(', then ');
 }
@@ -316,7 +318,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
     return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeLabel]);
-  const flow = !!service || split;
+  const flow = split;
   const splitParts = breakAt && (
     <>
       <span style={{ whiteSpace: 'nowrap', background: tint, padding: '0 5px' }}>{breakAt[0]}</span>
@@ -367,6 +369,8 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent }}>
             {stop.tag}
             <WhoChip who={stop.who} color={accent} />
+            {/* Which train, said in passing beside the tag: a note, not a destination. */}
+            {service && <TrainNote parts={liveryParts(service)} kind={kind} color={deep} />}
           </div>
           {stamp}
         </div>
@@ -401,26 +405,13 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
               {nozomi && <SpeedStreaks />}
             </span>
             {flow ? (
-              // The train's name sits on its own line above the duration, in
-              // flow so it can wrap inside the route column: a long one
-              // ("ロマンスカー Romancecar") ran over the departure time.
+              // A duration too wide to sit between the times breaks onto
+              // two lines, in flow under the route line.
               <div style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '0.02em',
                 fontVariantNumeric: 'tabular-nums', color: deep, lineHeight: 1.2,
               }}>
-                {service && (livery
-                  ? <ServicePills parts={parts} lang={dress ?? undefined} color={deep} />
-                  : (
-                  <span lang={dress ?? undefined} style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 500, letterSpacing: 0, marginBottom: 1, overflowWrap: 'anywhere' }}>
-                    {service}
-                  </span>
-                ))}
-                {kind && (
-                  <span style={{ textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400, letterSpacing: 0, opacity: 0.7, marginTop: -1, marginBottom: 2 }}>
-                    {kind}
-                  </span>
-                )}
                 {routeLabel && (split ? splitParts : <span ref={labelRef} style={{ whiteSpace: 'nowrap', background: tint, padding: '0 5px' }}>{durationParts}</span>)}
               </div>
             ) : routeLabel && (

@@ -1,5 +1,6 @@
 // ── TRAIN LIVERY ────────────────────────────────────────────────────────────
-// Small touches that tell named Japanese trains apart on a journey ticket.
+// Small touches that tell named Japanese trains apart on a journey ticket:
+// a coloured dot beside the train's name in the tag row, and a route line.
 // The Tokaido shinkansen all run the same white-and-blue N700s, so the
 // difference is borrowed from the station departure boards, which colour the
 // name: Nozomi yellow, Hikari red, Kodama blue. Each also gets its own route
@@ -42,33 +43,34 @@ export function hasLivery(parts: LiveryPart[]): boolean {
   return parts.some(p => p.livery);
 }
 
-/** The service name set like a departure board: one small pill per train. */
-export function ServicePills({ parts, lang, color }: { parts: LiveryPart[]; lang?: string; color: string }) {
+/** The train's colour on the departure board, for the small dot beside its name. */
+function dotColor(l: Livery): string {
+  return l.bg === BOARD || l.bg === '#FFFFFF' ? l.fg : l.bg;
+}
+
+/**
+ * Which train this is, as a quiet note beside the ticket's tag: a dot in the
+ * board's colour, the name in romaji, and what kind of train it is
+ * ("● Hikari · semi-fast bullet train"). The kana are dropped here.
+ */
+export function TrainNote({ parts, kind, color }: { parts: LiveryPart[]; kind: string; color: string }) {
+  const romaji = (t: string) => t.replace(/^[\p{Script=Hiragana}\p{Script=Katakana}ー・]+\s+/u, '');
   return (
-    // Two trains stack like two rows of the board, first train on top.
-    <span lang={lang} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3, marginBottom: 3, maxWidth: '100%' }}>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 6, rowGap: 2, minWidth: 0,
+      fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500, letterSpacing: 0, textTransform: 'none', color,
+    }}>
       {parts.map((p, i) => (
-        <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
-          {p.livery ? (() => {
-            // Like the board: the kana in the pill, the romaji beside it.
-            const m = p.text.match(/^([\p{Script=Hiragana}\p{Script=Katakana}ー・]+)\s+(.+)$/u);
-            const pill = m ? m[1] : p.text;
-            const after = m ? m[2] : '';
-            return (
-            <span style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', columnGap: 5, rowGap: 1, maxWidth: '100%' }}>
-            <span style={{
-              display: 'inline-block', padding: '2px 7px 2px', borderRadius: 4, background: p.livery.bg, color: p.livery.fg,
-              fontSize: 11, fontWeight: 600, letterSpacing: '0.02em', lineHeight: 1.25, textAlign: 'center',
-              boxShadow: p.livery.bg === '#FFFFFF' ? `inset 0 0 0 1px color-mix(in srgb, ${p.livery.fg} 35%, transparent)` : undefined,
-              whiteSpace: 'nowrap',
-              textShadow: p.livery.glow ? `0 0 6px color-mix(in srgb, ${p.livery.fg} 55%, transparent)` : undefined,
-            }}>{pill}</span>
-            {after && <span style={{ fontSize: 11, fontWeight: 500, color, whiteSpace: 'nowrap' }}>{after}</span>}
-            </span>
-            );
-          })() : <span style={{ fontSize: 11.5, fontWeight: 500, color }}>{p.text}</span>}
+        <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+          {i > 0 && <span style={{ opacity: 0.5 }}>→</span>}
+          {p.livery && <span aria-hidden style={{
+            width: 7, height: 7, borderRadius: '50%', background: dotColor(p.livery), flexShrink: 0,
+            boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.12)',
+          }} />}
+          {romaji(p.text)}
         </span>
       ))}
+      {kind && <span style={{ opacity: 0.65, fontWeight: 400, whiteSpace: 'nowrap' }}>· {kind}</span>}
     </span>
   );
 }
