@@ -1,0 +1,48 @@
+-- 2026-11-15: Japan 2027 (trip 16) koma shot fixes. Applied live via the Supabase MCP,
+-- each as a guarded single-row update; this file is the record. Read it, don't run it.
+--
+-- Sun numbers from src/lib/sun.ts (sunDay, 1-minute steps, Asia/Tokyo), golden = sun 6° down to sunset:
+--   86 Tomonoura harbor, Feb 24, 15:30   golden 5:23-5:58pm, blue to 6:23pm; at 3:30 the sun is 27° up
+--   95 Fushimi sake district, Feb 26, 16:30  golden 5:15-5:49pm, blue to 6:15pm; at 4:30 the sun is 15° up
+-- Both relabelled 'afternoon' rather than moved: the golden/blue frame at each place is already its
+-- own shot (87 Lantern at blue hour 18:05; 94 Brewery canal at dusk 17:20), and the areas are for
+-- wandering before it.
+-- Other golden/blue shots checked and inside their windows: 100, 101, 104, 108, 110, 83, 87, 127, 94.
+-- Borderline, left: 88 (06:45, sunrise 6:42 on a sea horizon) and 96 (06:35, sunrise 6:30 on a flat
+-- horizon; the hills east of the Kamo delta will hold the sun back some minutes).
+
+-- 1. Emperor's Parade (organiser: https://www.at-nagasaki.jp/lantern-festival; Sat Feb 20, 2027)
+--    New shot 181 "The Emperor's Parade finale", day 137, stop 728 (Peace Park, "back south to
+--    Chinatown by about 4"), 16:00, want, afternoon, area, radius 60 m, lat/lng = centre of OSM
+--    way 469896955 (湊公園; about 70 x 85 m; 中華街南門 way 1363275030 on its east side).
+--    Lens advice for day 137's bag (20-70, 35, 85; 70-200 at the hotel).
+--    Shot 110: dropped "- The festival parade if you catch it — 85mm; follow one dancer."
+--    (the parade is over by 4:30, two hours before the shot's blue hour).
+-- 2. update koma_shots set light='afternoon' where id=86 and light='golden';  -- and "low afternoon light" -> "afternoon light"
+--    update koma_shots set light='afternoon' where id=95 and light='golden';
+-- 3. 131 Valley Gallery: "nearly to yourselves at 9:30" -> "off the 9:42 ferry you are there about 10,
+--    before the later boats bring most people."
+-- 4. 123 Fuji from the shinkansen: at_time 09:30 -> 10:30. From Gora at 8:30 the first Hikari out of
+--    Odawara is Hikari 637 at 10:11 (non-stop to Nagoya 11:19; Hikari 633 at 8:11 is too early).
+--    Passing times estimated from distance at its Odawara-Nagoya average: Mishima ~10:24,
+--    Shin-Fuji ~10:30. notes_md says to change it to match the train once booked.
+-- 5. update koma_shots set priority='want'  where id=112 and priority='maybe';  -- yellow pumpkin, Dez's pick
+-- 6. update koma_shots set priority='maybe' where id=120 and priority='want';   -- Shibuya Crossing
+--
+-- Full rows: select * from koma_shots where id in (86,95,110,112,120,123,131,181);
+
+-- References for the nine musts. Downloaded from Wikimedia Commons (1920px thumb scaled to 1600 wide),
+-- uploaded to the public koma-refs bucket with the service key, then:
+--   update koma_shots set ref_url, ref_credit, focal_hint where id = <id> and ref_url is null and focal_hint is null
+-- id  file in koma-refs                            Commons file                                         author · licence                  focal_hint (reference's own, full-frame)
+-- 83  onomichi-channel-from-senkoji.jpg            File:Onomichi_city_huukei.jpg                        ぺ有家音 · CC BY-SA 3.0            25mm (EXIF 25mm eq.)
+-- 84  onomichi-stone-steps-to-the-water.jpg        File:Stone_Steps_尾道の石段_-_panoramio.jpg           AMANO Jun-ichi · CC BY 3.0         30mm (EXIF 30mm eq.)
+-- 87  tomonoura-joyato-across-the-harbour.jpg      File:Tomonoura10bs3200.jpg                           663highland · CC BY 2.5            70mm (EXIF 120mm eq.; the day's bag tops out at 70, so crop)
+-- 88  onomichi-from-mukaishima.jpg                 File:Onomichi.JPG                                    Vickerman625 · Public domain       26mm (EXIF 26mm eq.)
+-- 94  fushimi-horikawa-brewery-canal.jpg           File:Kyoto_Fushimi_Horikawa05s4592.jpg               663highland · CC BY 2.5            35mm (EXIF 24mm eq.; the shot's lens is the 35)
+-- 96  kamo-delta-turtle-stones-low.jpg             File:鴨川デルタの飛び石.jpg                            Hajime NAKANO · CC BY 2.0          26mm (EXIF 26mm eq.)
+-- 106 nakasu-yatai-row-at-night.jpg                File:Nakasu_Yatai_Stalls_(19979437930).jpg           Yoshikazu TAKADA · CC BY 2.0       35mm (EXIF 42mm eq.)
+-- 110 nagasaki-lanterns-over-nakashima-river.jpg   File:Uonomachi,_Nagasaki,_..._panoramio_(7).jpg      Masoud Akbari · CC BY-SA 3.0       35mm (EXIF 31mm eq.)
+-- 119 kurashiki-canal-empty-morning.jpg            File:Kurashiki_Bikan_historical_quarter_20190324.jpg Suicasmo · CC BY-SA 4.0           30mm (EXIF 29mm eq.)
+-- Time of day differs from the shot for 87, 94 (daytime), 96 (sunset) and 106, 110 (full night):
+-- Commons had nothing at dusk for those places. The framing is what they are for.
