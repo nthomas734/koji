@@ -54,20 +54,44 @@ function monthYear(iso: string | null): string {
   return `${MO[m - 1]} ${y}`;
 }
 
-/** The next trip, big: countdown, its towns in their stay colours, chips. */
-function NextTrip({ trip, stays, today }: { trip: Trip; stays: Stay[]; today: string }) {
+/**
+ * Abroad = the trip's own zone is outside the US. Every published trip stores
+ * `tz` (it drives the sun and the destination dress), and it is the trip's
+ * destination, not the flight day out of LA, so it is the cleanest signal koji
+ * already has: Japan and China read Asia/*, Rome and London Europe/*, San Diego
+ * and New York America/*. Mexico City and Toronto are America/* too, so the
+ * test is a list of US zones rather than a prefix. A trip with no zone is
+ * still being planned and stays a tile.
+ */
+const US_ZONE = /^(America\/(New_York|Chicago|Denver|Phoenix|Los_Angeles|Anchorage|Juneau|Sitka|Yakutat|Nome|Metlakatla|Adak|Boise|Detroit|Menominee|Puerto_Rico|Indiana\/.+|Kentucky\/.+|North_Dakota\/.+)|Pacific\/Honolulu|US\/.+)$/;
+const isAbroad = (t: Trip) => !!t.tz && !US_ZONE.test(t.tz);
+
+/**
+ * A trip, big: its dates, its towns in their stay colours, nights and stays.
+ * The next trip leads ("Next trip", the full countdown, or "day N of M" while
+ * on it). A later trip abroad gets the same card one step down: the dates
+ * alone in the eyebrow, a smaller title, and a quiet count that turns to
+ * months once the trip is more than eight weeks away, so two cards never read
+ * as two "next" trips.
+ */
+function TripCard({ trip, stays, today, later }: { trip: Trip; stays: Stay[]; today: string; later?: boolean }) {
   const theme = themeOf(trip);
   const light = heroIsLight(theme.bg);
   const start = trip.date_start, end = trip.date_end ?? trip.date_start;
   const under = start ? dayDiff(today, start) : null;
   const onTrip = start && end && under !== null && under <= 0 && today <= end;
+  const months = under !== null ? Math.round(under / 30.44) : 0;
   const count = onTrip
     ? { n: dayDiff(start!, today) + 1, l: `of ${dayDiff(start!, end!) + 1} days` }
-    : under !== null && under > 0 ? { n: under, l: under === 1 ? 'day to go' : 'days to go' } : null;
+    : under === null || under <= 0 ? null
+    : later && under > 56 ? { n: months, l: months === 1 ? 'month to go' : 'months to go' }
+    : { n: under, l: under === 1 ? 'day to go' : 'days to go' };
   const nights = stays.reduce((n, st) => n + st.nights, 0) || (start && end ? dayDiff(start, end) : 0);
+  const when = start ? range(start, trip.date_end) : '';
+  const eyebrow = onTrip ? `On the road · ${when}` : later ? when || 'Planning' : `Next trip${when ? ` · ${when}` : ''}`;
   return (
-    <Link href={`/trips/${trip.slug}`} className={`home-feature pressable${light ? ' light' : ''}`} style={{ background: theme.bg, color: theme.fg }}>
-      <div className="e">{onTrip ? 'On the road' : 'Next trip'}{start ? ` · ${range(start, trip.date_end)}` : ''}</div>
+    <Link href={`/trips/${trip.slug}`} className={`home-feature pressable${light ? ' light' : ''}${later ? ' later' : ''}`} style={{ background: theme.bg, color: theme.fg }}>
+      <div className="e">{eyebrow}</div>
       {count && <div className="home-count"><b>{count.n}</b><span>{count.l}</span></div>}
       <h2>{trip.title}</h2>
       {trip.subtitle && <div className="s">{trip.subtitle}</div>}
@@ -81,7 +105,7 @@ function NextTrip({ trip, stays, today }: { trip: Trip; stays: Stay[]; today: st
         </div>
       ) : trip.meta ? <div className="home-meta">{trip.meta}</div> : null}
       <div className="home-foot">
-        <OpenBookingsChip />
+        <OpenBookingsChip tripId={trip.id} />
         {nights > 0 && <span className="home-chip">{nights} nights</span>}
         {stays.length > 1 && <span className="home-chip">{stays.length} stays</span>}
       </div>
@@ -133,7 +157,20 @@ export default async function HomePage() {
   const { upcoming, past } = splitTrips(trips);
   const next = upcoming.find(t => t.date_start) ?? upcoming[0] ?? null;
   const later = upcoming.filter(t => t !== next);
-  const stays = next ? await getStays(next.id) : [];
+  // Big cards: the next trip, and every later trip abroad. Their stays load
+  // side by side.
+  const big = [next, ...later.filter(isAbroad)].filter((t): t is Trip => !!t);
+  const staysFor = new Map(big.map((t, i) => [t.id, i]));
+  const stayLists = await Promise.all(big.map(t => getStays(t.id)));
+  const staysOf = (t: Trip) => stayLists[staysFor.get(t.id)!] ?? [];
+  // Later trips in date order: each abroad one is a card, runs of the others
+  // stay a tile grid between them.
+  const runs: (Trip | Trip[])[] = [];
+  for (const t of later) {
+    if (isAbroad(t)) runs.push(t);
+    else if (Array.isArray(runs[runs.length - 1])) (runs[runs.length - 1] as Trip[]).push(t);
+    else runs.push([t]);
+  }
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -157,8 +194,15 @@ export default async function HomePage() {
         ) : (
           <div className="home-cols">
             <div>
-              {next && <NextTrip trip={next} stays={stays} today={today} />}
-              {later.length > 0 && <><div className="home-lbl">Also coming up</div><TileGrid trips={later} /></>}
+              {next && <TripCard trip={next} stays={staysOf(next)} today={today} />}
+              {later.length > 0 && <>
+                <div className="home-lbl">Also coming up</div>
+                <div className="home-later">
+                  {runs.map(r => Array.isArray(r)
+                    ? <TileGrid key={`g${r[0].id}`} trips={r} />
+                    : <TripCard key={r.id} trip={r} stays={staysOf(r)} today={today} later />)}
+                </div>
+              </>}
             </div>
             {past.length > 0 && (
               <div className="home-side">
