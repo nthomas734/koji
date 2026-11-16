@@ -4,7 +4,7 @@ import type { Stay, Trip } from '@/lib/supabase';
 import { STAY_PALETTE, heroIsLight } from '@/lib/stayColors';
 import { OpenBookingsChip } from '@/components/OpenBookingsChip';
 import { KojiMark } from '@/components/KojiMark';
-import { OwnerNav } from '@/components/OwnerNav';
+import { OwnerLinks } from '@/components/OwnerNav';
 
 export const revalidate = 60;
 
@@ -67,7 +67,8 @@ const US_ZONE = /^(America\/(New_York|Chicago|Denver|Phoenix|Los_Angeles|Anchora
 const isAbroad = (t: Trip) => !!t.tz && !US_ZONE.test(t.tz);
 
 /**
- * A trip, big: its dates, its towns in their stay colours, nights and stays.
+ * A trip, big: its dates, its towns as a two-column list in their stay
+ * colours, a bar of the stays along the bottom edge, nights and stays.
  * The next trip leads ("Next trip", the full countdown, or "day N of M" while
  * on it). A later trip abroad gets the same card one step down: the dates
  * alone in the eyebrow, a smaller title, and a quiet count that turns to
@@ -88,27 +89,40 @@ function TripCard({ trip, stays, today, later }: { trip: Trip; stays: Stay[]; to
     : { n: under, l: under === 1 ? 'day to go' : 'days to go' };
   const nights = stays.reduce((n, st) => n + st.nights, 0) || (start && end ? dayDiff(start, end) : 0);
   const when = start ? range(start, trip.date_end) : '';
+  // Light variant on a dark card, ink on the light themes, as the chips chose.
+  const tone = (st: Stay) => (STAY_PALETTE[st.color] ?? STAY_PALETTE.blue)[light ? 'ink' : 'light'];
+  const summary = [
+    nights > 0 ? `${nights} ${nights === 1 ? 'night' : 'nights'}` : '',
+    stays.length > 1 ? `${stays.length} stays` : '',
+  ].filter(Boolean).join(' · ');
   const eyebrow = onTrip ? `On the road · ${when}` : later ? when || 'Planning' : `Next trip${when ? ` · ${when}` : ''}`;
   return (
-    <Link href={`/trips/${trip.slug}`} className={`home-feature pressable${light ? ' light' : ''}${later ? ' later' : ''}`} style={{ background: theme.bg, color: theme.fg }}>
+    <Link href={`/trips/${trip.slug}`} className={`home-feature pressable${light ? ' light' : ''}${later ? ' later' : ''}${stays.length > 0 ? ' barred' : ''}`} style={{ background: theme.bg, color: theme.fg }}>
       <div className="e">{eyebrow}</div>
       {count && <div className="home-count"><b>{count.n}</b><span>{count.l}</span></div>}
       <h2>{trip.title}</h2>
       {trip.subtitle && <div className="s">{trip.subtitle}</div>}
       {stays.length > 0 ? (
-        <div className="home-route">
-          {stays.map((st, i) => (
-            <span key={st.id} style={{ borderColor: (STAY_PALETTE[st.color] ?? STAY_PALETTE.blue)[light ? 'ink' : 'light'] }}>
-              {st.place}<small>{st.nights}{i === 0 ? (st.nights === 1 ? ' night' : ' nights') : ''}</small>
-            </span>
+        // Travel order, down the left column and then down the right; an odd
+        // count leaves the extra stay on the left.
+        <div className="home-stays" style={{ gridTemplateRows: `repeat(${Math.ceil(stays.length / 2)}, auto)` }}>
+          {stays.map(st => (
+            <div key={st.id}><b style={{ color: tone(st) }}>{st.place}</b><small>{st.nights}</small></div>
           ))}
         </div>
       ) : trip.meta ? <div className="home-meta">{trip.meta}</div> : null}
-      <div className="home-foot">
-        <OpenBookingsChip tripId={trip.id} />
-        {nights > 0 && <span className="home-chip">{nights} nights</span>}
-        {stays.length > 1 && <span className="home-chip">{stays.length} stays</span>}
-      </div>
+      {summary && (
+        <div className="home-foot">
+          <span className="q">{summary}</span>
+          <OpenBookingsChip tripId={trip.id} />
+        </div>
+      )}
+      {/* One segment per stay, as wide as its nights, flush along the bottom edge. */}
+      {stays.length > 0 && (
+        <div className="home-bar" aria-hidden="true">
+          {stays.map(st => <span key={st.id} style={{ flexGrow: st.nights, background: tone(st) }} />)}
+        </div>
+      )}
     </Link>
   );
 }
@@ -175,14 +189,14 @@ export default async function HomePage() {
 
   return (
     <div className="home-page" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 0 60px' }}>
-      {/* Signed in only: Trips, Bookings, Admin and Rolls */}
-      <OwnerNav here="trips" ownerOnly />
       <header style={{ padding: '40px var(--px) 6px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <KojiMark size={32} />
           <h1 style={{ fontFamily: 'var(--font-mono)', fontWeight: 400, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--brass)' }}>
             koji · 行程
           </h1>
+          {/* Signed in only: Bookings, Rolls, Admin, on the mark's line. */}
+          <OwnerLinks />
         </div>
       </header>
 

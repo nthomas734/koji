@@ -1,6 +1,6 @@
 'use client';
 
-// "2 bookings open" on a big trip card on the home page, counting that trip's
+// "2 to book" at the right of a big trip card's foot line, counting that trip's
 // own windows. Signed in only: it waits for the owner flag before asking, so a
 // visitor's phone never calls the admin API. Every card on the page shares one
 // request.
@@ -31,10 +31,10 @@ export function OpenBookingsChip({ tripId }: { tripId: number }) {
   if (!open) return null;
   return (
     // It sits inside the trip card's link, so it can't be a link itself.
-    <span role="link" tabIndex={0} className="home-chip home-chip-hot"
+    <span role="link" tabIndex={0} className="home-book"
       onClick={e => { e.preventDefault(); e.stopPropagation(); go(); }}
       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); go(); } }}>
-      {open} {open === 1 ? 'booking' : 'bookings'} open
+      {open} to book
     </span>
   );
 }
