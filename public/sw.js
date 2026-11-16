@@ -16,7 +16,8 @@
 //     was a broken square the moment the phone lost signal — which is exactly
 //     when you are standing in the interior.
 //   - never touches /api/, /admin, other cross-origin requests, or non-GET
-//     requests, so the UpdateBanner deploy check (HEAD / with no-store) passes
+//     requests, so the UpdateBanner deploy check (/api/version) always goes
+//     to the network
 //
 // Bump VERSION to invalidate all old caches on the next deploy of this file.
 // v3 (2026-11-11): pages cached before koma went private still hold the shot
@@ -147,6 +148,25 @@ async function refresh(cache, req, res) {
   }));
   await cache.put(req, res);
 }
+
+// UpdateBanner's Reload: store a fresh copy of the page (and the scripts it
+// names) before the page reloads, then say so. A plain reload on a slow link
+// would hit the 3 s timer above and show the old cached copy again, and a
+// fetch from the page alone isn't enough: networkFirst doesn't wait for its
+// cache write, so the reload could still find the old entry.
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'koji:refresh-page') return;
+  const url = new URL(event.data.url, self.location.origin);
+  url.hash = '';
+  if (url.origin !== self.location.origin) return;
+  event.waitUntil((async () => {
+    try {
+      const res = await fetch(url.href, { cache: 'no-store', credentials: 'same-origin', redirect: 'manual' });
+      await refresh(await caches.open(PAGE_CACHE), url.href, res);
+    } catch { /* offline: the reload falls back as any navigation does */ }
+    event.source?.postMessage({ type: 'koji:page-refreshed' });
+  })());
+});
 
 // Trip alerts (Web Push from /api/notify). iOS requires every push to show a
 // notification, so always call showNotification.
