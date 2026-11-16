@@ -811,14 +811,23 @@ the table never holds confirmation or seat numbers.
   switch in place. One 720px column at every width (the old ≥1000px table is
   gone). Countdown, sections and "your time" render client-side only, because
   the server runs in UTC.
-- **Home page (same day).** The next trip is a hero card: countdown (or "day N
-  of M" while on it), its stays as town chips in their `STAY_PALETTE` colours
-  (`lib/stayColors.ts`, shared with the client `Stays.tsx`), nights and stays
-  chips, and for the owner an amber "N bookings open" chip
+- **Home page (same day, redesigned 2026-11-15 as "C2").** The next trip is
+  a hero card: countdown (or "day N of M" while on it), its stays as a
+  two-column list in travel order (down the left, then down the right; an odd
+  count leaves the extra on the left), each name in its `STAY_PALETTE` colour
+  (`lib/stayColors.ts`, shared with the client `Stays.tsx`; light variant on
+  a dark card, ink on a light one) with its nights small at the column's
+  right. A bar of the stays, one segment per stay as wide as its nights, runs
+  flush along the card's bottom edge. One mono line above it reads "N nights
+  · N stays", and for the owner "N to book" with an amber dot
   (`OpenBookingsChip`, asks `/api/admin/bookings` only when `verdicts:owner`
   is set; it's a span, not a link, because it sits inside the card's link).
-  Past trips are a two-column tile grid; an odd count makes the last tile
-  full width. At ≥900px the hero and past grid sit side by side.
+  No chips, no dots. Past trips are a two-column tile grid; an odd count
+  makes the last tile full width. At ≥900px the hero and past grid sit side
+  by side. The owner's way out is three small links (Bookings, Rolls, Admin)
+  on the koji mark's line (`OwnerLinks`), not the segmented `OwnerNav`, which
+  stays on `/admin` and `/admin/bookings`. They sit in a line box the 32px
+  mark already sets, so appearing after hydration shifts nothing.
 - **Later trips abroad get the big card too (2026-11-15).** `TripCard` in
   `page.tsx` draws both. Abroad means the trip's `tz` is not a US zone
   (`isAbroad`, a list of US zones, not an `America/` prefix, so Mexico City

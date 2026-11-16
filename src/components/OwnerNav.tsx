@@ -1,12 +1,14 @@
 'use client';
 
-// The way back from the owner pages. One row at the top of /admin,
-// /admin/bookings and (signed in only) the itineraries list: a link back to
-// the trip you came from, then Trips · Bookings · Admin · Rolls.
+// The way back from the owner pages. One row at the top of /admin and
+// /admin/bookings: a link back to the trip you came from, then
+// Trips · Bookings · Admin · Rolls. The last trip is written by TripView when
+// it sees the owner flag.
 //
-// The last trip is written by TripView when it sees the owner flag; the flag
-// itself is useVerdicts' `verdicts:owner`, so on the public home page this
-// renders nothing for anyone who isn't signed in.
+// The itineraries list is also a first impression, so it gets OwnerLinks
+// instead: three small links on the koji mark's line, shown only once
+// useVerdicts' `verdicts:owner` flag is set. They sit in a line box the mark
+// already sets the height of, so appearing after hydration moves nothing.
 
 import { useEffect, useState } from 'react';
 
@@ -14,19 +16,31 @@ export const LAST_TRIP_KEY = 'koji:lastTrip';
 
 type Here = 'trips' | 'bookings' | 'admin';
 
-export function OwnerNav({ here, ownerOnly = false }: { here: Here; ownerOnly?: boolean }) {
-  const [show, setShow] = useState(!ownerOnly);
+export function OwnerLinks() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    try { if (localStorage.getItem('verdicts:owner') === 'true') setShow(true); } catch { /* private mode */ }
+  }, []);
+  if (!show) return null;
+  return (
+    <nav className="owner-links" aria-label="Owner">
+      <a href="/admin/bookings">Bookings</a>
+      <a href="/koma">Rolls</a>
+      <a href="/admin">Admin</a>
+    </nav>
+  );
+}
+
+export function OwnerNav({ here }: { here: Here }) {
   const [last, setLast] = useState<{ slug: string; title: string } | null>(null);
 
   useEffect(() => {
     try {
-      if (ownerOnly && localStorage.getItem('verdicts:owner') === 'true') setShow(true);
       const raw = localStorage.getItem(LAST_TRIP_KEY);
       if (raw) setLast(JSON.parse(raw));
     } catch { /* private mode */ }
-  }, [ownerOnly]);
+  }, []);
 
-  if (!show) return null;
   const links: { key: Here | 'rolls'; label: string; href: string }[] = [
     { key: 'trips', label: 'Trips', href: '/' },
     { key: 'bookings', label: 'Bookings', href: '/admin/bookings' },
