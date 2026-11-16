@@ -55,6 +55,7 @@ const JA: Record<string, string> = {
   'relay kamome': 'The limited express that links Hakata to Takeo-Onsen, across the platform from the Kamome.',
   'midori': 'A JR Kyushu limited express (not a bullet train), Hakata to Sasebo via Arita.',
   'huis ten bosch': 'A JR Kyushu limited express named after the Dutch-themed park it runs to.',
+  'romancecar': "Odakyu's reserved-seat limited express from Shinjuku to Hakone; the GSE trains have big front observation windows.",
   'special rapid': 'A JR train a step up from a local: skips stops, no reservation, no extra fare.',
   // People and eras the plan names in passing.
   'edo-era': 'The Edo period, 1603 to 1868, when the shoguns ruled from Edo (now Tokyo).',

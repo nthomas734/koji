@@ -14,6 +14,8 @@
 // A "Kodama + Nozomi" label splits the line: ticks, then dashes.
 // Anything not listed keeps the plain dotted line.
 
+import { glossOf } from '@/lib/glossary';
+
 export type LineKind = 'dots' | 'dash' | 'beam' | 'ticks' | 'gull' | 'stripe';
 
 type Livery = { re: RegExp; line: LineKind; bg: string; fg: string; glow?: boolean };
@@ -53,24 +55,33 @@ function dotColor(l: Livery): string {
  * board's colour, the name in romaji, and what kind of train it is
  * ("● Hikari · semi-fast bullet train"). The kana are dropped here.
  */
-export function TrainNote({ parts, kind, color }: { parts: LiveryPart[]; kind: string; color: string }) {
+export function TrainNote({ parts, kind, color, glossed = false }: {
+  parts: LiveryPart[]; kind: string; color: string;
+  /** Japan trips: the train's name taps open its glossary line, like the body text. */
+  glossed?: boolean;
+}) {
   const romaji = (t: string) => t.replace(/^[\p{Script=Hiragana}\p{Script=Katakana}ー・]+\s+/u, '');
+  // Plain inline text, not flex, so it sits on the tag's baseline.
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 6, rowGap: 2, minWidth: 0,
-      fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500, letterSpacing: 0, textTransform: 'none', color,
+      minWidth: 0, fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500, lineHeight: 1.3,
+      letterSpacing: 0, textTransform: 'none', color,
     }}>
-      {parts.map((p, i) => (
-        <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
-          {i > 0 && <span style={{ opacity: 0.5 }}>→</span>}
-          {p.livery && <span aria-hidden style={{
-            width: 7, height: 7, borderRadius: '50%', background: dotColor(p.livery), flexShrink: 0,
-            boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.12)',
-          }} />}
-          {romaji(p.text)}
-        </span>
-      ))}
-      {kind && <span style={{ opacity: 0.65, fontWeight: 400, whiteSpace: 'nowrap' }}>· {kind}</span>}
+      {parts.map((p, i) => {
+        const name = romaji(p.text);
+        const def = glossed ? glossOf(name.replace(/\s+\d+$/, '')) : undefined;
+        return (
+          <span key={i} style={{ whiteSpace: 'nowrap' }}>
+            {i > 0 && <span style={{ opacity: 0.5, margin: '0 6px' }}>→</span>}
+            {p.livery && <span aria-hidden style={{
+              display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: dotColor(p.livery),
+              boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.12)', marginRight: 5, verticalAlign: '0.05em',
+            }} />}
+            {def ? <span className="gl" role="button" tabIndex={0} data-gl={def}>{name}</span> : name}
+          </span>
+        );
+      })}
+      {kind && <span style={{ opacity: 0.65, fontWeight: 400, whiteSpace: 'nowrap', marginLeft: 6 }}>· {kind}</span>}
     </span>
   );
 }
