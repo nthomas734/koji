@@ -28,6 +28,7 @@
 // Anything not listed keeps the plain dotted line.
 
 import { glossOf } from '@/lib/glossary';
+import type { Dress } from '@/lib/maps';
 
 export type LineKind = 'dots' | 'speedup' | 'beam' | 'ticks' | 'gull' | 'stripe' | 'steady';
 
@@ -75,12 +76,13 @@ function dotColor(l: Livery, accent?: string): string {
  * board's colour, the name in romaji, and what kind of train it is
  * ("● Hikari · semi-fast bullet train"). The kana are dropped here.
  */
-export function TrainNote({ parts, kind, color, accent, glossed = false }: {
+export function TrainNote({ parts, kind, color, accent, dress = null }: {
   parts: LiveryPart[]; kind: string; color: string;
   /** The day's colour, for a dot with none of its own (China's D trains). */
   accent?: string;
-  /** Japan trips: the train's name taps open its glossary line, like the body text. */
-  glossed?: boolean;
+  /** Japan and China trips: the train's name (or, in China, its number) taps
+   *  open its glossary line, like the body text. */
+  dress?: Dress;
 }) {
   const romaji = (t: string) => t.replace(/^[\p{Script=Hiragana}\p{Script=Katakana}ー・]+\s+/u, '');
   // Plain inline text, not flex, so it sits on the tag's baseline.
@@ -91,7 +93,7 @@ export function TrainNote({ parts, kind, color, accent, glossed = false }: {
     }}>
       {parts.map((p, i) => {
         const name = romaji(p.text);
-        const def = glossed ? glossOf(name.replace(/\s+\d+$/, '')) : undefined;
+        const def = dress ? glossOf(name.replace(/\s+\d+$/, ''), dress) : undefined;
         return (
           <span key={i} style={{ whiteSpace: 'nowrap' }}>
             {i > 0 && <span style={{ opacity: 0.5, margin: '0 6px' }}>→</span>}

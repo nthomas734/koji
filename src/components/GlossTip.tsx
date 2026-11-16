@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 // The one-line meaning for a glossary word (lib/glossary.ts). One listener for
 // the whole page: tapping a dotted word opens a small dark bubble pointing at
 // it, above the word when there's room, else below. Tapping anywhere else,
-// scrolling or Escape closes it. Mounted once by TripView on Japan trips.
+// scrolling or Escape closes it. Mounted once by TripView on Japan and China trips.
 
 type Tip = { text: string; x: number; y: number; below: boolean; word: string; arrow: number };
 

@@ -106,6 +106,36 @@ function parseArrival(label: string | null | undefined): { at: Clock; note: stri
   return { at, note, approx };
 }
 
+/**
+ * An overnight journey: a ticket (not a flight) whose arrival is the next
+ * morning, like the sleeper into West Kowloon. The day after it opens with a
+ * small sunrise. Flights are left out: they cross zones, so their clocks
+ * can't be compared, and they have their own landing stop.
+ */
+export function arrivesNextMorning(stop: Stop): boolean {
+  if (!isJourney(stop) || isFlight(stop)) return false;
+  const dep = parseClock(stop.time_label)!;
+  const mins = tripMinutes(stop, dep);
+  if (mins == null) return false;
+  const toMin = (c: Clock) => ((c.h % 12) + (c.mer === 'pm' ? 12 : 0)) * 60 + c.m;
+  const end = toMin(dep) + mins;
+  return end >= 24 * 60 && end < 36 * 60;
+}
+
+/**
+ * Half a sun on its horizon with three short rays: the sunrise mark on koma's
+ * sun chart (SunTrack), drawn small for the first stop after a night train.
+ */
+export function SunriseMark({ color = 'var(--brass)' }: { color?: string }) {
+  return (
+    <svg viewBox="0 0 18 12" width="17" height="11" aria-label="sunrise" role="img"
+      style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: 6, color }}>
+      <path d="M4.2 10a4.8 4.8 0 0 1 9.6 0z" fill="currentColor" />
+      <path d="M0.5 10.6h17M9 1v2M3.2 3.6l1.3 1.4M14.8 3.6l-1.3 1.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}
+
 function modeOf(stop: Stop): 'plane' | 'ferry' | 'train' {
   if (isFlight(stop)) return 'plane';
   if (/\b(ferry|boat)\b/i.test(stop.title)) return 'ferry';
@@ -264,7 +294,8 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   const mode = modeOf(stop);
   const ferry = mode === 'ferry';
   const changes = Number(stop.duration_label?.match(/(\d+)\s*change/)?.[1] ?? 0);
-  const bodyHtml = gloss(renderMd(stop.body_md), dress);
+  // The train note glosses the number; the body leaves train numbers plain.
+  const bodyHtml = gloss(renderMd(stop.body_md), dress, { trainNumbers: !stop.service_label?.trim() });
   const tint = `color-mix(in srgb, ${accent} 17%, var(--surface))`;
   const deep = `color-mix(in srgb, ${accent} 62%, var(--ink))`;
   const routeLabel = stop.duration_label || '';
@@ -384,7 +415,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
             {stop.tag}
             <WhoChip who={stop.who} color={accent} />
             {/* Which train, said in passing beside the tag: a note, not a destination. */}
-            {service && <TrainNote parts={liveryParts(service)} kind={kind} color={deep} accent={accent} glossed={dress === 'ja'} />}
+            {service && <TrainNote parts={liveryParts(service)} kind={kind} color={deep} accent={accent} dress={dress} />}
           </div>
           {stamp}
         </div>
