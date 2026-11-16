@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getTrips, getStays } from '@/lib/supabase';
 import type { Stay, Trip } from '@/lib/supabase';
-import { STAY_PALETTE, heroIsLight } from '@/lib/stayColors';
+import { STAY_PALETTE, heroIsLight, readableOn } from '@/lib/stayColors';
 import { OpenBookingsChip } from '@/components/OpenBookingsChip';
 import { KojiMark } from '@/components/KojiMark';
 import { OwnerLinks } from '@/components/OwnerNav';
@@ -91,6 +91,9 @@ function TripCard({ trip, stays, today, later }: { trip: Trip; stays: Stay[]; to
   const when = start ? range(start, trip.date_end) : '';
   // Light variant on a dark card, ink on the light themes, as the chips chose.
   const tone = (st: Stay) => (STAY_PALETTE[st.color] ?? STAY_PALETTE.blue)[light ? 'ink' : 'light'];
+  // The name, not the bar, is lifted toward white (ink on a light card) until
+  // it reads on this card, capped so it keeps its segment's hue.
+  const nameTone = (st: Stay) => readableOn(tone(st), theme.bg, light);
   const summary = [
     nights > 0 ? `${nights} ${nights === 1 ? 'night' : 'nights'}` : '',
     stays.length > 1 ? `${stays.length} stays` : '',
@@ -107,7 +110,7 @@ function TripCard({ trip, stays, today, later }: { trip: Trip; stays: Stay[]; to
         // count leaves the extra stay on the left.
         <div className="home-stays" style={{ gridTemplateRows: `repeat(${Math.ceil(stays.length / 2)}, auto)` }}>
           {stays.map(st => (
-            <div key={st.id}><b style={{ color: tone(st) }}>{st.place}</b><small>{st.nights}</small></div>
+            <div key={st.id}><b style={{ color: nameTone(st) }}>{st.place}</b><small>{st.nights}</small></div>
           ))}
         </div>
       ) : trip.meta ? <div className="home-meta">{trip.meta}</div> : null}

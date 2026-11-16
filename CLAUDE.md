@@ -817,7 +817,12 @@ the table never holds confirmation or seat numbers.
   count leaves the extra on the left), each name in its `STAY_PALETTE` colour
   (`lib/stayColors.ts`, shared with the client `Stays.tsx`; light variant on
   a dark card, ink on a light one) with its nights small at the column's
-  right. A bar of the stays, one segment per stay as wide as its nights, runs
+  right. The list alone nudges each name toward white on a dark card (toward
+  ink on a light one) by the least that reaches 4.5:1 on that card, capped at
+  30% (`readableOn` / `NAME_MIX_CAP` in `lib/stayColors.ts`); at 45% the
+  cobalt names washed out to near-white. Cobalt can't reach 4.5 under the cap
+  (3.2–3.7:1). The palette, the bar and the trip page keep the raw colours.
+  A bar of the stays, one segment per stay as wide as its nights, runs
   flush along the card's bottom edge. One mono line above it reads "N nights
   · N stays", and for the owner "N to book" with an amber dot
   (`OpenBookingsChip`, asks `/api/admin/bookings` only when `verdicts:owner`
