@@ -6,7 +6,7 @@
 // name: Nozomi yellow, Hikari red, Kodama blue. Each also gets its own route
 // line, from what the name means or what the train does:
 //   Every bullet train trails speed streaks off the back of the glyph.
-//   Nozomi  a run of forward chevrons: the fast one, pointing on ahead.
+//   Nozomi  dashes that stretch toward the arrival: the fast one, picking up speed.
 //   Hikari  a beam of light that brightens toward the arrival (ひかり, "light").
 //   Kodama  a tick at every station along the line: the all-stops one.
 //   Kamome  a gull over the line (かもめ, "seagull"), JR Kyushu's red on white.
@@ -17,13 +17,13 @@
 
 import { glossOf } from '@/lib/glossary';
 
-export type LineKind = 'dots' | 'chevron' | 'beam' | 'ticks' | 'gull' | 'stripe';
+export type LineKind = 'dots' | 'speedup' | 'beam' | 'ticks' | 'gull' | 'stripe';
 
 type Livery = { re: RegExp; line: LineKind; bg: string; fg: string; glow?: boolean; bullet?: boolean };
 
 const BOARD = '#17140F';
 const LIVERIES: Livery[] = [
-  { re: /nozomi|のぞみ/i, line: 'chevron', bg: BOARD, fg: '#F6C744', glow: true, bullet: true },
+  { re: /nozomi|のぞみ/i, line: 'speedup', bg: BOARD, fg: '#F6C744', glow: true, bullet: true },
   { re: /hikari|ひかり/i, line: 'beam', bg: BOARD, fg: '#FF5A4E', glow: true, bullet: true },
   { re: /kodama|こだま/i, line: 'ticks', bg: BOARD, fg: '#5AB1FF', glow: true, bullet: true },
   { re: /relay kamome|リレーかもめ/i, line: 'dots', bg: '#FFFFFF', fg: '#C8102E' },
@@ -89,22 +89,28 @@ export function TrainNote({ parts, kind, color, glossed = false }: {
 
 const SEG_H = 8;
 
-const CHEVRON_SVG = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="9" height="7" viewBox="0 0 9 7"><path d="M2.5 1 L5.5 3.5 L2.5 6" fill="none" stroke="#000" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>')}")`;
-const CHEVRONS: React.CSSProperties = {
-  WebkitMaskImage: CHEVRON_SVG, maskImage: CHEVRON_SVG,
-  WebkitMaskRepeat: 'repeat-x', maskRepeat: 'repeat-x',
-  WebkitMaskSize: '9px 7px', maskSize: '9px 7px',
-};
+// The Nozomi's dashes, in a 0–100 run: each a little longer than the last,
+// the gaps steady, so the line reads as a train gathering speed. Drawn in an
+// SVG that stretches to the segment, with the stroke kept at a fixed width.
+const SPEEDUP_PATH = (() => {
+  let d = '';
+  for (let x = 0, len = 1; x < 100; x += len + 3.4, len += 1.3) d += `M${x.toFixed(1)} 4h${Math.min(len, 100 - x).toFixed(1)}`;
+  return d;
+})();
 
 /** One stretch of route line in a given style, vertically centred on its box. */
 function Segment({ kind, accent }: { kind: LineKind; accent: string }) {
   const base: React.CSSProperties = { flex: 1, height: SEG_H, position: 'relative', minWidth: 0 };
   const mid = (extra: React.CSSProperties): React.CSSProperties => ({ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', ...extra });
   switch (kind) {
-    case 'chevron':
-      // The Nozomi's own: a run of small forward chevrons, the line itself
-      // pointing on ahead, since it's the one that doesn't stop.
-      return <div style={base}><div style={mid({ height: 7, background: accent, ...CHEVRONS })} /></div>;
+    case 'speedup':
+      return (
+        <div style={base}>
+          <svg viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible' }}>
+            <path d={SPEEDUP_PATH} stroke={accent} strokeWidth={1.5} strokeLinecap="round" vectorEffect="non-scaling-stroke" fill="none" />
+          </svg>
+        </div>
+      );
     case 'beam':
       return <div style={base}><div style={mid({ height: 2, borderRadius: 2, background: `linear-gradient(90deg, transparent, ${accent} 70%, ${accent})`, boxShadow: `0 0 6px color-mix(in srgb, ${accent} 45%, transparent)` })} /></div>;
     case 'ticks':
