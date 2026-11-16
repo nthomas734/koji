@@ -200,8 +200,20 @@ const KINDS: [RegExp, string, boolean][] = [
   [/kamome|かもめ/i, 'Nishi-Kyushu', true],
   [/midori|みどり|huis ten bosch|ハウステンボス|romancecar|ロマンスカー/i, 'limited express', false],
 ];
+// China's labels are numbers; the letter in front is the type: G 高速动车组
+// (the fastest class), D 动车组 (a slower one, 200-250 km/h; 200 or less once
+// China renumbers in late December 2026), C 城际 (intercity). The words hold
+// under both numberings.
+const CN_KINDS: Record<string, string> = { G: 'high-speed train', D: 'express train', C: 'intercity train' };
+
 export function trainKind(service: string): string {
   if (!service) return '';
+  const cn = service.split(/\s*\+\s*/).map(part => part.match(/^([GDC])\d{1,4}\b/)?.[1]);
+  if (cn.every(Boolean)) {
+    const kinds = cn.map(l => CN_KINDS[l!]);
+    // Two of a kind are said once ("high-speed trains"); different kinds in order.
+    return kinds.every(k => k === kinds[0]) ? (kinds.length === 1 ? kinds[0] : `${kinds[0]}s`) : kinds.join(', then ');
+  }
   const parts = service.split(/\s*\+\s*/).map(part => KINDS.find(([re]) => re.test(part))).filter(Boolean) as [RegExp, string, boolean][];
   if (!parts.length) return '';
   if (parts.every(p => p[2])) {
@@ -372,7 +384,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
             {stop.tag}
             <WhoChip who={stop.who} color={accent} />
             {/* Which train, said in passing beside the tag: a note, not a destination. */}
-            {service && <TrainNote parts={liveryParts(service)} kind={kind} color={deep} glossed={dress === 'ja'} />}
+            {service && <TrainNote parts={liveryParts(service)} kind={kind} color={deep} accent={accent} glossed={dress === 'ja'} />}
           </div>
           {stamp}
         </div>
