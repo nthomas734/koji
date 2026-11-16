@@ -1,4 +1,8 @@
 import type { Metadata, Viewport } from 'next';
+// Fraunces, Manrope and Geist Mono, served by koji itself: fetched from Google
+// at build by scripts/fetch-fonts.mjs (gitignored output). Not a <link> to
+// fonts.googleapis.com, which blocked first paint on two extra connections.
+import './fonts/google.css';
 import './globals.css';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { SWRegister } from '@/components/SWRegister';
@@ -43,12 +47,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             alerts note took on this trip page last time, so the itinerary
             doesn't jump when they appear. See lib/hold.ts. */}
         <script dangerouslySetInnerHTML={{ __html: HOLD_SCRIPT }} />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&family=Geist+Mono:wght@400;500;700&family=Manrope:wght@300;400;500;600&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body>
         {/* Client-only deploy detector — renders nothing until a new Vercel

@@ -14,6 +14,9 @@
 # production
 /build
 
+# web fonts, fetched at build by scripts/fetch-fonts.mjs
+/src/app/fonts/
+
 # misc
 .DS_Store
 *.pem
