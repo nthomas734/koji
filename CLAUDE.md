@@ -109,6 +109,9 @@ All of this lives in `src/components/TripView.tsx` and runs client-side in a `us
     where s.day_id = d.id and t.slug = 'japan-2027'
       and d.sort_order = 30 and s.sort_order = -5 and s.hop_mode is null;
     ```
+- **The sleeper ticket and its berth stub** (PR #30, 2026-11-15). An overnight journey ticket (not a flight; departure plus duration lands the next morning) wears night on the departure side and a fixed dawn on the arrival side, with "Tonight" under the departure and the weekday under the arrival. The day after it, the first stop carries the small rising sun. The dawn colours are fixed on purpose, not taken from the stay colour.
+  - **Berth format in `seat_label`.** The stub at the end of the seat line reads the berth with `parseBerth`, from either `Berth 23 lower` (level `upper` / `middle` / `lower` optional) or `23号下铺` (上 / 中 / 下 optional). The stub shows the number and level; the rest of the label stays as the seat text. With no berth in `seat_label` it shows a dash over "sleeper".
+  - Example: `update koji_stops set seat_label = 'Car 9 · Berth 23 lower' where id = 849;`
 - **Times are always 12-hour with lowercase am/pm** ("7:40pm"), in data and in UI; zones are "PT", not "LA time". `fmtTime` in `src/lib/bookings.ts` formats booking times that way.
 
 ## Text-parsing conventions (non-obvious)
