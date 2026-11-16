@@ -815,9 +815,17 @@ the table never holds confirmation or seat numbers.
   chips, and for the owner an amber "N bookings open" chip
   (`OpenBookingsChip`, asks `/api/admin/bookings` only when `verdicts:owner`
   is set; it's a span, not a link, because it sits inside the card's link).
-  Other upcoming trips and past trips are two-column tile grids; an odd count
-  makes the last tile full width. At ≥900px the hero and past grid sit side by
-  side.
+  Past trips are a two-column tile grid; an odd count makes the last tile
+  full width. At ≥900px the hero and past grid sit side by side.
+- **Later trips abroad get the big card too (2026-11-15).** `TripCard` in
+  `page.tsx` draws both. Abroad means the trip's `tz` is not a US zone
+  (`isAbroad`, a list of US zones, not an `America/` prefix, so Mexico City
+  and Toronto count as abroad). A later card is one step down: the dates
+  alone in the eyebrow (no "Next trip"), a smaller title, and a quiet count
+  that turns to months past eight weeks out. Domestic later trips stay tiles;
+  later trips keep date order, so a domestic trip between two abroad ones
+  sits between their cards. The bookings chip counts only that card's trip
+  (`byTrip` from `/api/admin/bookings`, one request shared by every card).
 - **Reminders = a calendar feed**, not push or email (Nathan's pick).
   `GET /api/bookings/ics?k=<token>` — one event per unbooked window (timed
   windows alarm the day before, 15 min before and at opening; all-day ones at

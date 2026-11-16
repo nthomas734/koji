@@ -22,14 +22,17 @@ function pick(body: Record<string, unknown>) {
 }
 
 // GET: how many windows are open and not booked, for the badge in the owner
-// switcher on the trip page.
+// switcher on the trip page (`open`), and per trip id for the home page's big
+// cards (`byTrip`), so each trip's card counts only its own.
 export async function GET() {
   if (!await authed()) return new NextResponse('Unauthorized', { status: 401 });
   const { data, error } = await supabaseAdmin().from('koji_bookings').select('*').in('status', ['not_open', 'open']);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const now = new Date();
-  const open = ((data ?? []) as Booking[]).filter(b => effectiveStatus(b, now) === 'open').length;
-  return NextResponse.json({ open }, { headers: { 'Cache-Control': 'no-store' } });
+  const rows = ((data ?? []) as Booking[]).filter(b => effectiveStatus(b, now) === 'open');
+  const byTrip: Record<number, number> = {};
+  for (const b of rows) byTrip[b.trip_id] = (byTrip[b.trip_id] ?? 0) + 1;
+  return NextResponse.json({ open: rows.length, byTrip }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(req: Request) {

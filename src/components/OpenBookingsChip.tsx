@@ -1,23 +1,33 @@
 'use client';
 
-// "2 bookings open" on the home page's next-trip card. Signed in only: it
-// waits for the owner flag before asking, so a visitor's phone never calls
-// the admin API.
+// "2 bookings open" on a big trip card on the home page, counting that trip's
+// own windows. Signed in only: it waits for the owner flag before asking, so a
+// visitor's phone never calls the admin API. Every card on the page shares one
+// request.
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export function OpenBookingsChip() {
+let counts: Promise<Record<string, number> | null> | null = null;
+function openByTrip() {
+  counts ??= fetch('/api/admin/bookings', { cache: 'no-store' })
+    .then(r => (r.ok ? r.json() : null))
+    .then(j => (j && j.byTrip && typeof j.byTrip === 'object' ? j.byTrip as Record<string, number> : null))
+    .catch(() => null)
+    .finally(() => { setTimeout(() => { counts = null; }, 0); });
+  return counts;
+}
+
+export function OpenBookingsChip({ tripId }: { tripId: number }) {
   const [open, setOpen] = useState(0);
   const router = useRouter();
   const go = () => router.push('/admin/bookings');
   useEffect(() => {
     try { if (localStorage.getItem('verdicts:owner') !== 'true') return; } catch { return; }
-    fetch('/api/admin/bookings', { cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(j => { if (j && typeof j.open === 'number') setOpen(j.open); })
-      .catch(() => {});
-  }, []);
+    let live = true;
+    openByTrip().then(m => { if (live && m && typeof m[tripId] === 'number') setOpen(m[tripId]); });
+    return () => { live = false; };
+  }, [tripId]);
   if (!open) return null;
   return (
     // It sits inside the trip card's link, so it can't be a link itself.

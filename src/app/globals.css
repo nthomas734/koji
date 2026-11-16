@@ -656,6 +656,15 @@ input, textarea, select {
 .home-chip { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; padding: 7px 11px; border-radius: 99px; background: rgba(255, 255, 255, 0.16); }
 .home-chip-hot { background: var(--amber-bg); color: var(--amber); }
 .home-feature.light .home-route span, .home-feature.light .home-chip:not(.home-chip-hot) { background: rgba(28, 26, 22, 0.07); }
+/* A later trip abroad: the same card one step down, so the next trip still leads. */
+.home-later { display: grid; gap: 10px; }
+.home-feature.later { padding: 18px 18px 16px; border-radius: 20px; }
+.home-feature.later h2 { font-size: 32px; margin-top: 8px; padding-right: 76px; }
+.home-feature.later .s { font-size: 15px; }
+.home-feature.later .home-count { right: 18px; top: 16px; opacity: 0.8; }
+.home-feature.later .home-count b { font-size: 30px; }
+.home-feature.later .home-route { margin-top: 14px; }
+.home-feature.later .home-foot { margin-top: 12px; }
 .home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .home-tile { display: flex; flex-direction: column; border-radius: 16px; padding: 14px 13px 13px; min-height: 124px; }
 .home-tile.wide { grid-column: 1 / -1; min-height: 104px; }
@@ -671,6 +680,9 @@ input, textarea, select {
   .home-feature { padding: 28px 26px 22px; }
   .home-feature h2 { font-size: 54px; }
   .home-count b { font-size: 60px; }
+  .home-feature.later { padding: 22px 22px 18px; }
+  .home-feature.later h2 { font-size: 40px; }
+  .home-feature.later .home-count b { font-size: 36px; }
 }
 
 /* ── glossary words (lib/glossary.ts, GlossTip.tsx) ───────────────────────
