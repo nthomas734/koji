@@ -1,0 +1,5 @@
+-- 2026-11-15: Naoshima kept. Three Ando architecture shots added to day 135 (applied via Supabase MCP).
+-- 131 Valley Gallery      (stop 820, 10:00) OSM 34.447899,133.989435
+-- 132 Lee Ufan approach   (stop 692, 11:30) OSM 34.449089,133.988699
+-- 133 New Museum of Art   (stop 821, 15:15) OSM 34.457902,133.998736
+-- Full rows: select * from koma_shots where id in (131,132,133);
