@@ -189,11 +189,138 @@ const PATHS: Record<'train' | 'plane' | 'ferry', React.ReactNode> = {
   ),
 };
 
-export function JourneyGlyph({ mode, size = 44 }: { mode: 'train' | 'plane' | 'ferry'; size?: number }) {
+export function JourneyGlyph({ mode, size = 44, lit = false }: { mode: 'train' | 'plane' | 'ferry'; size?: number; lit?: boolean }) {
   return (
     <svg viewBox="0 0 44 18" width={size} height={size * 18 / 44} aria-hidden="true" style={{ display: 'block' }}>
-      {PATHS[mode]}
+      {lit && mode === 'train' ? LIT_TRAIN : PATHS[mode]}
     </svg>
+  );
+}
+
+// ── THE NIGHT TICKET ────────────────────────────────────────────────────────
+// An overnight train (arrivesNextMorning: today only the G895 sleeper) reads
+// as going to sleep in one city and waking in another. The upper half runs
+// from night (the placard's ink) through plum and rose to a peach dawn behind
+// the arrival; the lower half carries a faint dusk on its left that fades into
+// the usual wash. Stars over the night only, a crescent at the start of the
+// route, a sun coming up at its end, the train's windows lit. The colours are
+// fixed, not the day's stay colour, so the sleeper looks the same whichever
+// town the night belongs to. Every other ticket renders exactly as before.
+//
+// The stops are tuned so no text lands in the back half of the plum-to-rose
+// band (58-61% here), where neither the parchment nor the dawn ink reaches
+// 4.5:1. At 375px the note, departure and duration end before it and the
+// arrival starts after it; the title is held to the dark half and wraps, and
+// the note says "sleeper" rather than "high-speed train" (the number's tip
+// still says G). Re-check every text box at 375px after changing them.
+const NIGHT = {
+  ink: '#1E1B17', plum: '#4A2F33', rose: '#C98A78', peach: '#F2D3B8',
+  parch: '#F3EEE4', tag: '#E8B9B2', dawnInk: '#4A1C18', sun: '#B5322A', windows: '#F2C879',
+};
+/** The upper half's sky, with the plum-to-rose band placed at [plum, rose] %. */
+const nightTop = (plum: number, rose: number) =>
+  `linear-gradient(90deg, ${NIGHT.ink} 0%, ${NIGHT.ink} ${Math.max(0, plum - 7)}%, ${NIGHT.plum} ${plum}%, ${NIGHT.rose} ${rose}%, ${NIGHT.peach} ${Math.min(100, rose + 7)}%, ${NIGHT.peach} 100%)`;
+/** The duration sits mid-route, where the band is on a narrow phone: it
+ *  carries its own bit of night, invisible over the dark part. */
+const NIGHT_HALO = '0 0 3px #1E1B17, 0 0 6px #1E1B17, 0 0 10px #1E1B17';
+/** Where the band sits before the text is measured (right at 375px). */
+const NIGHT_BAND: [number, number] = [55, 61];
+
+/**
+ * Places the band between the light text and the dark: parchment stays
+ * readable up to halfway from plum to rose, the dawn ink from rose on. Text
+ * marked data-nl (light) must end, and data-nd (dark) start, on its side.
+ */
+function measureBand(box: HTMLElement): [number, number] {
+  const b = box.getBoundingClientRect();
+  if (!b.width) return NIGHT_BAND;
+  const extent = (sel: string, side: 'right' | 'left') => {
+    let v = side === 'right' ? 0 : 100;
+    box.querySelectorAll(sel).forEach(el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      for (const r of range.getClientRects()) {
+        if (!r.width) continue;
+        const pct = ((side === 'right' ? r.right : r.left) - b.left) / b.width * 100;
+        v = side === 'right' ? Math.max(v, pct) : Math.min(v, pct);
+      }
+    });
+    return v;
+  };
+  const lightEnd = extent('[data-nl]', 'right') + 1;
+  const darkStart = extent('[data-nd]', 'left') - 1;
+  // The dawn text starts on rose; the night holds solid past the light text
+  // and turns about 8 points before it. Too tight (a narrow phone): the band
+  // shrinks toward a hard edge between the two.
+  const rose = darkStart;
+  const plum = Math.max(0, Math.min(Math.max(lightEnd + 7, rose - 8), rose - 0.5));
+  return [Math.round(plum * 10) / 10, Math.round(rose * 10) / 10];
+}
+// Stars, over the night only (left of 48%) and only where no text can land
+// whatever wraps or a verdict stamp pushes down: a strip above the tag row,
+// the bottom padding under the title, and two inside the route under the
+// line (ROUTE_STARS). [left %, px from the top or bottom edge, opacity].
+const STARS: [number, 'top' | 'bottom', number, number][] = [
+  [6, 'top', 5, 0.55], [19, 'top', 8, 0.4], [33, 'top', 4, 0.7], [44, 'top', 7, 0.5],
+  [12, 'bottom', 4, 0.4], [31, 'bottom', 5, 0.55], [42, 'bottom', 26, 0.45],
+];
+const ROUTE_STARS: [number, number, number][] = [[14, 33, 0.5], [6, 40, 0.35]];
+
+const LIT_TRAIN = (
+  <>
+    <path d="M3 5.2h23.5c6.2 0 11.6 2.9 14.3 7.4.5.9-.1 1.9-1.1 1.9H3.4c-.8 0-1.4-.6-1.4-1.4V6.4c0-.7.5-1.2 1-1.2z" fill="currentColor" />
+    <path d="M27.5 6.4c3.7.3 7 1.9 9.3 4.4h-7.1c-1.2 0-2.2-1-2.2-2.2z" fill={NIGHT.ink} opacity=".75" />
+    <g fill={NIGHT.windows}>
+      <rect x="6" y="7.4" width="3.6" height="2.6" rx=".9" /><rect x="11.4" y="7.4" width="3.6" height="2.6" rx=".9" />
+      <rect x="16.8" y="7.4" width="3.6" height="2.6" rx=".9" /><rect x="22.2" y="7.4" width="3.2" height="2.6" rx=".9" />
+    </g>
+    <path d="M2.2 12h34.6" stroke={NIGHT.ink} strokeWidth=".9" opacity=".35" />
+    <circle cx="34.6" cy="12.6" r=".9" fill="#FFE7A8" />
+  </>
+);
+
+function Moon() {
+  return (
+    <svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" style={{ position: 'absolute', left: -1, top: 6, color: NIGHT.parch }}>
+      <path d="M10.8 9.9A5.6 5.6 0 0 1 5.2 2.2a5.6 5.6 0 1 0 7.3 7.1 5.5 5.5 0 0 1-1.7.6z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function DawnSun() {
+  return (
+    <svg viewBox="0 0 18 12" width="17" height="11" aria-hidden="true" style={{ position: 'absolute', right: -1, top: 9, color: NIGHT.sun }}>
+      <path d="M4.2 10a4.8 4.8 0 0 1 9.6 0z" fill="currentColor" />
+      <path d="M0.5 10.6h17M9 1v2M3.2 3.6l1.3 1.4M14.8 3.6l-1.3 1.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}
+
+/**
+ * The berth, read out of seat_label: "Car 9 · Berth 23 lower" (or "berth 23",
+ * "23 lower") gives "23" and "lower"; 12306's "9车 23号下铺" gives the same.
+ * The rest of the label ("Car 9") stays on the seat line. No berth: null.
+ */
+export function parseBerth(seat: string): { berth: string; pos: string; rest: string } | null {
+  const en = seat.match(/\bberth\s*(\d{1,3})\s*(upper|middle|lower)?\b/i);
+  if (en) return { berth: en[1], pos: (en[2] ?? '').toLowerCase(), rest: seat.replace(en[0], '').replace(/^[\s·,]+|[\s·,]+$/g, '') };
+  const zh = seat.match(/(\d{1,3})号\s*(上|中|下)?铺/);
+  if (zh) return { berth: zh[1], pos: zh[2] ? { 上: 'upper', 中: 'middle', 下: 'lower' }[zh[2]]! : '', rest: seat.replace(zh[0], '').trim() };
+  return null;
+}
+
+/** The berth's tear-off at the right of the seat line: a dash until it's booked. */
+function BerthStub({ berth, pos, color }: { berth: string | null; pos: string; color: string }) {
+  const k: React.CSSProperties = { fontSize: 9.5, letterSpacing: '0.16em', opacity: 0.7, textTransform: 'uppercase' };
+  return (
+    <span aria-label={berth ? `Berth ${berth}${pos ? `, ${pos}` : ''}` : 'Berth not booked yet'} style={{
+      flex: 'none', marginLeft: 'auto', borderLeft: `1.5px dashed ${color}`, padding: '2px 0 2px 12px',
+      textAlign: 'center', fontFamily: 'var(--font-mono)', lineHeight: 1.15, color,
+    }}>
+      <span style={{ ...k, display: 'block' }}>Berth</span>
+      <span className="num" style={{ display: 'block', fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 22 }}>{berth ?? '—'}</span>
+      <span style={{ ...k, display: 'block' }}>{pos || 'sleeper'}</span>
+    </span>
   );
 }
 
@@ -209,9 +336,11 @@ const small: React.CSSProperties = {
 };
 
 /** "11:30" with a smaller "am" set right after it, and an optional line under. */
-function TicketTime({ c, approx, under, align, lift }: { c: Clock; approx?: boolean; under?: string; align: 'left' | 'right'; lift?: React.CSSProperties }) {
+function TicketTime({ c, approx, under, align, lift, color, mark }: { c: Clock; approx?: boolean; under?: string; align: 'left' | 'right'; lift?: React.CSSProperties; color?: string;
+  /** The night ticket: which side of the dawn this text must stay on. */
+  mark?: 'light' | 'dark' }) {
   return (
-    <div className="num" style={{ textAlign: align, fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 30, lineHeight: 1, whiteSpace: 'nowrap', ...lift }}>
+    <div className="num" data-nl={mark === 'light' ? '' : undefined} data-nd={mark === 'dark' ? '' : undefined} style={{ textAlign: align, fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 30, lineHeight: 1, whiteSpace: 'nowrap', color, ...lift }}>
       {approx ? '~' : ''}{fmt(c)}<span style={{ fontSize: 15, marginLeft: 1 }}>{c.mer}</span>
       {under && <small style={small}>{under}</small>}
     </div>
@@ -305,6 +434,11 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   const livery = hasLivery(parts);
   const bullet = parts.some(p => p.livery?.bullet);
   const seat = stop.seat_label?.trim() || '';
+  // An overnight train gets the night ticket (see NIGHT above).
+  const night = mode === 'train' && arrivesNextMorning(stop);
+  const berth = night ? parseBerth(seat) : null;
+  const seatText = berth ? berth.rest : seat;
+  const fg = night ? NIGHT.parch : deep;
   // Where it goes, readably: from_name / to_name ("Gora", "West Kowloon") lead
   // on any trip. The local names (強羅) need a dress for the font and lang, and
   // ride beside the name as its smaller partner; alone, they show as before.
@@ -330,6 +464,21 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   const routeRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
   const [split, setSplit] = useState(false);
+  // The night ticket's dawn band, re-placed once the text is laid out.
+  const skyRef = useRef<HTMLDivElement>(null);
+  const [band, setBand] = useState<[number, number]>(NIGHT_BAND);
+  useLayoutEffect(() => {
+    const sky = skyRef.current;
+    if (!sky) return;
+    const place = () => setBand(prev => {
+      const next = measureBand(sky);
+      return prev[0] === next[0] && prev[1] === next[1] ? prev : next;
+    });
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(sky);
+    return () => ro.disconnect();
+  }, [night]);
   // Where to break: at the first "·", else before a "+" ("car 1½ h + train").
   const breakAt: [string, string] | null = labelParts.length > 1
     ? [labelParts[0], labelParts.slice(1).join(' · ')]
@@ -364,7 +513,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   const flow = split;
   const splitParts = breakAt && (
     <>
-      <span style={{ whiteSpace: 'nowrap', background: tint, padding: '0 5px' }}>{breakAt[0]}</span>
+      <span style={{ whiteSpace: 'nowrap', background: night ? 'transparent' : tint, padding: '0 5px' }}>{breakAt[0]}</span>
       <span style={{ whiteSpace: 'nowrap', fontSize: 11, fontWeight: 400, opacity: 0.75 }}>{breakAt[1]}</span>
     </>
   );
@@ -374,16 +523,17 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   const lift: React.CSSProperties | undefined = flow ? { alignSelf: 'start', paddingTop: 6 } : undefined;
   // Each end gets half the ticket. The name may wrap but never truncates; the
   // characters are nowrap, so when the pair won't fit they drop under the name.
-  const station = (name: string, local: string, align: 'left' | 'right') => {
+  const station = (name: string, local: string, align: 'left' | 'right', ink: string = deep, mark?: 'light' | 'dark') => {
+    const marks = { 'data-nl': mark === 'light' ? '' : undefined, 'data-nd': mark === 'dark' ? '' : undefined };
     if (!name && !local) return <span />;
     if (!name) return (
-      <div lang={dress ?? undefined} style={{
+      <div {...marks} lang={dress ?? undefined} style={{
         textAlign: align, fontFamily: cjkFont(dress ?? 'ja'), fontWeight: 700, fontSize: 19, lineHeight: 1.15,
-        letterSpacing: '0.04em', color: deep, whiteSpace: 'nowrap',
+        letterSpacing: '0.04em', color: ink, whiteSpace: 'nowrap',
       }}>{local}</div>
     );
     return (
-      <div style={{ textAlign: align, minWidth: 0, overflowWrap: 'anywhere', lineHeight: 1.25, color: deep }}>
+      <div {...marks} style={{ textAlign: align, minWidth: 0, overflowWrap: 'anywhere', lineHeight: 1.25, color: ink }}>
         <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 16 }}>{name}</span>
         {local && (
           <>
@@ -397,6 +547,15 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
     );
   };
 
+  // The night ticket says the day at both ends: "Tonight" under the
+  // departure (after the zone only when the arrival names one, e.g. "HKT"),
+  // and the arrival's own note ("Wed"), or "Next day" when it gives none.
+  const noteZone = !!given?.note && /\b(?:[A-Z]{2,5}|GMT[+-]?\d*)\b/.test(given.note);
+  const depUnder = night ? (noteZone && depZone ? `${depZone} · Tonight` : 'Tonight') : depZone;
+  const arrUnder = night && !/\b(?:mon|tue|wed|thu|fri|sat|sun)/i.test(given?.note ?? '')
+    ? [given?.note, 'Next day'].filter(Boolean).join(' · ')
+    : given?.note || undefined;
+
   return (
     <article id={`stop-${stop.id}`} style={{
       position: 'relative',
@@ -407,31 +566,37 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
       scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 64px)',
       ['--j-accent' as string]: accent,
     }}>
-      <div style={{ padding: '13px 16px 10px' }}>
+      <div ref={night ? skyRef : undefined} style={night ? { padding: '13px 16px 10px', position: 'relative', background: nightTop(...band), borderRadius: '16px 16px 0 0' } : { padding: '13px 16px 10px' }}>
+        {night && STARS.map(([l, edge, px, o], i) => (
+          <span key={i} aria-hidden="true" style={{ position: 'absolute', left: `${l}%`, [edge]: px, width: 2, height: 2, borderRadius: '50%', background: NIGHT.parch, opacity: o }} />
+        ))}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           {/* Baseline, not centre: the tag (mono caps) and the train note (sans)
               are different fonts, and centring them set their text at two heights. */}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8, rowGap: 2, fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent }}>
+          <div data-nl={night ? '' : undefined} style={{ flex: 1, display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8, rowGap: 2, fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', color: night ? NIGHT.tag : accent }}>
             {stop.tag}
-            <WhoChip who={stop.who} color={accent} />
+            <WhoChip who={stop.who} color={night ? NIGHT.tag : accent} />
             {/* Which train, said in passing beside the tag: a note, not a destination. */}
-            {service && <TrainNote parts={liveryParts(service)} kind={kind} color={deep} accent={accent} dress={dress} />}
+            {service && <TrainNote parts={liveryParts(service)} kind={night ? 'sleeper' : kind} color={fg} accent={accent} dress={dress} />}
           </div>
           {stamp}
         </div>
 
         {hasStations && (
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', columnGap: 16, alignItems: 'end', marginTop: 8 }}>
-            {station(fromName, fromLocal, 'left')}
-            {station(toName, toLocal, 'right')}
+            {station(fromName, fromLocal, 'left', night ? NIGHT.parch : undefined, night ? 'light' : undefined)}
+            {station(toName, toLocal, 'right', night ? NIGHT.dawnInk : undefined, night ? 'dark' : undefined)}
           </div>
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 10, marginTop: hasStations ? 3 : 8 }}>
-          <TicketTime c={dep} under={depZone} align="left" lift={lift} />
+          <TicketTime c={dep} under={depUnder} align="left" lift={lift} color={night ? NIGHT.parch : undefined} mark={night ? 'light' : undefined} />
 
           <div ref={routeRef} style={flow ? { position: 'relative', minWidth: 60, minHeight: 42, paddingTop: 26 } : { position: 'relative', height: 42, minWidth: 60 }}>
-            {ferry
+            {night
+              // Overnight: dim parchment brightening into the dawn.
+              ? <div style={{ position: 'absolute', left: 10, right: 14, top: 20, height: 2, borderRadius: 2, background: `linear-gradient(90deg, rgba(243, 238, 228, 0.5), rgba(243, 238, 228, 0.22) 45%, ${NIGHT.sun})` }} />
+              : ferry
               // By sea the route is water, not a dotted rail: a soft wave line.
               ? <div style={{ position: 'absolute', left: 0, right: 0, top: 18, height: 6, background: accent, opacity: 0.6, ...WAVE }} />
               : livery
@@ -444,8 +609,11 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
                 transform: 'translate(-50%, -50%)',
               }} />
             ))}
-            <span style={{ position: 'absolute', left: '50%', top: 1, transform: 'translateX(-50%)', color: accent, background: tint, padding: '0 4px' }}>
-              <JourneyGlyph mode={mode} />
+            {night && <><Moon /><DawnSun />{ROUTE_STARS.map(([l, t, o], i) => (
+              <span key={i} aria-hidden="true" style={{ position: 'absolute', left: `${l}%`, top: t, width: 2, height: 2, borderRadius: '50%', background: NIGHT.parch, opacity: o }} />
+            ))}</>}
+            <span style={{ position: 'absolute', left: '50%', top: 1, transform: 'translateX(-50%)', color: night ? NIGHT.parch : accent, background: night ? 'transparent' : tint, padding: '0 4px' }}>
+              <JourneyGlyph mode={mode} lit={night} />
               {ferry && <Wake />}
               {bullet && <SpeedStreaks />}
             </span>
@@ -455,9 +623,9 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
               <div style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '0.02em',
-                fontVariantNumeric: 'tabular-nums', color: deep, lineHeight: 1.2,
+                fontVariantNumeric: 'tabular-nums', color: fg, lineHeight: 1.2, textShadow: night ? NIGHT_HALO : undefined,
               }}>
-                {routeLabel && (split ? splitParts : <span ref={labelRef} style={{ whiteSpace: 'nowrap', background: tint, padding: '0 5px' }}>{durationParts}</span>)}
+                {routeLabel && (split ? splitParts : <span ref={labelRef} style={{ whiteSpace: 'nowrap', background: night ? 'transparent' : tint, padding: '0 5px' }}>{durationParts}</span>)}
               </div>
             ) : routeLabel && (
               // The time is the thing you glance for: big and plain, with the
@@ -465,43 +633,47 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
               <span ref={labelRef} style={{
                 position: 'absolute', left: '50%', top: 26, transform: 'translateX(-50%)', whiteSpace: 'nowrap',
                 fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, letterSpacing: '0.02em',
-                fontVariantNumeric: 'tabular-nums', color: deep, background: tint, padding: '0 5px', lineHeight: 1.2,
+                fontVariantNumeric: 'tabular-nums', color: fg, background: night ? 'transparent' : tint, padding: '0 5px', lineHeight: 1.2, textShadow: night ? NIGHT_HALO : undefined,
               }}>
                 {durationParts}
               </span>
             )}
           </div>
 
-          <div style={{ opacity: 0.8, ...lift }}>
-            {arr && <TicketTime c={arr} approx={!given || given.approx} under={given?.note || undefined} align="right" />}
+          <div style={night ? { ...lift } : { opacity: 0.8, ...lift }}>
+            {arr && <TicketTime c={arr} approx={!given || given.approx} under={arrUnder} align="right" color={night ? NIGHT.dawnInk : undefined} mark={night ? 'dark' : undefined} />}
           </div>
         </div>
 
-        <h3 style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35, marginTop: 12, color: deep }}>{stop.title}</h3>
+        <h3 data-nl={night ? '' : undefined} style={night ? { fontSize: 15, fontWeight: 600, lineHeight: 1.35, marginTop: 12, color: NIGHT.parch, maxWidth: '46%', position: 'relative' } : { fontSize: 15, fontWeight: 600, lineHeight: 1.35, marginTop: 12, color: deep }}>{stop.title}</h3>
       </div>
 
-      {(bodyHtml || stop.aircraft || seat || phrase || footer) && (
+      {(bodyHtml || stop.aircraft || seat || phrase || footer || night) && (
         <>
           {/* the tear line, with a notch cut from each side */}
-          <div style={{ position: 'relative', margin: '0 14px', borderTop: ferry ? undefined : `1.5px dashed color-mix(in srgb, ${accent} 35%, transparent)` }}>
+          <div style={{ position: 'relative', margin: '0 14px', borderTop: ferry ? undefined : night ? `1.5px dashed color-mix(in srgb, ${NIGHT.plum} 40%, transparent)` : `1.5px dashed color-mix(in srgb, ${accent} 35%, transparent)` }}>
             {/* by sea, the tear is a wave too */}
             {ferry && <span style={{ position: 'absolute', left: 6, right: 6, top: -3, height: 6, background: `color-mix(in srgb, ${accent} 40%, transparent)`, ...WAVE }} />}
             <span style={{ position: 'absolute', top: -9, left: -23, width: 16, height: 16, borderRadius: '50%', background: 'var(--bg)' }} />
             <span style={{ position: 'absolute', top: -9, right: -23, width: 16, height: 16, borderRadius: '50%', background: 'var(--bg)' }} />
           </div>
-          <div style={{ padding: '10px 16px 13px' }}>
+          <div style={night
+            // A faint dusk on the left, fading into the wash, under the dark top.
+            ? { padding: '10px 16px 13px', borderRadius: '0 0 16px 16px', background: `linear-gradient(90deg, color-mix(in srgb, ${NIGHT.plum} 30%, ${tint}) 0%, ${tint} 66%)` }
+            : { padding: '10px 16px 13px' }}>
             {bodyHtml && (
               <div className="body-content" style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-2)' }}
                 dangerouslySetInnerHTML={{ __html: bodyHtml }} />
             )}
-            {(seat || phrase) && (
+            {(seat || phrase || night) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: bodyHtml ? 10 : 0 }}>
-                {seat && (
+                {seatText && (
                   <span lang={dress ?? undefined} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.04em', color: deep, minWidth: 0 }}>
-                    {seat}
+                    {seatText}
                   </span>
                 )}
                 {phrase && dress && <span style={{ marginLeft: 'auto' }}><SayChip stop={stop} dress={dress} color={deep} /></span>}
+                {night && <BerthStub berth={berth?.berth ?? null} pos={berth?.pos ?? ''} color={deep} />}
               </div>
             )}
             {stop.aircraft && (
