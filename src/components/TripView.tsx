@@ -2746,14 +2746,11 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
 
       {searchOn && <TripSearch days={days} logistics={ownerLogistics} onPick={pickResult} onClose={closeSearch} />}
 
-      {/* Footer: the page ends on where the trip ends, not on a bare word.
+      {/* Footer: the end date and the way home; the last stop is just above.
           After the trip, the owner gets a way into Verdicts. */}
       {(() => {
-        const lastDay = days[days.length - 1];
-        const lastStop = [...(lastDay?.stops ?? [])].reverse().find(s => !s.is_optional);
         const lastDate = trip.date_start && days.length ? dateForDay(trip.date_start, days.length - 1) : null;
         const when = lastDate ? new Date(lastDate + 'T00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : null;
-        const ends = lastStop?.arrive_label ? `lands ${lastStop.arrive_label}` : lastStop?.time_label ?? null;
         const over = !!trip.date_start && !tripUpcoming;
         return (
           <footer style={{
@@ -2768,11 +2765,6 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
               {when ? `The end · ${when}` : trip.title}
             </div>
             {tripDress && (!part || part.endsTrip) && <DoorLine dress={tripDress} which="home" />}
-            {lastStop && (
-              <div style={{ fontFamily: 'var(--font-serif)', fontSize: 17, color: 'var(--ink-2)', lineHeight: 1.35, maxWidth: 320 }}>
-                {lastStop.title}{ends ? <span style={{ color: 'var(--ink-3)' }}>{`, ${ends}`}</span> : null}
-              </div>
-            )}
             {over && verdicts.owner && (
               <button type="button" onClick={() => { setMode('verdicts'); window.scrollTo({ top: 0 }); }} style={{
                 marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase',
