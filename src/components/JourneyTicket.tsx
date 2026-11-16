@@ -260,7 +260,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   const kind = trainKind(service);
   const parts = mode === 'train' ? liveryParts(service) : [];
   const livery = hasLivery(parts);
-  const nozomi = parts.some(p => p.livery?.line === 'dash');
+  const bullet = parts.some(p => p.livery?.bullet);
   const seat = stop.seat_label?.trim() || '';
   // Where it goes, readably: from_name / to_name ("Gora", "West Kowloon") lead
   // on any trip. The local names (強羅) need a dress for the font and lang, and
@@ -404,7 +404,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
             <span style={{ position: 'absolute', left: '50%', top: 1, transform: 'translateX(-50%)', color: accent, background: tint, padding: '0 4px' }}>
               <JourneyGlyph mode={mode} />
               {ferry && <Wake />}
-              {nozomi && <SpeedStreaks />}
+              {bullet && <SpeedStreaks />}
             </span>
             {flow ? (
               // A duration too wide to sit between the times breaks onto

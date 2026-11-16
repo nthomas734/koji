@@ -5,7 +5,8 @@
 // difference is borrowed from the station departure boards, which colour the
 // name: Nozomi yellow, Hikari red, Kodama blue. Each also gets its own route
 // line, from what the name means or what the train does:
-//   Nozomi  long dashes and speed streaks: the fast one.
+//   Every bullet train trails speed streaks off the back of the glyph.
+//   Nozomi  a run of forward chevrons: the fast one, pointing on ahead.
 //   Hikari  a beam of light that brightens toward the arrival (ひかり, "light").
 //   Kodama  a tick at every station along the line: the all-stops one.
 //   Kamome  a gull over the line (かもめ, "seagull"), JR Kyushu's red on white.
@@ -16,17 +17,17 @@
 
 import { glossOf } from '@/lib/glossary';
 
-export type LineKind = 'dots' | 'dash' | 'beam' | 'ticks' | 'gull' | 'stripe';
+export type LineKind = 'dots' | 'chevron' | 'beam' | 'ticks' | 'gull' | 'stripe';
 
-type Livery = { re: RegExp; line: LineKind; bg: string; fg: string; glow?: boolean };
+type Livery = { re: RegExp; line: LineKind; bg: string; fg: string; glow?: boolean; bullet?: boolean };
 
 const BOARD = '#17140F';
 const LIVERIES: Livery[] = [
-  { re: /nozomi|のぞみ/i, line: 'dash', bg: BOARD, fg: '#F6C744', glow: true },
-  { re: /hikari|ひかり/i, line: 'beam', bg: BOARD, fg: '#FF5A4E', glow: true },
-  { re: /kodama|こだま/i, line: 'ticks', bg: BOARD, fg: '#5AB1FF', glow: true },
+  { re: /nozomi|のぞみ/i, line: 'chevron', bg: BOARD, fg: '#F6C744', glow: true, bullet: true },
+  { re: /hikari|ひかり/i, line: 'beam', bg: BOARD, fg: '#FF5A4E', glow: true, bullet: true },
+  { re: /kodama|こだま/i, line: 'ticks', bg: BOARD, fg: '#5AB1FF', glow: true, bullet: true },
   { re: /relay kamome|リレーかもめ/i, line: 'dots', bg: '#FFFFFF', fg: '#C8102E' },
-  { re: /kamome|かもめ/i, line: 'gull', bg: '#FFFFFF', fg: '#C8102E' },
+  { re: /kamome|かもめ/i, line: 'gull', bg: '#FFFFFF', fg: '#C8102E', bullet: true },
   { re: /romancecar|ロマンスカー/i, line: 'stripe', bg: '#D9512C', fg: '#FFFFFF' },
   { re: /midori|みどり/i, line: 'dots', bg: '#2E8B57', fg: '#FFFFFF' },
   { re: /huis ten bosch|ハウステンボス/i, line: 'dots', bg: '#E8761B', fg: '#FFFFFF' },
@@ -88,13 +89,22 @@ export function TrainNote({ parts, kind, color, glossed = false }: {
 
 const SEG_H = 8;
 
+const CHEVRON_SVG = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="9" height="7" viewBox="0 0 9 7"><path d="M2.5 1 L5.5 3.5 L2.5 6" fill="none" stroke="#000" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>')}")`;
+const CHEVRONS: React.CSSProperties = {
+  WebkitMaskImage: CHEVRON_SVG, maskImage: CHEVRON_SVG,
+  WebkitMaskRepeat: 'repeat-x', maskRepeat: 'repeat-x',
+  WebkitMaskSize: '9px 7px', maskSize: '9px 7px',
+};
+
 /** One stretch of route line in a given style, vertically centred on its box. */
 function Segment({ kind, accent }: { kind: LineKind; accent: string }) {
   const base: React.CSSProperties = { flex: 1, height: SEG_H, position: 'relative', minWidth: 0 };
   const mid = (extra: React.CSSProperties): React.CSSProperties => ({ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', ...extra });
   switch (kind) {
-    case 'dash':
-      return <div style={base}><div style={mid({ height: 1.5, background: `repeating-linear-gradient(90deg, ${accent} 0 9px, transparent 9px 13px)` })} /></div>;
+    case 'chevron':
+      // The Nozomi's own: a run of small forward chevrons, the line itself
+      // pointing on ahead, since it's the one that doesn't stop.
+      return <div style={base}><div style={mid({ height: 7, background: accent, ...CHEVRONS })} /></div>;
     case 'beam':
       return <div style={base}><div style={mid({ height: 2, borderRadius: 2, background: `linear-gradient(90deg, transparent, ${accent} 70%, ${accent})`, boxShadow: `0 0 6px color-mix(in srgb, ${accent} 45%, transparent)` })} /></div>;
     case 'ticks':
@@ -134,7 +144,7 @@ function Gull() {
   return <>{bird('10%', -12, 17, 0.9)}{bird('24%', -7, 11, 0.6)}</>;
 }
 
-/** Three streaks off the back of the train, for the Nozomi. */
+/** Three streaks off the back of the train, for every bullet train. */
 export function SpeedStreaks() {
   return (
     <svg viewBox="0 0 18 10" width="18" height="10" aria-hidden="true" style={{ position: 'absolute', right: '100%', top: 3, marginRight: -4, opacity: 0.6 }}>
