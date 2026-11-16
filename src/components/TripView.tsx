@@ -32,7 +32,7 @@ import { TonightCard } from '@/components/Tonight';
 import { NowCard, NowRule } from '@/components/NowCard';
 import { nowOverride, nowState, useZonedMinutes } from '@/lib/now';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
-import { JourneyTicket, isJourney } from '@/components/JourneyTicket';
+import { JourneyTicket, SunriseMark, arrivesNextMorning, isJourney } from '@/components/JourneyTicket';
 import { TravelStub, isStub } from '@/components/TravelStub';
 import { SayChip, hasPhrase } from '@/components/SayIt';
 import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
@@ -881,8 +881,10 @@ function safeDecode(q: string): string {
   try { return decodeURIComponent(q.replace(/\+/g, ' ')); } catch { return q; }
 }
 
-function StopRow({ stop, stamp, footer, accent, tz, dress = null }: {
+function StopRow({ stop, stamp, footer, accent, tz, dress = null, dawn = false }: {
   stop: Stop; stamp?: React.ReactNode; footer?: React.ReactNode; accent?: string; tz?: string | null;
+  /** The first stop after a night train: a small sunrise before its time. */
+  dawn?: boolean;
   /** Destination dress for this stop's own fields (local station names, the phrase chip). */
   dress?: Dress;
 }) {
@@ -942,6 +944,7 @@ function StopRow({ stop, stamp, footer, accent, tz, dress = null }: {
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px', marginBottom: 6 }}>
           {stop.time_label && (
             <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: tagColor.text }}>
+              {dawn && <SunriseMark />}
               {stop.time_label}
             </span>
           )}
@@ -1102,7 +1105,10 @@ function DayBlock({
   season,
   dress = null,
   stopDress = null,
+  dawn = false,
 }: {
+  /** The day before ended on a night train: its first stop gets a sunrise. */
+  dawn?: boolean;
   /** The season's name, only on the day it starts (or the trip's first dressed day). */
   season?: Season | null;
   dress?: Dress;
@@ -1148,6 +1154,7 @@ function DayBlock({
   }
   const moved = new Set([...swaps, ...[...insteadOf.values()].flat()].map(s => s.id));
   const list = all.filter(s => !moved.has(s.id));
+  const dawnId = dawn ? list.find(s => !unadded(s) && s.time_label)?.id : undefined;
   const headFor = (s: Stop) => s.maybe_head || (s.maybe_kind === 'swap' ? 'another way to do today' : s.maybe_kind === 'instead' ? 'or, instead of this' : "if there's time");
   /** Maybes in a row, with a heading wherever the heading changes. */
   const maybeRun = (run: Stop[]) => run.map((st, k) => {
@@ -1397,7 +1404,7 @@ function DayBlock({
             <Fragment key={stop.id}>
               {now && nowMin != null && k === now.next && <NowRule nowMin={nowMin} accent={accent} />}
               <div style={past ? { opacity: 0.5 } : undefined}>
-                <StopRow stop={stop} accent={accent} tz={day.tz} dress={stopDress} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />
+                <StopRow stop={stop} accent={accent} tz={day.tz} dress={stopDress} dawn={stop.id === dawnId} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />
               </div>
               {insteadOf.has(stop.id) && maybeRun(insteadOf.get(stop.id)!)}
               {afterStop?.(stop)}
@@ -2578,7 +2585,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
         <>
           {tripUpcoming && <TripAlerts slug={part ? `${trip.slug}/${part.key}` : trip.slug} title={trip.title} theme={theme} hideWhenOn />}
           <main>
-            {tripDress === 'ja' && <GlossTip />}
+            {tripDress && <GlossTip />}
             {tripDress && (!part || part.opensTrip) && (
               <div style={{ margin: '22px 16px -4px' }}><DoorLine dress={tripDress} which="out" /></div>
             )}
@@ -2595,6 +2602,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
                 stay={stay}
                 dress={dayDress(i)}
                 stopDress={dayDress(i) ?? tripDress}
+                dawn={!!days[i - 1]?.stops?.some(st => (!st.is_optional || isAdded(st)) && arrivesNextMorning(st))}
                 season={(() => {
                   // Only where a season starts: its first day, or the first
                   // dressed day of the page. Never on the folded header.
