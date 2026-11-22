@@ -123,6 +123,19 @@ function shortClock(label: string): string {
 /** endAtLastFlight: for a part (someone's share of the trip), its last day
  *  stops at that day's flight — Dez's alerts end at "Goodbye at Fukuoka
  *  Airport", not at Nathan's solo dinner in Onomichi. */
+/** The first "leave by 6:45" in a stop's text, as minutes after midnight (the
+ *  same reading the "time to leave" alert uses). Shown on the Now card. */
+export function leaveBy(s: Stop): number | null {
+  const stopMin = parseClock(s.time_label);
+  for (const src of [s.alert_md, s.body_md]) {
+    for (const m of plainText(src || '').matchAll(LEAVE)) {
+      const min = leaveMinutes(m[1], stopMin);
+      if (min != null) return min;
+    }
+  }
+  return null;
+}
+
 export function planTripAlerts(trip: Trip, days: Day[], basePath = `/trips/${trip.slug}`, endAtLastFlight = false): PlannedAlert[] {
   if (!trip.date_start) return [];
   const out: PlannedAlert[] = [];

@@ -168,6 +168,28 @@ self.addEventListener('message', (event) => {
   })());
 });
 
+// Save a trip onto the phone (lib/saveTrip.ts, 2026-11-21): store each page
+// and the scripts it names, then answer on the port with whether all stored.
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'koji:save-trip') return;
+  const port = event.ports?.[0];
+  const urls = (event.data.urls || []).map((u) => new URL(u, self.location.origin))
+    .filter((u) => u.origin === self.location.origin && !u.pathname.startsWith('/api/') && !u.pathname.startsWith('/admin'));
+  event.waitUntil((async () => {
+    const cache = await caches.open(PAGE_CACHE);
+    const results = await Promise.all(urls.map(async (url) => {
+      url.hash = '';
+      try {
+        const res = await fetch(url.href, { cache: 'no-store', credentials: 'same-origin', redirect: 'manual' });
+        if (!res.ok) return false;
+        await refresh(cache, url.href, res);
+        return true;
+      } catch { return false; }
+    }));
+    port?.postMessage({ ok: urls.length > 0 && results.every(Boolean) });
+  })());
+});
+
 // Trip alerts (Web Push from /api/notify). iOS requires every push to show a
 // notification, so always call showNotification.
 self.addEventListener('push', (event) => {
