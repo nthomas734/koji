@@ -196,6 +196,8 @@ input, textarea, select {
   transition: text-decoration-color 0.15s;
 }
 .body-content a:hover { text-decoration-color: #2D6B4A; }
+/* Links inside the ink Now card (NowCard.tsx) */
+.now-ink .body-content a { color: inherit; text-decoration-color: rgba(245, 240, 232, 0.4); }
 
 /* ── Trip page layout — class-based so we can override on mobile ───────────── */
 

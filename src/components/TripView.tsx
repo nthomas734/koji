@@ -30,7 +30,9 @@ import { PrepStrip } from '@/components/PrepStrip';
 import { WhoChip } from '@/components/WhoChip';
 import { TonightCard } from '@/components/Tonight';
 import { NowCard, NowRule } from '@/components/NowCard';
-import { nowOverride, nowState, useZonedMinutes } from '@/lib/now';
+import { nowOverride, nowState, todayIndex, useZonedMinutes } from '@/lib/now';
+import { parseClock as clockMin } from '@/lib/tripAlerts';
+import { SAVE_DAYS, fmtSaved, useSaveTrip, useSavedCopy } from '@/lib/saveTrip';
 import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTarget } from '@/components/Verdicts';
 import { JourneyTicket, SunriseMark, arrivesNextMorning, isJourney } from '@/components/JourneyTicket';
 import { TravelStub, isStub } from '@/components/TravelStub';
@@ -881,6 +883,19 @@ function safeDecode(q: string): string {
   try { return decodeURIComponent(q.replace(/\+/g, ' ')); } catch { return q; }
 }
 
+// Directions to the stop's first place link (review C), not for the travel
+// legs themselves. The link's query is already URL-encoded. China trips link
+// Apple Maps (lib/maps.ts), so read its `q=` there instead. Shared by the stop
+// card and the Now card.
+function stopDirections(stop: Stop, apple: boolean): string | null {
+  const dirQuery = /^(travel|flight|train)/i.test(stop.tag) ? null
+    : apple ? stop.body_md?.match(/maps\.apple\.com\/\?(?:[^)\s"]*&)?q=([^&)\s"]+)/)?.[1] ?? null
+    : stop.body_md?.match(/google\.com\/maps\/search\/\?api=1&query=([^)\s"]+)/)?.[1] ?? null;
+  return !dirQuery ? null
+    : apple ? appleDirectionsUrl(safeDecode(dirQuery))
+    : `https://www.google.com/maps/dir/?api=1&destination=${dirQuery}&travelmode=transit`;
+}
+
 function StopRow({ stop, stamp, footer, accent, tz, dress = null, dawn = false }: {
   stop: Stop; stamp?: React.ReactNode; footer?: React.ReactNode; accent?: string; tz?: string | null;
   /** The first stop after a night train: a small sunrise before its time. */
@@ -904,16 +919,8 @@ function StopRow({ stop, stamp, footer, accent, tz, dress = null, dawn = false }
   const faded = stop.is_optional && !stop.added;
   const baseTag = faded && !/optional/i.test(stop.tag) ? `${stop.tag} · optional` : stop.tag;
   const tagText = stop.duration_label ? `${baseTag} · ${stop.duration_label}` : baseTag;
-  // Directions to the stop's first place link (review C), not for the travel
-  // legs themselves. The link's query is already URL-encoded.
-  // China trips link Apple Maps (lib/maps.ts), so read its `q=` there instead.
   const apple = useAppleMaps();
-  const dirQuery = /^(travel|flight|train)/i.test(stop.tag) ? null
-    : apple ? stop.body_md?.match(/maps\.apple\.com\/\?(?:[^)\s"]*&)?q=([^&)\s"]+)/)?.[1] ?? null
-    : stop.body_md?.match(/google\.com\/maps\/search\/\?api=1&query=([^)\s"]+)/)?.[1] ?? null;
-  const dirHref = !dirQuery ? null
-    : apple ? appleDirectionsUrl(safeDecode(dirQuery))
-    : `https://www.google.com/maps/dir/?api=1&destination=${dirQuery}&travelmode=transit`;
+  const dirHref = stopDirections(stop, apple);
   return (
     <article id={`stop-${stop.id}`} style={{
       position: 'relative',
@@ -990,6 +997,25 @@ function StopRow({ stop, stamp, footer, accent, tz, dress = null, dawn = false }
       </div>
       {stamp && <div style={{ paddingTop: 1 }}>{stamp}</div>}
     </article>
+  );
+}
+
+// A stop already behind you today: one grey line, time and title. Tap opens the
+// full card again (and it stays open). Keeps the stop's anchor, so a link to
+// #stop-N still lands on it.
+function FoldedStop({ stop, children }: { stop: Stop; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  if (open) return <div style={{ opacity: 0.6 }}>{children}</div>;
+  return (
+    <button id={`stop-${stop.id}`} type="button" onClick={() => setOpen(true)} className="tap" style={{
+      display: 'flex', alignItems: 'baseline', gap: 10, width: '100%', textAlign: 'left',
+      background: 'none', border: 'none', padding: '6px 4px', marginTop: 2, cursor: 'pointer',
+      color: 'var(--ink-4)', font: 'inherit', fontSize: 13.5, lineHeight: 1.35,
+      scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 64px)',
+    }}>
+      <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, width: 62, flex: 'none' }}>{stop.time_label}</span>
+      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stop.title}</span>
+    </button>
   );
 }
 
@@ -1165,6 +1191,7 @@ function DayBlock({
     return <Fragment key={st.id}>{starts && <MaybeRunHead accent={accent} label={head} />}{m}</Fragment>;
   });
   const now = nowMin != null ? nowState(list, nowMin) : null;
+  const apple = useAppleMaps();
   const accent = isToday ? 'var(--brass)' : stay ? stayTone(stay, null) : themeColor.bg;
   // Folded while its header is pinned, or on its way out under the next day's
   const folded = useDayScroll(s => s.pinned === dayIndex || s.leaving === dayIndex);
@@ -1385,8 +1412,9 @@ function DayBlock({
         </div>
       </div>
       <div style={{ padding: '0 12px' }}>
-        {now?.nextStop && now.minutesToNext != null && (
-          <NowCard stop={now.nextStop} minutes={now.minutesToNext} accent={accent} />
+        {now?.nextStop && now.minutesToNext != null && nowMin != null && (
+          <NowCard stop={now.nextStop} minutes={now.minutesToNext} nowMin={nowMin}
+            dirHref={stopDirections(now.nextStop, apple)} ticket={isJourney(now.nextStop)} />
         )}
         {swaps.length > 0 && <div style={{ marginBottom: 6 }}>{maybeRun(swaps)}</div>}
         {afterStop?.(null)}
@@ -1398,14 +1426,16 @@ function DayBlock({
             const startsRun = !prev || !maybe?.(prev, accent) || headFor(prev) !== head;
             return <Fragment key={stop.id}>{startsRun && <MaybeRunHead accent={accent} label={head} />}{m}</Fragment>;
           }
-          // Today: stops behind the one under way go quiet; a rule marks now.
+          // Today: timed stops behind the one under way fold to a line (tap to
+          // open); untimed ones there just go quiet. A rule marks now.
           const past = !!now && k < now.current;
+          const row = <StopRow stop={stop} accent={accent} tz={day.tz} dress={stopDress} dawn={stop.id === dawnId} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />;
           return (
             <Fragment key={stop.id}>
               {now && nowMin != null && k === now.next && <NowRule nowMin={nowMin} accent={accent} />}
-              <div style={past ? { opacity: 0.5 } : undefined}>
-                <StopRow stop={stop} accent={accent} tz={day.tz} dress={stopDress} dawn={stop.id === dawnId} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />
-              </div>
+              {past && clockMin(stop.time_label) != null
+                ? <FoldedStop stop={stop}>{row}</FoldedStop>
+                : <div style={past ? { opacity: 0.5 } : undefined}>{row}</div>}
               {insteadOf.has(stop.id) && maybeRun(insteadOf.get(stop.id)!)}
               {afterStop?.(stop)}
             </Fragment>
@@ -2103,9 +2133,9 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   useEffect(() => {
     if (!trip.date_start) return;
     const compute = () => {
-      const today = nowOverride()?.date ?? fmtLocalDate(new Date());
-      let idx = -1;
-      for (let i = 0; i < days.length; i++) if (dateForDay(trip.date_start!, i) === today) idx = i;
+      // Each day in its own zone (lib/now.ts), not the phone's date: the flight
+      // day is on LA time, the landing day on Tokyo time.
+      const idx = todayIndex(days.map((_, i) => dateForDay(trip.date_start!, i)), days.map(d => d.tz || trip.tz || null));
       setTodayIdx(idx);
       return idx;
     };
@@ -2402,6 +2432,14 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   })();
   // Alerts only make sense until the last day is over
   const tripUpcoming = !!trip.date_start && (trip.date_end || trip.date_start) >= fmtLocalDate(new Date());
+  // Save the trip onto this phone from SAVE_DAYS out (lib/saveTrip.ts)
+  const saveOn = tripUpcoming && (() => {
+    const edge = new Date();
+    edge.setDate(edge.getDate() + SAVE_DAYS);
+    return trip.date_start! <= fmtLocalDate(edge);
+  })();
+  useSaveTrip(saveOn, [`/trips/${trip.slug}`, ...(part ? [`/trips/${trip.slug}/${part.key}`] : []), '/']);
+  const savedCopy = useSavedCopy();
   // The driver card's language follows the time zone of the stay's first night.
   const tonightTz = tonight ? (days[firstDayOf(tonight.stay)]?.tz || trip.tz || null) : null;
 
@@ -2773,6 +2811,11 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
               {when ? `The end · ${when}` : trip.title}
             </div>
             {tripDress && (!part || part.endsTrip) && <DoorLine dress={tripDress} which="home" />}
+            {(saveOn || !savedCopy.online) && savedCopy.savedAt && (
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'var(--ink-4)' }}>
+                {savedCopy.online ? 'Saved on this phone' : 'Offline · saved'} · {fmtSaved(savedCopy.savedAt)}
+              </div>
+            )}
             {over && verdicts.owner && (
               <button type="button" onClick={() => { setMode('verdicts'); window.scrollTo({ top: 0 }); }} style={{
                 marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase',

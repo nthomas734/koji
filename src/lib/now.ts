@@ -36,6 +36,38 @@ export function useZonedMinutes(tz: string | null, on: boolean): number | null {
   return min;
 }
 
+function offsetMin(tz: string, at: Date): number {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric',
+  }).formatToParts(at).map(x => [x.type, x.value]));
+  const wall = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute);
+  return Math.round((wall - Math.floor(at.getTime() / 60_000) * 60_000) / 60_000);
+}
+
+/** YYYY-MM-DD on the wall in `tz` */
+export function zonedDate(tz: string, at = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
+}
+
+/**
+ * Which trip day is today. Each day is judged in its own zone, so a flight day
+ * on LA time and the landing day on Tokyo time can both be "today" for a few
+ * hours; the one in the zone the phone is in wins (the phone flips to Tokyo on
+ * landing), then the phone's own date, then the earlier day. -1 outside the trip.
+ */
+export function todayIndex(dates: string[], tzs: (string | null)[], at = new Date()): number {
+  const pinned = nowOverride();
+  if (pinned) return dates.indexOf(pinned.date);
+  const phoneTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const hits = dates.map((d, i) => (d === zonedDate(tzs[i] || phoneTz, at) ? i : -1)).filter(i => i >= 0);
+  if (!hits.length) return -1;
+  const phoneOff = offsetMin(phoneTz, at);
+  const here = hits.find(i => offsetMin(tzs[i] || phoneTz, at) === phoneOff);
+  if (here != null) return here;
+  const local = zonedDate(phoneTz, at);
+  return hits.find(i => dates[i] === local) ?? hits[0];
+}
+
 export interface NowState {
   /** index in the list of the stop under way (last timed stop already started) */
   current: number;
