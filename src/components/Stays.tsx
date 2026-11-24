@@ -115,7 +115,8 @@ function stampFor(stay: Stay, out: string, firstNight: number, today: string): {
 // ── STAY MARK ───────────────────────────────────────────────────────────────
 // On a Japan or China trip the local name is drawn as a mark at the end of the
 // heading: a round station stamp (Japan, in the stay colour) or a square name
-// seal (China, always cinnabar). Faint until check-in, inked from that day.
+// seal (China, always cinnabar). Lighter until check-in, inked from that day.
+// The round stamp is lifted 5px so it clears the intro line under the heading.
 // Negative vertical margins keep it inside the heading's existing line box.
 function StayMark({ stay, dress, inked, ink }: { stay: Stay; dress: Exclude<Dress, null>; inked: boolean; ink: string }) {
   const name = stay.local_name!;
@@ -123,7 +124,7 @@ function StayMark({ stay, dress, inked, ink }: { stay: Stay; dress: Exclude<Dres
   const font = cjkFont(dress);
   const common: React.CSSProperties = {
     display: 'inline-block', verticalAlign: 'middle', flexShrink: 0,
-    opacity: inked ? 1 : 0.35,
+    opacity: inked ? 1 : 0.6,
   };
   if (dress === 'ja') {
     const arcId = `stay-arc-${stay.id}`;
@@ -131,7 +132,7 @@ function StayMark({ stay, dress, inked, ink }: { stay: Stay; dress: Exclude<Dres
     const [y, m, d] = stay.check_in.split('-').map(Number);
     return (
       <svg viewBox="0 0 120 120" width={44} height={44} role="img" aria-label={`${stay.place} station stamp, ${name}`} lang="ja"
-        style={{ ...common, margin: '-12px 0 -10px 8px', transform: 'rotate(-9deg)' }}>
+        style={{ ...common, margin: '-12px 0 -10px 8px', transform: 'translateY(-5px) rotate(-9deg)' }}>
         <path id={arcId} d="M 19 62 A 41 41 0 0 1 101 62" fill="none" />
         <circle cx="60" cy="60" r="56" fill="none" stroke={ink} strokeWidth="4" />
         <circle cx="60" cy="60" r="49" fill="none" stroke={ink} strokeWidth="1.5" />
