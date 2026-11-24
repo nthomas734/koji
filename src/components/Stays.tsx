@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 import type { Stay, Stop } from '@/lib/supabase';
 import { appleSearchUrl, mapsSearchUrl } from '@/lib/maps';
 import type { Dress } from '@/lib/maps';
-import { CINNABAR, cjkFont } from '@/lib/dress';
+import { CINNABAR, cjkFont, italianStampDate } from '@/lib/dress';
 import { useAppleMaps } from './MapsContext';
 import { renderMd } from '@/lib/markdown';
 
@@ -113,19 +113,39 @@ function stampFor(stay: Stay, out: string, firstNight: number, today: string): {
 }
 
 // ── STAY MARK ───────────────────────────────────────────────────────────────
-// On a Japan or China trip the local name is drawn as a mark at the end of the
-// heading: a round station stamp (Japan, in the stay colour) or a square name
-// seal (China, always cinnabar). Lighter until check-in, inked from that day.
+// On a Japan, China or Italy trip the local name is drawn as a mark at the end
+// of the heading: a round station stamp (Japan, in the stay colour), a square
+// name seal (China, always cinnabar) or an oval date stamp (Italy, in the stay
+// colour, like a ticket office's: ROMA over 25 MAG 2026). Lighter until
+// check-in, inked from that day.
 // The round stamp is lifted 5px so it clears the intro line under the heading.
 // Negative vertical margins keep it inside the heading's existing line box.
 function StayMark({ stay, dress, inked, ink }: { stay: Stay; dress: Exclude<Dress, null>; inked: boolean; ink: string }) {
   const name = stay.local_name!;
   const chars = Array.from(name);
-  const font = cjkFont(dress);
   const common: React.CSSProperties = {
     display: 'inline-block', verticalAlign: 'middle', flexShrink: 0,
     opacity: inked ? 1 : 0.6,
   };
+  if (dress === 'it') {
+    // Double-ruled oval, name in wide-tracked capitals, the check-in date in
+    // Italian under it, a few degrees off level. 70×41, pulled into the line
+    // box by its margins like the others ("Florence" + FIRENZE included).
+    const caps = name.toUpperCase();
+    const long = caps.length > 5;
+    const ls = long ? 2 : 3;
+    const date = italianStampDate(stay.check_in);
+    return (
+      <svg viewBox="0 0 120 70" width={70} height={41} role="img" aria-label={`${stay.place} date stamp, ${caps}, ${date}`} lang="it"
+        style={{ ...common, margin: '-11px 0 -10px 8px', transform: 'translateY(-4px) rotate(-4deg)' }}>
+        <ellipse cx="60" cy="35" rx="57" ry="32" fill="none" stroke={ink} strokeWidth="3.5" />
+        <ellipse cx="60" cy="35" rx="51" ry="26" fill="none" stroke={ink} strokeWidth="1.5" />
+        <text x={60 + ls / 2} y="36" textAnchor="middle" fontFamily="var(--font-serif)" fontWeight="500" fontSize={long ? 16 : 20} letterSpacing={ls} fill={ink}>{caps}</text>
+        <text x="60.5" y="51" textAnchor="middle" fontFamily="var(--font-mono)" fontSize="9.5" letterSpacing="1" fill={ink}>{date}</text>
+      </svg>
+    );
+  }
+  const font = cjkFont(dress);
   if (dress === 'ja') {
     const arcId = `stay-arc-${stay.id}`;
     const latin = stay.place.toUpperCase();

@@ -59,14 +59,28 @@ export function driverLang(tz: string | null | undefined): 'ja' | 'zh-Hans' | 'z
 /**
  * Which country's small touches a trip or day wears (stay stamps, season
  * names, weekday characters, the first and last line). Unlike `driverLang`,
- * an unknown zone is null: every trip outside Japan and China stays undressed.
+ * an unknown zone is null: every trip outside Japan, China and Italy stays
+ * undressed. Italy wears only a few of these; see `cjkDress`.
  * Use the day's `tz` where there is one, else the trip's.
  */
-export type Dress = 'ja' | 'zh-Hans' | 'zh-Hant' | null;
+export type CjkDress = 'ja' | 'zh-Hans' | 'zh-Hant';
+export type Dress = CjkDress | 'it' | null;
 
 export function dressFor(tz: string | null | undefined): Dress {
   if (tz === 'Asia/Tokyo') return 'ja';
+  if (tz === 'Europe/Rome') return 'it';
   if (tz === 'Asia/Shanghai') return 'zh-Hans';
   if (tz === 'Asia/Hong_Kong' || tz === 'Asia/Macau' || tz === 'Asia/Taipei') return 'zh-Hant';
   return null;
+}
+
+/**
+ * The Japan / China dress only. Italy ('it', 2026-11-24) wears three touches:
+ * the first and last line, the stay stamp, Italo on its ticket (plus the
+ * glossary tips). Everything that draws characters, a season, a weekday or a
+ * phrase or platform card takes this instead, so 'it' reads as an undressed
+ * trip there and can never fall into a Chinese branch.
+ */
+export function cjkDress(dress: Dress): CjkDress | null {
+  return dress === 'it' ? null : dress;
 }

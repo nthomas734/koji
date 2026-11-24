@@ -25,12 +25,29 @@
 // dotted line. China renumbers its trains in late December 2026 (new letters
 // T, K and X; D narrows to 200 km/h or less): add them here once a 2027
 // ticket carries one.
+//
+// Italy (2026-11-24): Italo, the private high-speed operator. Its trains are
+// red with a gold band, so the dot is Italo red and the route line is a thin
+// red line with a gold pinstripe under it. It trails the speed streaks like
+// China's G and D trains: an AGV / EVO at up to 300 km/h is the same class
+// of train, and every high-speed livery here wears them.
+//   Red  #A6160A: Italo's own. The fill of the Italo logo (icon-logos-italo)
+//        in the SVG sprite italotreno.com serves at /api/getSvgSprite, and the
+//        `primary` colour of the site's stylesheet
+//        (/Content/NewItaloTreno/css/tailwind.css, rgb(166,22,10)); read
+//        2026-11-24. The trains' paint is this red, not a burgundy.
+//   Gold #BA953A: no published value. Italo's site gives none (the 2026 gold
+//        band, "un'onda dorata", is described on italotreno.com/it/il-treno/
+//        italo-evo but has no colour in its CSS or sprite), so this is the
+//        mean of three medians sampled from the gold band in Italo's own
+//        livery photos on that page (flotta/nuova_livrea_500x500_2 and _3):
+//        #B4943E, #BB9C42, #C39232. Approximate; swap it if Italo publishes one.
 // Anything not listed keeps the plain dotted line.
 
 import { glossOf } from '@/lib/glossary';
 import type { Dress } from '@/lib/maps';
 
-export type LineKind = 'dots' | 'speedup' | 'beam' | 'ticks' | 'gull' | 'stripe' | 'steady';
+export type LineKind = 'dots' | 'speedup' | 'beam' | 'ticks' | 'gull' | 'stripe' | 'steady' | 'italo';
 
 type Livery = { re: RegExp; line: LineKind; bg: string; fg: string; glow?: boolean; bullet?: boolean;
   /** The note's dot takes the day's colour instead (no sourced colour of its own). */
@@ -38,6 +55,8 @@ type Livery = { re: RegExp; line: LineKind; bg: string; fg: string; glow?: boole
 
 const BOARD = '#17140F';
 const CR_RED = '#E60012';
+const ITALO_RED = '#A6160A';
+const ITALO_GOLD = '#BA953A';
 const LIVERIES: Livery[] = [
   { re: /nozomi|のぞみ/i, line: 'speedup', bg: BOARD, fg: '#F6C744', glow: true, bullet: true },
   { re: /hikari|ひかり/i, line: 'beam', bg: BOARD, fg: '#FF5A4E', glow: true, bullet: true },
@@ -50,6 +69,9 @@ const LIVERIES: Livery[] = [
   // China: the number's letter. Anchored, so a Japanese name never matches.
   { re: /^G\d{1,4}\b/, line: 'speedup', bg: CR_RED, fg: '#FFFFFF', bullet: true },
   { re: /^D\d{1,4}\b/, line: 'steady', bg: '', fg: '', bullet: true, accentDot: true },
+  // Italy: the operator's name ("Italo 8906"). Whole word, so no Japanese or
+  // Chinese label can match.
+  { re: /\bitalo\b/i, line: 'italo', bg: ITALO_RED, fg: '#FFFFFF', bullet: true },
 ];
 
 export type LiveryPart = { text: string; livery: Livery | null };
@@ -80,7 +102,7 @@ export function TrainNote({ parts, kind, color, accent, dress = null }: {
   parts: LiveryPart[]; kind: string; color: string;
   /** The day's colour, for a dot with none of its own (China's D trains). */
   accent?: string;
-  /** Japan and China trips: the train's name (or, in China, its number) taps
+  /** Dressed trips: the train's name (or, in China, its number) taps
    *  open its glossary line, like the body text. */
   dress?: Dress;
 }) {
@@ -146,6 +168,9 @@ function Segment({ kind, accent }: { kind: LineKind; accent: string }) {
     case 'steady':
       // The D train: even dashes, no gathering speed.
       return <div style={base}><div style={mid({ height: 1.5, background: `repeating-linear-gradient(90deg, ${accent} 0 5px, transparent 5px 9px)` })} /></div>;
+    case 'italo':
+      // Italo's red, with the gold band as a pinstripe under it.
+      return <div style={base}><div style={mid({ height: 4, background: `linear-gradient(to bottom, ${ITALO_RED} 0 2px, transparent 2px 3px, ${ITALO_GOLD} 3px 4px)` })} /></div>;
     case 'stripe':
       return <div style={base}><div style={mid({ height: 5, borderTop: `1.5px solid ${accent}`, borderBottom: `1.5px solid ${accent}` })} /></div>;
     default:

@@ -18,7 +18,7 @@
 // A China trip in another year needs its own rows.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { Dress } from './maps';
+import type { CjkDress } from './maps';
 
 export interface Season {
   local: string;
@@ -53,7 +53,9 @@ const JIEQI: Season[] = [
   { from: '2027-12-22', to: '2028-01-05', local: '冬至', english: 'Winter Solstice' },
 ];
 
-export function seasonFor(dress: Dress, isoDate: string): Season | null {
+// Japan and China only: Italy has no almanac to cite, so callers pass
+// cjkDress(...) and an Italian day gets null.
+export function seasonFor(dress: CjkDress | null, isoDate: string): Season | null {
   if (!dress) return null;
   if (dress === 'ja') {
     const md = isoDate.slice(5);

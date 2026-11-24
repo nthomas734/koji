@@ -6,7 +6,7 @@ import { renderMd } from '@/lib/markdown';
 import { gloss } from '@/lib/glossary';
 import { zoneAbbr } from '@/lib/bookings';
 import { WhoChip } from './WhoChip';
-import type { Dress } from '@/lib/maps';
+import { cjkDress, type Dress } from '@/lib/maps';
 import { cjkFont } from '@/lib/dress';
 import { SayChip, hasPhrase } from './SayIt';
 import { LiveryLine, SpeedStreaks, TrainNote, hasLivery, liveryParts } from './TrainLivery';
@@ -30,6 +30,11 @@ import { LiveryLine, SpeedStreaks, TrainNote, hasLivery, liveryParts } from './T
 // ("のぞみ Nozomi 21", "G8602") joins the label on the route, and seat_label
 // is one line in the lower half. Each shows only when set, so a ticket with
 // none of them renders exactly as before. The wash stays the day's colour.
+// Italy (2026-11-24) has no local names or phrases (cjkDress is null there);
+// it gets Italo's livery, and its station names can carry a glossary tip
+// ("Firenze S.M.N.", "Roma Termini").
+
+const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
 
 const PLANE_LAB = 'https://san-plane-lab.vercel.app/#';
 
@@ -410,6 +415,7 @@ const KINDS: [RegExp, string, boolean][] = [
   [/relay kamome|リレーかもめ/i, 'limited express', false],
   [/kamome|かもめ/i, 'Nishi-Kyushu', true],
   [/midori|みどり|huis ten bosch|ハウステンボス|romancecar|ロマンスカー/i, 'limited express', false],
+  [/\bitalo\b/i, 'high-speed train', false],
 ];
 // China's labels are numbers; the letter in front is the type: G 高速动车组
 // (the fastest class), D 动车组 (a slower one, 200-250 km/h; 200 or less once
@@ -457,7 +463,8 @@ function Wake() {
 
 export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }: {
   stop: Stop;
-  /** Japan / China: the font and lang for the local station names, and the phrase chip. */
+  /** Japan / China: the font and lang for the local station names, and the phrase chip.
+   *  Any dress (Italy too): the glossary tips on the train's name and the body. */
   dress?: Dress;
   /** The day's zone, for the departure's "PT" when a flight crosses zones. */
   tz?: string | null;
@@ -499,8 +506,10 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   // ride beside the name as its smaller partner; alone, they show as before.
   const fromName = stop.from_name?.trim() || '';
   const toName = stop.to_name?.trim() || '';
-  const fromLocal = dress ? stop.from_local?.trim() || '' : '';
-  const toLocal = dress ? stop.to_local?.trim() || '' : '';
+  // Characters need a Japan or China dress; Italy has none to show.
+  const cjk = cjkDress(dress);
+  const fromLocal = cjk ? stop.from_local?.trim() || '' : '';
+  const toLocal = cjk ? stop.to_local?.trim() || '' : '';
   const hasStations = !!(fromName || toName || fromLocal || toLocal);
   const phrase = hasPhrase(stop, dress);
   const labelParts = routeLabel.split(/\s*·\s*/);
@@ -582,19 +591,23 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
     const marks = { 'data-nl': mark === 'light' ? '' : undefined, 'data-nd': mark === 'dark' ? '' : undefined };
     if (!name && !local) return <span />;
     if (!name) return (
-      <div {...marks} lang={dress ?? undefined} style={{
-        textAlign: align, fontFamily: cjkFont(dress ?? 'ja'), fontWeight: 700, fontSize: 19, lineHeight: 1.15,
+      <div {...marks} lang={cjk ?? undefined} style={{
+        textAlign: align, fontFamily: cjkFont(cjk ?? 'ja'), fontWeight: 700, fontSize: 19, lineHeight: 1.15,
         letterSpacing: '0.04em', color: ink, whiteSpace: 'nowrap',
       }}>{local}</div>
     );
     return (
       <div {...marks} style={{ textAlign: align, minWidth: 0, overflowWrap: 'anywhere', lineHeight: 1.25, color: ink }}>
-        <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 16 }}>{name}</span>
+        {dress === 'it'
+          // Italy: "S.M.N." and "Termini" open their tip, like the body text.
+          ? <span lang="it" style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 16 }}
+              dangerouslySetInnerHTML={{ __html: gloss(name.replace(/[&<>"]/g, c => ESC[c]), dress) }} />
+          : <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 16 }}>{name}</span>}
         {local && (
           <>
             {' '}
-            <span lang={dress ?? undefined} style={{
-              fontFamily: cjkFont(dress ?? 'ja'), fontSize: 13, letterSpacing: '0.04em', opacity: 0.7, whiteSpace: 'nowrap',
+            <span lang={cjk ?? undefined} style={{
+              fontFamily: cjkFont(cjk ?? 'ja'), fontSize: 13, letterSpacing: '0.04em', opacity: 0.7, whiteSpace: 'nowrap',
             }}>{local}</span>
           </>
         )}
@@ -730,11 +743,11 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
             {(seat || phrase || night) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: bodyHtml ? 10 : 0 }}>
                 {seatText && (
-                  <span lang={dress ?? undefined} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.04em', color: deep, minWidth: 0 }}>
+                  <span lang={cjk ?? undefined} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.04em', color: deep, minWidth: 0 }}>
                     {seatText}
                   </span>
                 )}
-                {phrase && dress && <span style={{ marginLeft: 'auto' }}><SayChip stop={stop} dress={dress} color={deep} /></span>}
+                {phrase && cjk && <span style={{ marginLeft: 'auto' }}><SayChip stop={stop} dress={cjk} color={deep} /></span>}
                 {night && <BerthStub berth={berth?.berth ?? null} pos={berth?.pos ?? ''} color={deep} />}
               </div>
             )}

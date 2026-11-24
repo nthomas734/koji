@@ -17,7 +17,7 @@ import { LAST_TRIP_KEY } from '@/components/OwnerNav';
 import { TripAlerts } from '@/components/TripAlerts';
 import { TripSearch, type SearchTarget } from '@/components/TripSearch';
 import { useQueueDrain, usePendingStatus } from '@/lib/komaQueue';
-import { appleDirectionsUrl, dressFor, mapsSearchUrl, placeUrl, usesAppleMaps, type Dress } from '@/lib/maps';
+import { appleDirectionsUrl, cjkDress, dressFor, mapsSearchUrl, placeUrl, usesAppleMaps, type CjkDress, type Dress } from '@/lib/maps';
 import { cjkFont, doorLine, weekdayChar } from '@/lib/dress';
 import { HOLD_VARS, rememberHeight } from '@/lib/hold';
 import { seasonFor, seasonSpan, type Season } from '@/lib/seasons';
@@ -1049,11 +1049,12 @@ const DAY_HEADER_MARGIN = 20;
 // the date stays readable over the cards beneath it. The wrapping <section> is
 // the sticky container, so each header releases when the next day arrives.
 // ── DESTINATION DRESS ────────────────────────────────────────────────────────
-// Japan and China trips only (dressFor in lib/maps.ts); every other trip
-// renders none of this.
+// Japan and China trips (dressFor in lib/maps.ts); Italy wears only the door
+// line here, never the season or the weekday characters (cjkDress). Every
+// other trip renders none of this.
 
 /** The season's name: local name in the day's colour, the English, the span. One line. */
-function SeasonLine({ season, dress, accent, span = true }: { season: Season; dress: Exclude<Dress, null>; accent: string; span?: boolean }) {
+function SeasonLine({ season, dress, accent, span = true }: { season: Season; dress: CjkDress; accent: string; span?: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0, whiteSpace: 'nowrap' }}>
       <span lang={dress} style={{ fontFamily: cjkFont(dress), fontWeight: 600, fontSize: 14, letterSpacing: '0.08em', color: accent, flexShrink: 0 }}>
@@ -1074,6 +1075,12 @@ function SeasonLine({ season, dress, accent, span = true }: { season: Season; dr
 /** What people say at the door: on the way out above day 1, coming home in the footer. */
 function DoorLine({ dress, which }: { dress: Exclude<Dress, null>; which: 'out' | 'home' }) {
   const { local, reading } = doorLine(dress, which);
+  // Italy: the Italian alone, no reading, a step larger than the romaji.
+  if (dress === 'it' || reading === null) return (
+    <div style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+      <span lang="it" style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 400, fontSize: 19, color: 'var(--ink-2)' }}>{local}</span>
+    </div>
+  );
   // Japan: the reading is the larger (Nathan learns by sound). China: the characters.
   const ja = dress === 'ja';
   return (
@@ -1163,7 +1170,8 @@ function DayBlock({
   checkIn?: CheckIn | null;
   /** The season's name, only on the day it starts (or the trip's first dressed day). */
   season?: Season | null;
-  dress?: Dress;
+  /** Japan / China only, for the season line (cjkDress: null on Italy). */
+  dress?: CjkDress | null;
   /** For the stops' own dressed fields: the day's dress, else the trip's. A flight
    *  day out of LA wears no season, but its ticket can still name 東京 in Japanese. */
   stopDress?: Dress;
@@ -1564,7 +1572,7 @@ function WeatherTab({
               No weather data
             </div>
             {(() => {
-              const dr = dressFor(day.tz || trip.tz);
+              const dr = cjkDress(dressFor(day.tz || trip.tz));
               const se = seasonFor(dr, date);
               return se && dr ? (
                 <div style={{ marginTop: 5 }}>
@@ -1620,7 +1628,7 @@ function WeatherTab({
                   {city} · Day {i + 1}
                 </div>
                 {(() => {
-                  const dr = dressFor(day.tz || trip.tz);
+                  const dr = cjkDress(dressFor(day.tz || trip.tz));
                   const se = seasonFor(dr, date);
                   return se && dr ? (
                     <div style={{ marginTop: 5 }}>
@@ -1755,8 +1763,8 @@ type Tab = 'itinerary' | 'logistics' | 'weather';
 // One row of day chips. Lives in the dark hero and drops out of a pinned day header;
 // the variant only changes the colours.
 function DayRail({ days, dateStart, active, todayIdx, onPick, variant, theme, toneFor, dress = null }: {
-  /** Japan / China trips: the weekday character after the date. */
-  dress?: Dress;
+  /** Japan / China trips: the weekday character after the date (never Italy). */
+  dress?: CjkDress | null;
   /** The town colour under each pill, from where you sleep that night. */
   toneFor?: (i: number) => string | null;
   days: Day[];
@@ -1901,10 +1909,13 @@ export function TripView({ trip, logistics, days, stays = [], part, reserved = {
   const appleMaps = usesAppleMaps(trip.tz);
   // Japan / China touches; null for every other trip. Day-level things use the
   // day's zone where it has one (a flight day from LA wears nothing).
+  // Italy ('it') wears the door lines, stay stamps, glossary and Italo's
+  // livery; the weekday characters and seasons take cjkDress, null for it.
   const tripDress = dressFor(trip.tz);
+  const railDress = cjkDress(tripDress);
   const dayDress = (i: number): Dress => dressFor(days[i]?.tz || trip.tz);
   const seasonOf = (i: number): Season | null =>
-    trip.date_start ? seasonFor(dayDress(i), dateForDay(trip.date_start, i)) : null;
+    trip.date_start ? seasonFor(cjkDress(dayDress(i)), dateForDay(trip.date_start, i)) : null;
   // Above koma on purpose: a frame marked underground has to keep trying once
   // there is signal, whether or not the mode is still open. See komaQueue.
   useQueueDrain();
@@ -2607,7 +2618,7 @@ export function TripView({ trip, logistics, days, stays = [], part, reserved = {
         </div>
         {showRail && activeTab === 'itinerary' && (
           <div style={{ marginTop: 10 }}>
-            <LiveDayRail days={days} dateStart={trip.date_start!} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme} dress={tripDress}
+            <LiveDayRail days={days} dateStart={trip.date_start!} todayIdx={todayIdx} onPick={pickDay} variant="dark" theme={theme} dress={railDress}
               toneFor={i => { const st = stayFor(i); return st ? stayTone(st, theme) : null; }} />
           </div>
         )}
@@ -2679,7 +2690,7 @@ export function TripView({ trip, logistics, days, stays = [], part, reserved = {
                 day={day}
                 stay={stay}
                 checkIn={opens && stay ? { stay, firstNight, tz: day.tz || trip.tz || null } : null}
-                dress={dayDress(i)}
+                dress={cjkDress(dayDress(i))}
                 stopDress={dayDress(i) ?? tripDress}
                 dawn={!!days[i - 1]?.stops?.some(st => (!st.is_optional || isAdded(st)) && arrivesNextMorning(st))}
                 season={(() => {
@@ -2760,7 +2771,7 @@ export function TripView({ trip, logistics, days, stays = [], part, reserved = {
                   </>
                 ) : undefined}
                 rail={showRail ? (
-                  <LiveDayRail days={days} dateStart={trip.date_start!} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} dress={tripDress}
+                  <LiveDayRail days={days} dateStart={trip.date_start!} todayIdx={todayIdx} onPick={pickDay} variant="glass" theme={theme} dress={railDress}
                     toneFor={j => { const st = stayFor(j); return st ? stayTone(st, null) : null; }} />
                 ) : null}
               />

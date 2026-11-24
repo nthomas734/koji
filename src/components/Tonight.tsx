@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { Stay } from '@/lib/supabase';
 import { stayTone } from './Stays';
-import { appleDirectionsUrl, dressFor, driverLang, type Dress } from '@/lib/maps';
+import { appleDirectionsUrl, cjkDress, dressFor, driverLang, type CjkDress } from '@/lib/maps';
 import { cjkFont } from '@/lib/dress';
 import { useAppleMaps } from './MapsContext';
 import { Placard, PlacardRule } from './Placard';
@@ -30,7 +30,8 @@ export function TonightCard({ stay, label, tz, prev, next }: { stay: Stay; label
     ? appleDirectionsUrl(stay.hotel_ja || stay.hotel_query || stay.hotel || stay.address_en || stay.place)
     : dirUrl(stay.address_en || stay.hotel_query || stay.hotel || stay.place);
   const tone = stayTone(stay, null);
-  const dress = dressFor(tz);
+  // Japan and China only: an Italian stay keeps the plain eyebrow.
+  const dress = cjkDress(dressFor(tz));
   const btn: React.CSSProperties = {
     flex: 1, textAlign: 'center', padding: '10px 8px', borderRadius: 10, fontSize: 14, fontWeight: 600,
     border: `1px solid color-mix(in srgb, ${tone} 45%, transparent)`, color: 'var(--ink)', background: 'var(--surface)',
@@ -76,7 +77,7 @@ const RAILWAY_BLUE = '#2B5C9A';
  * stays as the small line above the name.
  */
 function PlatformSign({ stay, label, dress, tone, prev, next }: {
-  stay: Stay; label: string; dress: Exclude<Dress, null>; tone: string; prev?: Stay | null; next?: Stay | null;
+  stay: Stay; label: string; dress: CjkDress; tone: string; prev?: Stay | null; next?: Stay | null;
 }) {
   const ja = dress === 'ja';
   const font = cjkFont(dress);

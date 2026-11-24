@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Placard, PlacardButton, PlacardRule } from './Placard';
 import { createPortal } from 'react-dom';
 import type { Stop } from '@/lib/supabase';
-import type { Dress } from '@/lib/maps';
+import type { CjkDress, Dress } from '@/lib/maps';
 import { cjkFont } from '@/lib/dress';
 
 // ── SAY IT / SHOW IT ────────────────────────────────────────────────────────
@@ -20,11 +20,12 @@ import { cjkFont } from '@/lib/dress';
 /** Pinyin is set in Georgia: Fraunces italic draws the macron of ā off its letter. */
 const PINYIN = "Georgia, 'Times New Roman', serif";
 
-export function hasPhrase(stop: Stop, dress: Dress): dress is Exclude<Dress, null> {
-  return !!dress && !!stop.say_local?.trim();
+/** Japan and China only: an Italian trip never shows Say it / Show it. */
+export function hasPhrase(stop: Stop, dress: Dress): dress is CjkDress {
+  return !!dress && dress !== 'it' && !!stop.say_local?.trim();
 }
 
-export function SayChip({ stop, dress, color }: { stop: Stop; dress: Exclude<Dress, null>; color: string }) {
+export function SayChip({ stop, dress, color }: { stop: Stop; dress: CjkDress; color: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -48,7 +49,7 @@ export function SayChip({ stop, dress, color }: { stop: Stop; dress: Exclude<Dre
 }
 
 /** Full screen on the shared placard (Placard.tsx), the driver card's twin. */
-function PhraseCard({ stop, dress, onClose }: { stop: Stop; dress: Exclude<Dress, null>; onClose: () => void }) {
+function PhraseCard({ stop, dress, onClose }: { stop: Stop; dress: CjkDress; onClose: () => void }) {
   const ja = dress === 'ja';
   const local = stop.say_local!.trim();
   const reading = stop.say_reading?.trim();

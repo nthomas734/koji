@@ -1,6 +1,7 @@
 // ── GLOSSARY ────────────────────────────────────────────────────────────────
 // Japanese words the plan uses without explaining them ("kissaten", "yatai"),
-// and on China trips the Chinese ones (ZH, below). On a dressed trip, the
+// on China trips the Chinese ones (ZH, below), and on Italy trips a few
+// Italian station and train names (IT). On a dressed trip, the
 // first time a card uses one, it gets a faint dotted
 // underline; tapping it opens a one-line meaning (GlossTip.tsx). Words he
 // already knows from three trips (ramen, udon, onsen, konbini, shinkansen...)
@@ -93,6 +94,18 @@ const ZH: Record<string, string> = {
   'qing-era': "The Qing dynasty, 1644 to 1912, China's last.",
 };
 
+// Italy trips (2026-11-24): the train operators and the two big stations, as
+// the tickets and plans name them. Only an Italian trip uses this list, so
+// "Termini" can't fire on any other trip. "Santa Maria Novella" is left out
+// on purpose: written out, it is as often the church as the station (the
+// Florence day's "The Duomo and Santa Maria Novella").
+const IT: Record<string, string> = {
+  'italo': "Italy's private high-speed train company (NTV), running since 2012 alongside the state railway's Frecciarossa.",
+  'frecciarossa': 'The fastest high-speed train of Trenitalia, the state railway; the name means "red arrow".',
+  's.m.n.': "Santa Maria Novella, Florence's main station, named for the church across the square.",
+  'termini': "Rome's main station, named for the nearby Baths of Diocletian (thermae in Latin).",
+};
+
 // What the letter in front of a mainland train number says about the train.
 // Worded to hold across China's renumbering in late December 2026, when D
 // narrows to 200 km/h or less (People's Daily, 2026-10-16).
@@ -111,7 +124,9 @@ const APOS = "(?:'|&#39;|’)";
 const norm = (s: string) => s.toLowerCase().replace(/&#39;|’/g, "'");
 
 function build(map: Record<string, string>, trains: boolean): RegExp {
-  const terms = Object.keys(map).sort((a, b) => b.length - a.length).map(t => t.replace(/'/g, APOS));
+  // Dots are literal ("S.M.N."); no Japan or China term has one, so their
+  // patterns are unchanged.
+  const terms = Object.keys(map).sort((a, b) => b.length - a.length).map(t => t.replace(/\./g, '\\.').replace(/'/g, APOS));
   if (!trains) {
     // Japan's pattern, exactly as it was. In a /u regex a hyphen outside a
     // class needs no escape (and may not have one).
@@ -122,11 +137,12 @@ function build(map: Record<string, string>, trains: boolean): RegExp {
   return new RegExp(`(?<![\\p{L}\\d-])(${terms.join('|')})(?![\\p{L}\\d-])`, 'giu');
 }
 
-const DICTS: Record<'ja' | 'zh', { map: Record<string, string>; trains: boolean; pattern: RegExp }> = {
+const DICTS: Record<'ja' | 'zh' | 'it', { map: Record<string, string>; trains: boolean; pattern: RegExp }> = {
   ja: { map: JA, trains: false, pattern: build(JA, false) },
   zh: { map: ZH, trains: true, pattern: build(ZH, true) },
+  it: { map: IT, trains: false, pattern: build(IT, false) },
 };
-const dictFor = (dress: Dress) => dress === 'ja' ? DICTS.ja : dress === 'zh-Hans' || dress === 'zh-Hant' ? DICTS.zh : null;
+const dictFor = (dress: Dress) => dress === 'ja' ? DICTS.ja : dress === 'zh-Hans' || dress === 'zh-Hant' ? DICTS.zh : dress === 'it' ? DICTS.it : null;
 
 /**
  * The meaning of a term, for tests and the tip. On a China trip a train
@@ -144,8 +160,8 @@ export function glossOf(term: string, dress: Dress = 'ja'): string | undefined {
 
 /**
  * Wraps the first use of each glossary word in rendered HTML. Only text
- * between tags is touched, and nothing inside an <a>. Trips with no Japan or
- * China dress get the HTML back unchanged. A ticket whose train note already
+ * between tags is touched, and nothing inside an <a>. Trips with no dress get
+ * the HTML back unchanged. A ticket whose train note already
  * explains its number passes trainNumbers: false, so the body doesn't
  * underline the same thing again (or every alternative it lists).
  */
