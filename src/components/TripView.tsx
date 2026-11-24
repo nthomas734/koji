@@ -29,6 +29,7 @@ import { useBookRows } from '@/lib/bookRows';
 import { PrepStrip } from '@/components/PrepStrip';
 import { WhoChip } from '@/components/WhoChip';
 import { TonightCard } from '@/components/Tonight';
+import { CheckInCard, isCheckInStop, type CheckIn } from '@/components/CheckIn';
 import { NowCard, NowRule } from '@/components/NowCard';
 import { nowOverride, nowState, todayIndex, useZonedMinutes } from '@/lib/now';
 import { parseClock as clockMin } from '@/lib/tripAlerts';
@@ -37,7 +38,6 @@ import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTa
 import { JourneyTicket, SunriseMark, arrivesNextMorning, isJourney } from '@/components/JourneyTicket';
 import { TravelStub, isStub } from '@/components/TravelStub';
 import { SayChip, hasPhrase } from '@/components/SayIt';
-import { CheckInCard, isCheckInStop, type CheckIn } from '@/components/CheckIn';
 import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
