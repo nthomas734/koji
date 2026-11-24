@@ -5,6 +5,12 @@
 // row returns null and shows nothing. Do not fill in the rest from memory.
 //
 // Japan's dates are the conventional fixed ones and repeat every year.
+// The table runs Feb 4 – Apr 9: the six rows to Mar 5 for Japan 2027, and
+// Mar 6 – Apr 9 (2026-11-23) for the past trips japan-2025 (to Mar 11) and
+// japan-2026 (to Apr 5). Those seven were checked against nippon.com,
+// "Japan's 72 Microseasons" (nippon.com/en/features/h00124/) for the dates,
+// and Japanese Wikipedia's 七十二候 (略本暦 column) for the names, whose
+// shinjitai they use: 桜始開, where nippon.com prints 櫻.
 // The solar terms move by a day between years, so those rows carry their
 // year. Checked against the Hong Kong Observatory's 2027 and 2028 calendars
 // (hko.gov.hk/en/gts/time/calendar): 小雪 2027-11-22, 大雪 2027-12-07,
@@ -31,6 +37,13 @@ const KO: { from: string; to: string; local: string; english: string }[] = [
   { from: '02-19', to: '02-23', local: '土脉潤起', english: 'Rain wets the soil' },
   { from: '02-24', to: '02-28', local: '霞始靆', english: 'Mist begins to hang' },
   { from: '03-01', to: '03-05', local: '草木萌動', english: 'Grass sprouts, trees bud' },
+  { from: '03-06', to: '03-10', local: '蟄虫啓戸', english: 'Hibernating insects come out' },
+  { from: '03-11', to: '03-15', local: '桃始笑', english: 'Peach trees start to bloom' },
+  { from: '03-16', to: '03-20', local: '菜虫化蝶', english: 'Caterpillars become butterflies' },
+  { from: '03-21', to: '03-25', local: '雀始巣', english: 'Sparrows start to nest' },
+  { from: '03-26', to: '03-30', local: '桜始開', english: 'Cherry trees start to bloom' },
+  { from: '03-31', to: '04-04', local: '雷乃発声', english: 'Thunder sounds far off' },
+  { from: '04-05', to: '04-09', local: '玄鳥至', english: 'Swallows return' },
 ];
 
 // China: full dates, per year

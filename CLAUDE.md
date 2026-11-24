@@ -97,7 +97,7 @@ All of this lives in `src/components/TripView.tsx` and runs client-side in a `us
 - **Motion utilities** in `globals.css` (borrowed from clip/stack): `.row-in` staggered entrance (pair with an inline `animationDelay`, capped at 8 steps), `.pressable` scale-on-tap (only on elements that navigate — tabs, trip-card links — never on inert content cards), `.shimmer-anim` skeleton (pair with an inline `backgroundImage` gradient), `.num` tabular numerals, all guarded by `prefers-reduced-motion`. Ease token: `--ease-out`.
 - **Today**: see "Trip page shell" below. Day sections are `day-<index>` (index, not row id), stops `stop-<id>`.
 
-- **Journey tickets** (`src/components/JourneyTicket.tsx`, 2026-11-10). A stop with a clock time in `time_label` and either a `duration_label` or an `arrive_label` renders as a ticket instead of a `StopRow` card ("Land at ..." stops never do). The ticket sits in a pale wash of the day's accent (tonight's stay colour, else the trip's): departure on the left, a drawn train / plane / ferry on a dotted route with one dot per "N changes", and the arrival on the right, from `arrive_label` ("4:30pm JST · Fri") or worked out from the duration (`~1:30pm`; none when the duration has a `+`, e.g. "35 min + bus"). The title already names the destination, so the ticket never repeats it. When `arrive_label` names a zone the departure shows the day's zone too (US zones read PT/MT/CT/ET via `zoneAbbr`). Optional stops still in the maybes, and hops with no duration, stay cards. `koji_stops.aircraft` (a Plane Lab id such as `787-10`) adds a "See the plane" link to `https://san-plane-lab.vercel.app/#<id>`. Migrations: `sql/2026-11-10-koji-stop-aircraft.sql`, `sql/2026-11-10-koji-stop-arrival.sql`.
+- **Journey tickets** (`src/components/JourneyTicket.tsx`, 2026-11-10). A stop with a clock time in `time_label` and either a `duration_label` or an `arrive_label` renders as a ticket instead of a `StopRow` card ("Land at ..." stops never do). The ticket sits in a pale wash of the day's accent (tonight's stay colour, else the trip's): departure on the left, a drawn train / plane / ferry on a dotted route with one dot per "N changes", and the arrival on the right, from `arrive_label` ("4:30pm JST · Fri") or worked out from the duration (`~1:30pm`; none when the duration has a `+`, e.g. "35 min + bus"). The title already names the destination, so the ticket never repeats it. When `arrive_label` names a zone the departure shows the day's zone too (US zones read PT/MT/CT/ET via `zoneAbbr`). Optional stops still in the maybes, and hops with no duration, stay cards. **Untimed tickets** (2026-11-23, for past trips, whose departure times were never kept): a stop with no clock in `time_label` ("morning", or null) is a ticket too when it has both `from_name` and `to_name` and a `duration_label` of 45 min or more (or unreadable), and isn't a flight or a "Land" stop (`isUntimedJourney`). Stations, service note, livery, duration and change dots as usual; the label sits where the departure would, in the small mono note style (nothing when null), with an unseen twin on the right so the route stays centred; no arrival, no "~". Nothing that needs a clock counts it: no night ticket, no Now card, alerts or folding. `koji_stops.aircraft` (a Plane Lab id such as `787-10`) adds a "See the plane" link to `https://san-plane-lab.vercel.app/#<id>`. Migrations: `sql/2026-11-10-koji-stop-aircraft.sql`, `sql/2026-11-10-koji-stop-arrival.sql`.
 - **The stub** (`src/components/TravelStub.tsx`, 2026-11-15). The journey ticket's torn-off end, for a short hop: a rounded block in the same pale wash as the ticket (`color-mix` 17% into the surface), no border or edge bar, a punched notch in the page colour at the middle of each side. Row 1: the time in mono, the mode glyph and title, the duration at the right; row 2: `hop_line` in small muted text, wrapping. About 58px. Tapping opens `body_md` under a dashed tear line (with any Directions link); a stub with no body isn't tappable, and a small chevron marks one that is. A stop is a stub only when `hop_mode` is set, it isn't a journey ticket and it isn't an unpicked optional stop; one with a Say it phrase stays a card. Verdict stamps, the who-chip, koma footnotes and the now rule all carry over. It replaced "the thread" (a dotted line between stops) the day it shipped. Three nullable columns on `koji_stops` (`sql/2026-11-15-koji-stop-thread.sql`, check constraints on the first and last; comments in `sql/2026-11-15-koji-stop-stub.sql`):
   - `hop_mode`: `train`, `metro`, `bus`, `taxi`, `car`, `walk` or `boat` (the glyph, `HopGlyph`).
   - `hop_line`: the line under the title, a sentence of its own, so it starts with a capital ("Then M+ in the evening"). It must say nothing the body doesn't and leave out nothing a traveller must not miss (the bags at Hongqiao, "by name").
@@ -902,6 +902,20 @@ koma, typing `/admin`, a link on admin to Bookings). Now there is one:
   Bookings · Admin · Rolls. `KomaHomeMark` (long-press to `/koma`) is gone;
   Rolls is in the nav and the sheet.
 
+## Past-trip wording (2026-11-23)
+
+Once a trip is over (`tripOver`: `date_end`, else `date_start`, before the
+phone's date, the home page's `splitTrips` test) the Logistics heading "Where
+you sleep" reads "Where you stayed", and the hero weather pill drops its
+packing sentence ("Cold and some rain.") and carries "As it was" where a
+far-off trip says "Usual for these dates". A past trip's weather is the
+recorded weather (`fetchWeather`: the archive API once the start is over 16
+days back, the forecast API's past dates before that), never the seasonal
+average, so the caption is true. Both surfaces only exist after the page
+runs (the tab is client state, the pill loads in an effect), so the server
+HTML of every trip is unchanged except the past trip's shimmer, which
+reserves the caption's line the way `expectSeasonal` does.
+
 ## Trip alerts copy (2026-11-11)
 
 `koji_stops.alert_md / alert_lead / alert_off` shape each stop's push (see the
@@ -936,9 +950,14 @@ trip's HTML unchanged.
 - **Season line** (`lib/seasons.ts`, `seasonFor(dress, isoDate)`): on the
   full day header only on the first day of a season or the page's first
   dressed day, never folded; on every Weather tab row. **The table holds
-  only the rows the brief listed** (six Japanese 候 for Feb 4–Mar 5, three
-  solar terms for Nov 22, 2027 – Jan 5, 2028); any other date returns null
-  and shows nothing. Japan's dates repeat every year. **The solar terms are
+  only the rows a trip needs** (Japanese 候 for Feb 4–Apr 9, three solar
+  terms for Nov 22, 2027 – Jan 5, 2028); any other date returns null and
+  shows nothing. Japan ran to Mar 5 for Japan 2027; Mar 6–Apr 9 (seven 候)
+  were added 2026-11-23 for the past trips japan-2025 (to Mar 11) and
+  japan-2026 (to Apr 5), checked against nippon.com's "Japan's 72
+  Microseasons" for dates and Japanese Wikipedia's 七十二候 (略本暦) for the
+  names (桜始開 in shinjitai; nippon.com prints 櫻). Never fill rows in from
+  memory. Japan's dates repeat every year. **The solar terms are
   2027 only**: they move by a day between years, so a China trip in another
   year needs new rows. Checked against the Hong Kong Observatory calendars;
   冬至 runs to Jan 5 because 小寒 2028 is Jan 6 (the brief said Jan 4).
@@ -962,7 +981,8 @@ trip's HTML unchanged.
   and stops load with `select('*')`, so code deployed before the migration
   is fine. Public content like the rest of a stop; no editor fields.
   - **Ticket** (`JourneyTicket`, only on a stop that already renders as one,
-    i.e. a clock time plus a duration or arrival, 45 min or more): above the
+    i.e. a clock time plus a duration or arrival, 45 min or more, or an
+    untimed ticket, which needs both names): above the
     times, a row of its own with two equal halves. **The readable name
     leads**: `from_name` / `to_name` ("Gora", "West Kowloon",
     `sql/2026-11-15-koji-stop-station-names.sql`) in sans 600 at 16px, on
