@@ -745,9 +745,11 @@ function parseLogisticsValue(value: string, category: string): { headline: strin
 }
 
 function LogisticsSection({ logistics, theme, tonight, past = false }: { logistics: Logistics[]; theme: { bg: string; fg: string }; tonight?: { stay: Stay; label: string; tz?: string | null; prev?: Stay | null; next?: Stay | null } | null;
-  /** The trip is over: "Where you stayed". */
+  /** The trip is over: "Where you stayed", and no Book ahead group. */
   past?: boolean }) {
   const byCategory: Record<string, Logistics[]> = {};
+  // A past trip is a record: its booking to-dos stay in the database, unshown.
+  if (past) logistics = logistics.filter(row => row.column_key !== 'book');
   if (logistics.length) {
     logistics = [...logistics, { id: -1, trip_id: 0, column_key: 'logistics', category: 'info', label: 'Emergency', value_md: EMERGENCY_MD, sort_order: 999 } as Logistics];
   }
@@ -1980,8 +1982,16 @@ export function TripView({ trip, logistics, days, stays = [], part, reserved = {
   // asks the API, and only a phone holding the admin cookie gets `owner`.
   const verdicts = useVerdicts(trip.id);
   const prep = useStopPrep(trip.id);
-  // Book ahead rows never ride in the public page; the owner fetches them.
-  const bookRows = useBookRows(trip.id, verdicts.owner);
+  // Alerts only make sense until the last day is over
+  const tripUpcoming = !!trip.date_start && (trip.date_end || trip.date_start) >= fmtLocalDate(new Date());
+  // Over: the home page's past test (splitTrips), on the phone's date. It
+  // only changes things the server HTML never carries (the logistics tab, the
+  // owner's Book ahead rows and the loaded weather pill), apart from the
+  // shimmer's display, which is suppressHydrationWarning like expectSeasonal.
+  const tripOver = !!trip.date_start && !tripUpcoming;
+  // Book ahead rows never ride in the public page; the owner fetches them,
+  // and not at all once the trip is over: a record has no to-dos.
+  const bookRows = useBookRows(trip.id, verdicts.owner && !tripOver);
   const ownerLogistics = useMemo(() => (bookRows.length ? [...logistics, ...bookRows] : logistics), [logistics, bookRows]);
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
 
@@ -2458,13 +2468,6 @@ export function TripView({ trip, logistics, days, stays = [], part, reserved = {
     forecastLimit.setDate(forecastLimit.getDate() + 16);
     return new Date(trip.date_start + 'T00:00') > forecastLimit;
   })();
-  // Alerts only make sense until the last day is over
-  const tripUpcoming = !!trip.date_start && (trip.date_end || trip.date_start) >= fmtLocalDate(new Date());
-  // Over: the home page's past test (splitTrips), on the phone's date. It
-  // only changes things the server HTML never carries (the logistics tab and
-  // the loaded weather pill), apart from the shimmer's display, which is
-  // suppressHydrationWarning like expectSeasonal.
-  const tripOver = !!trip.date_start && !tripUpcoming;
   // Save the trip onto this phone from SAVE_DAYS out (lib/saveTrip.ts)
   const saveOn = tripUpcoming && (() => {
     const edge = new Date();
