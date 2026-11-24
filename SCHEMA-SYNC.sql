@@ -165,3 +165,21 @@ alter table koji_stops add constraint koji_stops_hop_mode_check
 alter table koji_stops drop constraint if exists koji_stops_line_color_check;
 alter table koji_stops add constraint koji_stops_line_color_check
   check (line_color is null or line_color ~ '^#[0-9A-Fa-f]{6}$');
+
+-- ---------- 7. koji_bookings.stop_id ----------
+-- Links a booking to the itinerary stop it is for (added live 2026-11-23).
+-- The trip page reads it on the server, with the service key, and ships only
+-- a per-stop flag ('booked' | 'needed') for the reserved corner
+-- (getReservedFlags in src/lib/supabase.ts). koji_bookings itself keeps RLS on
+-- and NO policies (sql/2026-11-10-koji-bookings.sql creates it); do not add a
+-- public read policy for this. Guarded so the file still runs where the
+-- bookings table has not been created.
+
+do $$
+begin
+  if to_regclass('public.koji_bookings') is not null then
+    alter table koji_bookings add column if not exists stop_id bigint
+      references koji_stops(id) on delete set null;
+    create index if not exists koji_bookings_stop_id_idx on koji_bookings(stop_id);
+  end if;
+end $$;

@@ -504,6 +504,8 @@ export async function getTripBySlug(slug: string): Promise<{
   logistics: Logistics[];
   days: Day[];
   stays: Stay[];
+  /** Per stop id, from koji_bookings: the flag only (getReservedFlags). */
+  reserved: Record<number, ReservedFlag>;
 } | null> {
   const { data: trip, error } = await supabase
     .from('koji_trips')
@@ -566,12 +568,48 @@ export async function getTripBySlug(slug: string): Promise<{
     .order('check_in')
     .order('sort_order');
 
+  const reserved = await getReservedFlags(stopIds);
+
   return {
     trip,
     logistics: logistics ?? [],
     days: (days as Day[]) ?? [],
     stays: (stays as Stay[]) ?? [],
+    reserved,
   };
+}
+
+// ── RESERVED CORNERS ────────────────────────────────────────────────────────
+// A stop with a booking linked to it (koji_bookings.stop_id) gets a torn corner
+// on its card: "Reserved" once booked, "Book ahead" until then. koji_bookings
+// is private (RLS on, no policies), so the anon client sees nothing; this reads
+// it with the service key, on the server only, during the trip page's
+// prerender, the same as getRollBySlug and getNotes. Only the flag map leaves
+// this function: no titles, notes, URLs or dates ever reach the page.
+// Trains, flights and hotels already have their own tickets and stay headings.
+// A skipped booking draws nothing. Any failure costs the corners, not the page.
+
+export type ReservedFlag = 'booked' | 'needed';
+
+export async function getReservedFlags(stopIds: number[]): Promise<Record<number, ReservedFlag>> {
+  const out: Record<number, ReservedFlag> = {};
+  if (!stopIds.length || !process.env.SUPABASE_SERVICE_KEY) return out;
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from('koji_bookings')
+      .select('stop_id, kind, status')
+      .in('stop_id', stopIds)
+      .not('kind', 'in', '(train,flight,hotel)');
+    if (error || !data) return out;
+    for (const b of data as { stop_id: number | null; kind: string; status: string }[]) {
+      if (b.stop_id == null || b.status === 'skipped') continue;
+      // Several bookings on one stop: it reads Reserved only once all are booked.
+      out[b.stop_id] = b.status === 'booked' && out[b.stop_id] !== 'needed' ? 'booked' : 'needed';
+    }
+  } catch {
+    return {};
+  }
+  return out;
 }
 
 // ── PRERENDERING ────────────────────────────────────────────────────────────

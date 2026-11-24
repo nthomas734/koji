@@ -8,6 +8,9 @@ import { cjkFont } from '@/lib/dress';
 import { NIGHT, Moon, SunriseMark } from './JourneyTicket';
 import { SayChip, hasPhrase } from './SayIt';
 import { DriverCard } from './Tonight';
+import { stayHotelUrl } from './Stays';
+import { useAppleMaps } from './MapsContext';
+import { ReservedChip, useReserved } from './Reserved';
 import { WhoChip } from './WhoChip';
 
 // ── THE CHECK-IN CARD (night band) ──────────────────────────────────────────
@@ -77,6 +80,13 @@ export function CheckInCard({ stop, checkIn, bodyHtml, dirHref, dress, stamp, fo
   const nights = stay.nights === 1 ? `Night ${firstNight}` : `Nights ${firstNight}–${last}`;
   const out = addDays(stay.check_in, stay.nights);
   const lang = driverLang(tz);
+  // The body may no longer link the hotel (the name led twice), so Directions
+  // falls back to the stay's own hotel link, as the stay heading builds it.
+  const apple = useAppleMaps();
+  const directions = dirHref ?? stayHotelUrl(stay, apple);
+  // A booking linked to this stop: its top right is the room stub's, so the
+  // reserved mark rides in the facts row instead of a corner.
+  const reserved = useReserved(stop.id);
   const local = stay.hotel_ja && CJK.test(stay.hotel_ja) ? stay.hotel_ja : null;
   const area = areaOf(stay);
   const ink = '#042C53';
@@ -125,13 +135,14 @@ export function CheckInCard({ stop, checkIn, bodyHtml, dirHref, dress, stamp, fo
               dangerouslySetInnerHTML={{ __html: bodyHtml }} />
           )}
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 6px', marginTop: 6 }}>
-            {dirHref && (
-              <a href={dirHref} target="_blank" rel="noopener noreferrer"
+            {directions && (
+              <a href={directions} target="_blank" rel="noopener noreferrer"
                 style={{ fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '0.06em', color: ink, textDecoration: 'none', borderBottom: '1px solid currentColor', marginRight: 2 }}>
                 Directions ↗
               </a>
             )}
             {hasPhrase(stop, dress) && <SayChip stop={stop} dress={dress} color={ink} />}
+            {reserved && <ReservedChip flag={reserved} />}
             <span className="num" style={chip}>out {dayShort(out)}</span>
             {stay.address_ja && (
               <button type="button" onClick={() => setDriver(true)} style={{ ...chip, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>

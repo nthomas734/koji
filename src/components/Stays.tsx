@@ -164,6 +164,15 @@ function StayMark({ stay, dress, inked, ink }: { stay: Stay; dress: Exclude<Dres
   );
 }
 
+/** The stay's hotel on a map, or null when it has no hotel. China trips search
+ *  Apple Maps by the Chinese name, which it finds reliably. Shared by the stay
+ *  heading and the check-in card's Directions. */
+export function stayHotelUrl(stay: Stay, apple: boolean): string | null {
+  return !stay.hotel ? null
+    : apple ? appleSearchUrl(stay.hotel_ja || stay.hotel_query || [stay.hotel, stay.place].join(' '))
+    : mapsSearchUrl(stay.hotel_query || [stay.hotel, stay.place].join(' '));
+}
+
 export function StayHeading({ stay, firstNight = 1, dress = null }: { stay: Stay; firstNight?: number; dress?: Dress }) {
   const ink = stayTone(stay, null);
   const out = addDays(stay.check_in, stay.nights);
@@ -178,10 +187,7 @@ export function StayHeading({ stay, firstNight = 1, dress = null }: { stay: Stay
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
   const stamp = today ? stampFor(stay, out, firstNight, today) : null;
-  // China trips search Apple Maps by the Chinese name, which it finds reliably.
-  const hotelUrl = !stay.hotel ? null
-    : apple ? appleSearchUrl(stay.hotel_ja || stay.hotel_query || [stay.hotel, stay.place].join(' '))
-    : mapsSearchUrl(stay.hotel_query || [stay.hotel, stay.place].join(' '));
+  const hotelUrl = stayHotelUrl(stay, apple);
   return (
     <header id={`stay-${stay.id}`} style={{ margin: '34px 12px 0', scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}>
       {stay.photo_url && (
