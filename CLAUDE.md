@@ -939,13 +939,15 @@ days, linking to the part's page (Dez's end with her part).
 
 ## Destination dress (2026-11-15, steps 1–3)
 
-Small touches that appear only on Japan and China trips. Every other trip
-renders exactly as before; check that any change here leaves a non-Asian
-trip's HTML unchanged.
+Small touches that appear only on Japan and China trips, and three of them on
+Italy (see **Italy** below). Every other trip renders exactly as before;
+check that any change here leaves an undressed trip's HTML unchanged.
 
 - **`dressFor(tz)`** in `lib/maps.ts`: `Asia/Tokyo` → `'ja'`, `Asia/Shanghai`
-  → `'zh-Hans'`, Hong Kong / Macau / Taipei → `'zh-Hant'`, anything else
-  null. Don't use `driverLang` for this (it returns `'ja'` for unknown
+  → `'zh-Hans'`, Hong Kong / Macau / Taipei → `'zh-Hant'`, `Europe/Rome` →
+  `'it'`, anything else null. `cjkDress(dress)` is the same with `'it'` made
+  null: anything that draws characters, a season, a weekday, a phrase or a
+  platform card takes it, so Italy can never land in a Chinese branch. Don't use `driverLang` for this (it returns `'ja'` for unknown
   zones). Day-level touches use the day's `tz`, else the trip's, so a flight
   day out of LA wears nothing; the weekday characters and the first/last line
   use the trip's. What each dress looks like lives in `lib/dress.ts`.
@@ -955,7 +957,9 @@ trip's HTML unchanged.
   Fraunces italic draws the macron of ā off its letter.
 - **Stay mark** (`StayMark` in `Stays.tsx`) replaces the inline `local_name`
   span: round station stamp in the stay colour (Japan), square cinnabar seal
-  `#B5322A` (China). 35% opacity before `check_in`, full from that day. It
+  `#B5322A` (China), oval date stamp in the stay colour (Italy). 60% opacity
+  (`common` in `StayMark`; this line said 35% until 2026-11-24, but the code
+  uses 0.6) before `check_in`, full from that day. It
   sits in the heading's line box via negative margins, so the heading is no
   taller. The tilted text stamp ("nights 3–5", "stayed") is unchanged.
 - **Season line** (`lib/seasons.ts`, `seasonFor(dress, isoDate)`): on the
@@ -1029,3 +1033,44 @@ trip's HTML unchanged.
     ```
     Romaji as said aloud, sentence case with its "?"; pinyin with tone marks
     (wēi là), never tone numbers. Keep phrases rare, one or two a day.
+
+### Italy (2026-11-24)
+
+`dressFor('Europe/Rome')` is `'it'`; today that is only
+`rome-florence-may-2026`. From Nathan's approved mockup
+(`mockups/koji-italy-dress.html`), Italy wears exactly three touches:
+
+- **First and last line**: "Buon viaggio" above day 1, "Bentornati" (plural:
+  welcome back, both of you) under "The end". No reading line; the Italian
+  stands alone in Fraunces italic 400 at 19px, a step above the romaji, with
+  `lang="it"`. `doorLine` returns `reading: null` for it. Part pages use the
+  same `opensTrip` / `endsTrip` rule.
+- **Stay stamp**: an oval date stamp in the stay colour, double-ruled, the
+  `local_name` in wide-tracked capitals (ROMA, FIRENZE) over the check-in date
+  in Italian (`italianStampDate`: `25 MAG 2026`; GEN FEB MAR APR MAG GIU LUG
+  AGO SET OTT NOV DIC), tilted -4deg. 70×41 with margins `-11px 0 -10px 8px`,
+  so the 28px heading stays 28px (measured at 390px, Florence + FIRENZE
+  included).
+- **Italo on its ticket** (`TrainLivery`, `/\bitalo\b/i` on `service_label`):
+  dot in Italo red, the name glossed, kind "high-speed train", a route line
+  of a thin red line with a gold pinstripe under it, and the speed streaks
+  (same class as China's G and D trains). Red `#A6160A` is Italo's own: the
+  logo fill in italotreno.com's SVG sprite and the site stylesheet's
+  `primary`. Gold `#BA953A` has no published value: it is sampled from the
+  gold band in Italo's livery photos on italotreno.com/it/il-treno/italo-evo,
+  and is marked approximate in the comment. Italo's paint is a bright red,
+  not the burgundy the mockup guessed.
+- **Glossary** (`IT` in `lib/glossary.ts`, used only on `'it'` days): Italo,
+  Frecciarossa, S.M.N., Termini. The ticket's station names are glossed on
+  Italy only ("Firenze S.M.N.", "Roma Termini"), since the bodies link both
+  stations and links are never glossed. "Santa Maria Novella" written out is
+  left out: on the Florence day it names the church. Dots in terms are
+  escaped in the pattern; Japan's and China's patterns are unchanged.
+
+Deliberately not for Italy (it renders as an undressed trip): weekday
+characters on the day rail ("mar" reads as March), the season line (no
+almanac to cite), the platform sign on the Tonight card, Say it / Show it and
+the driver card (only seen during a trip; worth doing for a future Italian
+trip), CJK fonts and `lang` on characters. `from_local` / `to_local` are
+ignored on `'it'` (null anyway). Japan, China, England and New York pages
+were byte-identical against a build of main.

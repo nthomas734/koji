@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Stay, Stop } from '@/lib/supabase';
-import { driverLang, type Dress } from '@/lib/maps';
+import { cjkDress, driverLang, type Dress } from '@/lib/maps';
 import { cjkFont } from '@/lib/dress';
 import { NIGHT, Moon, SunriseMark } from './JourneyTicket';
 import { SayChip, hasPhrase } from './SayIt';
@@ -120,7 +120,7 @@ export function CheckInCard({ stop, checkIn, bodyHtml, dirHref, dress, stamp, fo
           </div>
           {(local || area) && (
             <div style={{ fontSize: 12.5, color: 'var(--ink-3)', lineHeight: 1.4, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {local && <span lang={dress ?? lang} style={{ fontFamily: cjkFont(dress ?? lang) }}>{local}</span>}
+              {local && <span lang={cjkDress(dress) ?? lang} style={{ fontFamily: cjkFont(cjkDress(dress) ?? lang) }}>{local}</span>}
               {local && area && ' · '}
               {area}
             </div>
