@@ -37,6 +37,7 @@ import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTa
 import { JourneyTicket, SunriseMark, arrivesNextMorning, isJourney } from '@/components/JourneyTicket';
 import { TravelStub, isStub } from '@/components/TravelStub';
 import { SayChip, hasPhrase } from '@/components/SayIt';
+import { TagIcon } from '@/components/TagIcon';
 import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
@@ -964,10 +965,12 @@ function StopRow({ stop, stamp, footer, accent, tz, dress = null, dawn = false }
             </span>
           )}
           <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
             fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500, letterSpacing: '0.1em',
             textTransform: 'uppercase', padding: '2px 9px', borderRadius: 999,
             background: tagColor.bg, color: tagColor.text,
           }}>
+            <TagIcon tag={stop.tag} />
             {tagText}
           </span>
           <WhoChip who={stop.who} />
