@@ -419,7 +419,9 @@ interface WeatherSummary {
   conditionLabel: string;
 }
 
-function summarizeWeather(weather: DayWeather[]): WeatherSummary | null {
+/** past: a trip that's over keeps the description and drops the packing
+ *  advice ("Cold and some rain."). */
+function summarizeWeather(weather: DayWeather[], past = false): WeatherSummary | null {
   if (weather.length === 0) return null;
   const avgMax = Math.round(weather.reduce((s, w) => s + w.tempMax, 0) / weather.length);
   const avgMin = Math.round(weather.reduce((s, w) => s + w.tempMin, 0) / weather.length);
@@ -451,7 +453,7 @@ function summarizeWeather(weather: DayWeather[]): WeatherSummary | null {
   const feel = coldest <= 36 ? 'Cold' : avgMax <= 60 ? 'Cool' : avgMax <= 75 ? 'Mild' : 'Warm';
   const wet = rainShare < 0.25 ? 'mostly dry' : rainShare < 0.5 ? 'some rain' : 'often wet';
   const pack = coldest <= 36 ? 'Warm coat and gloves' : coldest <= 50 ? 'A warm coat' : coldest <= 62 ? 'A light jacket' : 'Light layers';
-  const conditionLabel = `${feel} and ${wet}. ${pack}${rainShare >= 0.3 ? ' and an umbrella' : ''}.`;
+  const conditionLabel = past ? `${feel} and ${wet}.` : `${feel} and ${wet}. ${pack}${rainShare >= 0.3 ? ' and an umbrella' : ''}.`;
 
   return { avgMax, avgMin, dominantCode, conditionLabel };
 }
@@ -523,11 +525,15 @@ function WeatherHeroCard({
   weather,
   isSeasonal,
   expectSeasonal,
+  past = false,
   fg,
 }: {
   loading: boolean;
   weather: DayWeather[];
   isSeasonal: boolean;
+  /** The trip is over: its days are the recorded weather (fetchWeather's
+   *  archive / past-dates call), so no packing advice and "As it was". */
+  past?: boolean;
   /** Seasonal averages are coming (the trip starts beyond the forecast window):
    *  the pill will carry a second line, so the shimmer reserves it too. */
   expectSeasonal: boolean;
@@ -571,7 +577,7 @@ function WeatherHeroCard({
     );
   }
 
-  const summary = summarizeWeather(weather);
+  const summary = summarizeWeather(weather, past);
   if (!summary) return null;
 
   const { icon } = wmoDisplay(summary.dominantCode);
@@ -600,7 +606,7 @@ function WeatherHeroCard({
         lineHeight: 1.3,
       }}>
         {summary.conditionLabel}
-        {isSeasonal && (
+        {(isSeasonal || past) && (
           <>
             <br />
             <span style={{
@@ -610,7 +616,7 @@ function WeatherHeroCard({
               textTransform: 'uppercase',
               color: `${fg}77`,
             }}>
-              Usual for these dates
+              {isSeasonal ? 'Usual for these dates' : 'As it was'}
             </span>
           </>
         )}
@@ -735,7 +741,9 @@ function parseLogisticsValue(value: string, category: string): { headline: strin
   };
 }
 
-function LogisticsSection({ logistics, theme, tonight }: { logistics: Logistics[]; theme: { bg: string; fg: string }; tonight?: { stay: Stay; label: string; tz?: string | null; prev?: Stay | null; next?: Stay | null } | null }) {
+function LogisticsSection({ logistics, theme, tonight, past = false }: { logistics: Logistics[]; theme: { bg: string; fg: string }; tonight?: { stay: Stay; label: string; tz?: string | null; prev?: Stay | null; next?: Stay | null } | null;
+  /** The trip is over: "Where you stayed". */
+  past?: boolean }) {
   const byCategory: Record<string, Logistics[]> = {};
   if (logistics.length) {
     logistics = [...logistics, { id: -1, trip_id: 0, column_key: 'logistics', category: 'info', label: 'Emergency', value_md: EMERGENCY_MD, sort_order: 999 } as Logistics];
@@ -801,7 +809,7 @@ function LogisticsSection({ logistics, theme, tonight }: { logistics: Logistics[
               color: theme.bg,
               fontWeight: 500,
             }}>
-              {CATEGORY_LABELS[cat] ?? cat}
+              {cat === 'hotel' && past ? 'Where you stayed' : CATEGORY_LABELS[cat] ?? cat}
             </span>
           </div>
 
@@ -2432,6 +2440,11 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   })();
   // Alerts only make sense until the last day is over
   const tripUpcoming = !!trip.date_start && (trip.date_end || trip.date_start) >= fmtLocalDate(new Date());
+  // Over: the home page's past test (splitTrips), on the phone's date. It
+  // only changes things the server HTML never carries (the logistics tab and
+  // the loaded weather pill), apart from the shimmer's display, which is
+  // suppressHydrationWarning like expectSeasonal.
+  const tripOver = !!trip.date_start && !tripUpcoming;
   // Save the trip onto this phone from SAVE_DAYS out (lib/saveTrip.ts)
   const saveOn = tripUpcoming && (() => {
     const edge = new Date();
@@ -2551,7 +2564,9 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
               loading={weatherLoading}
               weather={tripWeather}
               isSeasonal={isSeasonal}
-              expectSeasonal={expectSeasonal}
+              // A past trip's pill carries "As it was" on a second line too.
+              expectSeasonal={expectSeasonal || tripOver}
+              past={tripOver}
               fg={theme.fg}
             />
           </div>
@@ -2736,7 +2751,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
           {tripUpcoming && <TripAlerts slug={part ? `${trip.slug}/${part.key}` : trip.slug} title={trip.title} theme={theme} />}
           {/* Book Ahead is Nathan's to-do list (it mirrors the bookings board):
               Dez's copy of the tab leaves it out. */}
-          <LogisticsSection logistics={ownerLogistics} theme={theme} tonight={tonight && { ...tonight, tz: tonightTz }} />
+          <LogisticsSection logistics={ownerLogistics} theme={theme} tonight={tonight && { ...tonight, tz: tonightTz }} past={tripOver} />
         </>
       )}
 
@@ -2797,7 +2812,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
       {(() => {
         const lastDate = trip.date_start && days.length ? dateForDay(trip.date_start, days.length - 1) : null;
         const when = lastDate ? new Date(lastDate + 'T00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : null;
-        const over = !!trip.date_start && !tripUpcoming;
+        const over = tripOver;
         return (
           <footer style={{
             padding: '28px var(--px) 36px',

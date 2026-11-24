@@ -19,7 +19,10 @@ import { LiveryLine, SpeedStreaks, TrainNote, hasLivery, liveryParts } from './T
 // worked out from the duration. The title already says where it goes, so the
 // ticket doesn't repeat it. Zones (PT, JST) show only when the arrival names
 // one, i.e. a flight that crosses them. "Land at ..." stops, hops without a
-// duration and untimed errands stay ordinary stop cards.
+// duration and untimed errands stay ordinary stop cards, except a past trip's
+// train whose time was never kept: both station names and a long enough
+// duration make it a ticket with its label ("morning") where the departure
+// sits and no arrival (isUntimedJourney).
 //
 // Destination dress (step 3a): from_name / to_name ("Gora") lead above each
 // time on any trip, with from_local / to_local (強羅) beside them as the
@@ -79,13 +82,30 @@ function tripMinutes(stop: Stop, dep: Clock): number | null {
  * A ticket needs a clock time to hang on, and a duration or an arrival.
  * Flights always get one; other trips only when they run 45 minutes or more
  * (or when the length can't be worked out, e.g. "35 min + bus").
+ * A past trip's trains often have no clock ("morning"): see isUntimedJourney.
  */
 export function isJourney(stop: Stop): boolean {
+  if (/^land\b/i.test(stop.title)) return false;
   const dep = parseClock(stop.time_label);
-  if (!dep || /^land\b/i.test(stop.title)) return false;
+  if (!dep) return isUntimedJourney(stop);
   if (!stop.duration_label && !parseClock(stop.arrive_label ?? null)) return false;
   if (isFlight(stop)) return true;
   const mins = tripMinutes(stop, dep);
+  return mins == null || mins >= TICKET_MIN_MINUTES;
+}
+
+/**
+ * The second way in, for a record whose departure time was never kept: no
+ * clock in time_label ("morning", or none), but both station names and a
+ * duration of 45 minutes or more (or one that can't be worked out). Not a
+ * flight. It renders as a ticket with the time_label as a small note where
+ * the departure sits and no arrival; nothing that needs a clock (the night
+ * ticket, the Now card, alerts, folding) ever counts it.
+ */
+function isUntimedJourney(stop: Stop): boolean {
+  if (parseClock(stop.time_label) || isFlight(stop)) return false;
+  if (!stop.from_name?.trim() || !stop.to_name?.trim() || !stop.duration_label) return false;
+  const mins = parseMinutes(stop.duration_label);
   return mins == null || mins >= TICKET_MIN_MINUTES;
 }
 
@@ -114,7 +134,8 @@ function parseArrival(label: string | null | undefined): { at: Clock; note: stri
  */
 export function arrivesNextMorning(stop: Stop): boolean {
   if (!isJourney(stop) || isFlight(stop)) return false;
-  const dep = parseClock(stop.time_label)!;
+  const dep = parseClock(stop.time_label);
+  if (!dep) return false;
   const mins = tripMinutes(stop, dep);
   if (mins == null) return false;
   const toMin = (c: Clock) => ((c.h % 12) + (c.mer === 'pm' ? 12 : 0)) * 60 + c.m;
@@ -414,10 +435,12 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   stamp?: React.ReactNode;
   footer?: React.ReactNode;
 }) {
-  const dep = parseClock(stop.time_label)!;
-  const given = parseArrival(stop.arrive_label);
+  // Null on an untimed ticket (isUntimedJourney): no departure, no arrival.
+  const dep = parseClock(stop.time_label);
+  const depNote = dep ? '' : stop.time_label?.trim() || '';
+  const given = dep ? parseArrival(stop.arrive_label) : null;
   const mins = parseMinutes(stop.duration_label);
-  const arr = given?.at ?? (mins != null ? addMinutes(dep, mins) : null);
+  const arr = given?.at ?? (dep && mins != null ? addMinutes(dep, mins) : null);
   // A named zone on the arrival means the trip crosses zones: name both ends.
   const depZone = given?.note && tz ? zoneAbbr(tz, new Date()) : undefined;
   const mode = modeOf(stop);
@@ -489,7 +512,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
     const natural = label.getBoundingClientRect().width;
     // The digits' own extent: the time's box can be wider (a note under it).
     const digits = (el: Element | undefined) => {
-      const box = el?.matches('.num') ? el : el?.querySelector('.num');
+      const box = el?.matches('.num') ? el : el?.querySelector('.num, [data-dep-note]');
       if (!box) return null;
       const range = document.createRange();
       range.selectNodeContents(box);
@@ -590,7 +613,12 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 10, marginTop: hasStations ? 3 : 8 }}>
-          <TicketTime c={dep} under={depUnder} align="left" lift={lift} color={night ? NIGHT.parch : undefined} mark={night ? 'light' : undefined} />
+          {dep
+            ? <TicketTime c={dep} under={depUnder} align="left" lift={lift} color={night ? NIGHT.parch : undefined} mark={night ? 'light' : undefined} />
+            // No clock kept ("morning"): the label as a note, level with the line.
+            : <div style={flow ? { alignSelf: 'start', paddingTop: 15 } : undefined}>
+                {depNote && <small data-dep-note="" style={{ ...small, marginTop: 0, whiteSpace: 'nowrap' }}>{depNote}</small>}
+              </div>}
 
           <div ref={routeRef} style={flow ? { position: 'relative', minWidth: 60, minHeight: 42, paddingTop: 26 } : { position: 'relative', height: 42, minWidth: 60 }}>
             {night
@@ -642,6 +670,8 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
 
           <div style={night ? { ...lift } : { opacity: 0.8, ...lift }}>
             {arr && <TicketTime c={arr} approx={!given || given.approx} under={arrUnder} align="right" color={night ? NIGHT.dawnInk : undefined} mark={night ? 'dark' : undefined} />}
+            {/* Untimed: an unseen twin of the note keeps the route centred. */}
+            {depNote && <small aria-hidden="true" style={{ ...small, marginTop: 0, whiteSpace: 'nowrap', visibility: 'hidden' }}>{depNote}</small>}
           </div>
         </div>
 
