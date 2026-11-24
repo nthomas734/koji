@@ -234,7 +234,7 @@ export function JourneyGlyph({ mode, size = 44, lit = false }: { mode: 'train' |
 // arrival starts after it; the title is held to the dark half and wraps, and
 // the note says "sleeper" rather than "high-speed train" (the number's tip
 // still says G). Re-check every text box at 375px after changing them.
-const NIGHT = {
+export const NIGHT = {
   ink: '#1E1B17', plum: '#4A2F33', rose: '#C98A78', peach: '#F2D3B8',
   parch: '#F3EEE4', tag: '#E8B9B2', dawnInk: '#4A1C18', sun: '#B5322A', windows: '#F2C879',
 };
@@ -300,9 +300,10 @@ const LIT_TRAIN = (
   </>
 );
 
-function Moon() {
+/** The sleeper's crescent. Also the check-in card's (CheckIn.tsx), placed by `style`. */
+export function Moon({ style }: { style?: React.CSSProperties }) {
   return (
-    <svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" style={{ position: 'absolute', left: -1, top: 6, color: NIGHT.parch }}>
+    <svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true" style={style ?? { position: 'absolute', left: -1, top: 6, color: NIGHT.parch }}>
       <path d="M10.8 9.9A5.6 5.6 0 0 1 5.2 2.2a5.6 5.6 0 1 0 7.3 7.1 5.5 5.5 0 0 1-1.7.6z" fill="currentColor" />
     </svg>
   );
