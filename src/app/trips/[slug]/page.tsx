@@ -20,7 +20,7 @@ export default async function TripPage({
   const data = await getTripBySlug(slug);
   if (!data) notFound();
 
-  const { trip, logistics, days, stays } = data;
+  const { trip, logistics, days, stays, reserved } = data;
 
-  return <TripView trip={trip} logistics={logistics} days={days} stays={stays} />;
+  return <TripView trip={trip} logistics={logistics} days={days} stays={stays} reserved={reserved} />;
 }

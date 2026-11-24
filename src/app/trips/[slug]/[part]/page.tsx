@@ -28,7 +28,7 @@ export default async function TripPartPage({
   const part = findPart(data.trip, key);
   if (!part) notFound();
 
-  const { trip, logistics, days, stays } = slicePart(data, part);
+  const { trip, logistics, days, stays, reserved } = slicePart(data, part);
 
   // The first and last lines of a dressed trip (itte kimasu / tadaima) belong
   // to the trip's own first and last days, so a part shows them only if it
@@ -44,6 +44,7 @@ export default async function TripPartPage({
       logistics={logistics}
       days={days}
       stays={stays}
+      reserved={reserved}
       part={{ key: part.key, label: part.label, wholeHref: `/trips/${slug}`, opensTrip, endsTrip }}
     />
   );

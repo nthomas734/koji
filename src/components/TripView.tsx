@@ -2,7 +2,7 @@
 
 import { Fragment, createContext, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useContext, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Day, Logistics, Shot, Stay, Stop, Trip } from '@/lib/supabase';
+import type { Day, Logistics, ReservedFlag, Shot, Stay, Stop, Trip } from '@/lib/supabase';
 import { renderMd } from '@/lib/markdown';
 import { gloss } from '@/lib/glossary';
 import { GlossTip } from '@/components/GlossTip';
@@ -39,6 +39,7 @@ import { JourneyTicket, SunriseMark, arrivesNextMorning, isJourney } from '@/com
 import { TravelStub, isStub } from '@/components/TravelStub';
 import { SayChip, hasPhrase } from '@/components/SayIt';
 import { TagIcon } from '@/components/TagIcon';
+import { CORNER_ROOM, ReservedCorner, ReservedProvider, useReserved } from '@/components/Reserved';
 import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
@@ -933,6 +934,7 @@ function StopRow({ stop, stamp, footer, accent, tz, dress = null, dawn = false, 
   const tagText = stop.duration_label ? `${baseTag} · ${stop.duration_label}` : baseTag;
   const apple = useAppleMaps();
   const dirHref = stopDirections(stop, apple);
+  const reserved = useReserved(stop.id);
   if (checkIn) {
     return <CheckInCard stop={stop} checkIn={checkIn} bodyHtml={bodyHtml} dirHref={dirHref} dress={dress} stamp={stamp} footer={footer} dawn={dawn} />;
   }
@@ -962,8 +964,10 @@ function StopRow({ stop, stamp, footer, accent, tz, dress = null, dawn = false, 
         borderRadius: 4,
         opacity: faded ? 0.4 : 1,
       }} />
+      {reserved && <ReservedCorner flag={reserved} />}
       <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px', marginBottom: 6 }}>
+        {/* With a reserved corner the meta row stops short of it; the title below already clears it. */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px', marginBottom: 6, paddingRight: reserved ? CORNER_ROOM : 0 }}>
           {stop.time_label && (
             <span className="num" style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: tagColor.text }}>
               {dawn && <SunriseMark />}
@@ -1012,7 +1016,7 @@ function StopRow({ stop, stamp, footer, accent, tz, dress = null, dawn = false, 
         )}
         {footer}
       </div>
-      {stamp && <div style={{ paddingTop: 1 }}>{stamp}</div>}
+      {stamp && <div style={{ paddingTop: reserved ? 24 : 1 }}>{stamp}</div>}
     </article>
   );
 }
@@ -1883,11 +1887,13 @@ interface TripViewProps {
   stays?: Stay[];
   /** Set on /trips/<slug>/<part>: the page shows only that part's dates. */
   part?: { key: string; label: string; wholeHref: string; opensTrip?: boolean; endsTrip?: boolean };
+  /** Stops with a booking linked: the flag only, read on the server (getReservedFlags). */
+  reserved?: Record<number, ReservedFlag>;
 }
 
 const TAB_HASHES: Record<string, Tab> = { logistics: 'logistics', weather: 'weather', itinerary: 'itinerary' };
 
-export function TripView({ trip, logistics, days, stays = [], part }: TripViewProps) {
+export function TripView({ trip, logistics, days, stays = [], part, reserved = {} }: TripViewProps) {
   const router = useRouter();
   // China trips link Apple Maps; see lib/maps.ts.
   const appleMaps = usesAppleMaps(trip.tz);
@@ -2473,6 +2479,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
   return (
     <DayScrollContext.Provider value={dayScroll}>
     <AppleMapsProvider value={appleMaps}>
+    <ReservedProvider value={reserved}>
     <div style={{
       maxWidth: 'var(--max-w)',
       margin: '0 auto',
@@ -2870,6 +2877,7 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
       )}
 
     </div>
+    </ReservedProvider>
     </AppleMapsProvider>
     </DayScrollContext.Provider>
   );
