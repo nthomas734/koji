@@ -569,6 +569,17 @@ export async function getTripBySlug(slug: string): Promise<{
     .order('sort_order');
 
   const reserved = await getReservedFlags(stopIds);
+  // A trip that's over keeps "Reserved" but loses "Book ahead": a record has no
+  // to-dos. Judged here on the server's UTC date with a day's grace, so every
+  // phone already counts the trip as past (the page's tripOver) by then.
+  const last = trip.date_end || trip.date_start;
+  if (last) {
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - 1);
+    if (last < cutoff.toISOString().slice(0, 10)) {
+      for (const id of Object.keys(reserved)) if (reserved[+id] === 'needed') delete reserved[+id];
+    }
+  }
 
   return {
     trip,

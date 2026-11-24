@@ -14,7 +14,7 @@ import { LiveryLine, SpeedStreaks, TrainNote, hasLivery, liveryParts } from './T
 // ── JOURNEY TICKET ──────────────────────────────────────────────────────────
 // A travel stop you have to be on time for: one with a clock time and either a
 // duration or an arrival. It reads as a ticket in a pale wash of the day's
-// colour: the departure on the left, a little train, plane or ferry on the
+// colour: the departure on the left, a little train, plane, ferry or car on the
 // dotted route, and the arrival on the right, taken from arrive_label or
 // worked out from the duration. The title already says where it goes, so the
 // ticket doesn't repeat it. Zones (PT, JST) show only when the arrival names
@@ -133,7 +133,8 @@ function parseArrival(label: string | null | undefined): { at: Clock; note: stri
  * can't be compared, and they have their own landing stop.
  */
 export function arrivesNextMorning(stop: Stop): boolean {
-  if (!isJourney(stop) || isFlight(stop)) return false;
+  // A drive is never a night ticket, however late it runs.
+  if (!isJourney(stop) || isFlight(stop) || modeOf(stop) === 'car') return false;
   const dep = parseClock(stop.time_label);
   if (!dep) return false;
   const mins = tripMinutes(stop, dep);
@@ -157,9 +158,18 @@ export function SunriseMark({ color = 'var(--brass)' }: { color?: string }) {
   );
 }
 
-function modeOf(stop: Stop): 'plane' | 'ferry' | 'train' {
+export type JourneyMode = 'train' | 'plane' | 'ferry' | 'car';
+
+/** A drive: "Drive up to Cuyamaca", "Heathrow to the Cotswolds by car". Whole
+ *  words only ("driver", "driveway" don't count); flights and ferries are
+ *  decided first, so "drive onto the ferry" stays a ferry. A drive gets the
+ *  car on a plain dotted line and is never the night ticket. */
+export const DRIVE_RE = /\b(?:drive|drives|driving)\b|\bby car\b/i;
+
+function modeOf(stop: Stop): JourneyMode {
   if (isFlight(stop)) return 'plane';
   if (/\b(ferry|boat)\b/i.test(stop.title)) return 'ferry';
+  if (DRIVE_RE.test(stop.title)) return 'car';
   return 'train';
 }
 
@@ -172,7 +182,7 @@ export function aircraftName(id: string): string {
   return s.toUpperCase();
 }
 
-const PATHS: Record<'train' | 'plane' | 'ferry', React.ReactNode> = {
+const PATHS: Record<JourneyMode, React.ReactNode> = {
   train: (
     <>
       <path d="M3 5.2h23.5c6.2 0 11.6 2.9 14.3 7.4.5.9-.1 1.9-1.1 1.9H3.4c-.8 0-1.4-.6-1.4-1.4V6.4c0-.7.5-1.2 1-1.2z" fill="currentColor" />
@@ -208,9 +218,29 @@ const PATHS: Record<'train' | 'plane' | 'ferry', React.ReactNode> = {
       </g>
     </>
   ),
+  // A plain car in side view, bonnet to the right like the train's nose: the
+  // cabin's two windows cut from the body, the wheels ringed in the wash so
+  // they read against the sills, the train's headlamp at the front.
+  car: (
+    <>
+      <path d="M4 8.6h3.4l4.4-4.2c.5-.5 1.1-.7 1.8-.7h11.6c.8 0 1.5.3 2 .9l4.2 4h5.2c2 0 3.6 1.4 3.9 3.3l.2 1c.1.6-.4 1.1-1 1.1H3.6c-.6 0-1-.4-1-1V9.9c0-.7.6-1.3 1.4-1.3z" fill="currentColor" />
+      <g fill="var(--surface)">
+        <path d="M9.6 8.2l3-2.9c.3-.3.7-.4 1.1-.4h4.6v3.3z" />
+        <path d="M19.8 4.9h5.2c.4 0 .8.2 1.1.5l2.9 2.8h-9.2z" />
+      </g>
+      <path d="M3 11.2h35.6" stroke="var(--surface)" strokeWidth=".9" opacity=".8" />
+      {[11, 32].map(cx => (
+        <g key={cx}>
+          <circle cx={cx} cy="13.8" r="2.7" fill="currentColor" stroke="var(--surface)" strokeWidth="1.1" />
+          <circle cx={cx} cy="13.8" r=".9" fill="var(--surface)" />
+        </g>
+      ))}
+      <circle cx="39.4" cy="10.2" r=".8" fill="#FFE7A8" />
+    </>
+  ),
 };
 
-export function JourneyGlyph({ mode, size = 44, lit = false }: { mode: 'train' | 'plane' | 'ferry'; size?: number; lit?: boolean }) {
+export function JourneyGlyph({ mode, size = 44, lit = false }: { mode: JourneyMode; size?: number; lit?: boolean }) {
   return (
     <svg viewBox="0 0 44 18" width={size} height={size * 18 / 44} aria-hidden="true" style={{ display: 'block' }}>
       {lit && mode === 'train' ? LIT_TRAIN : PATHS[mode]}
@@ -453,7 +483,8 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
   const deep = `color-mix(in srgb, ${accent} 62%, var(--ink))`;
   const routeLabel = stop.duration_label || '';
   const service = stop.service_label?.trim() || '';
-  const kind = trainKind(service);
+  // A car has no train kind and no livery: any service label is just a note.
+  const kind = mode === 'car' ? '' : trainKind(service);
   const parts = mode === 'train' ? liveryParts(service) : [];
   const livery = hasLivery(parts);
   const bullet = parts.some(p => p.livery?.bullet);
@@ -601,7 +632,7 @@ export function JourneyTicket({ stop, accent, tz, dress = null, stamp, footer }:
             {stop.tag}
             <WhoChip who={stop.who} color={night ? NIGHT.tag : accent} />
             {/* Which train, said in passing beside the tag: a note, not a destination. */}
-            {service && <TrainNote parts={liveryParts(service)} kind={night ? 'sleeper' : kind} color={fg} accent={accent} dress={dress} />}
+            {service && <TrainNote parts={mode === 'car' ? [{ text: service, livery: null }] : liveryParts(service)} kind={night ? 'sleeper' : kind} color={fg} accent={accent} dress={dress} />}
           </div>
           {stamp}
         </div>
