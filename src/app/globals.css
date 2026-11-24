@@ -746,6 +746,3 @@ input, textarea, select {
   [role="dialog"] { animation: none !important; }
 }
 
-/* The check-in card's room stub (CheckIn.tsx): the dash reads like the berth stub's. */
-.room-input::placeholder { color: var(--ink-3); opacity: 1; }
-.room-input:focus { background: color-mix(in srgb, var(--brass) 14%, transparent); border-radius: 6px; }

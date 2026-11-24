@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Stay, Stop } from '@/lib/supabase';
 import { driverLang, type Dress } from '@/lib/maps';
@@ -17,10 +17,8 @@ import { WhoChip } from './WhoChip';
 // The first hotel check-in of each stay. A band runs from dusk on the left,
 // where you arrive, to night on the right, where you sleep: the sleeper
 // ticket's sky turned around, in its colours and with its crescent, the same
-// on every trip (it never takes the stay colour). The hotel's name leads; the
-// room stub in the top right corner is the berth stub's twin, a dash until you type the
-// number in at the desk. That number stays on this phone (localStorage): the
-// trip page is public, so it never goes to the database.
+// on every trip (it never takes the stay colour). The hotel's name leads.
+// There is no room number: it is only known at the desk, too late to be useful.
 //
 // Text has to stay on its side of the band: the dawn ink on peach and rose
 // (5.0:1 at worst), the parchment on plum and ink (10.4:1 at worst). The stops
@@ -84,8 +82,8 @@ export function CheckInCard({ stop, checkIn, bodyHtml, dirHref, dress, stamp, fo
   // falls back to the stay's own hotel link, as the stay heading builds it.
   const apple = useAppleMaps();
   const directions = dirHref ?? stayHotelUrl(stay, apple);
-  // A booking linked to this stop: its top right is the room stub's, so the
-  // reserved mark rides in the facts row instead of a corner.
+  // A booking linked to this stop: the reserved mark rides in the facts row,
+  // since the band already owns the top of the card.
   const reserved = useReserved(stop.id);
   const local = stay.hotel_ja && CJK.test(stay.hotel_ja) ? stay.hotel_ja : null;
   const area = areaOf(stay);
@@ -112,8 +110,8 @@ export function CheckInCard({ stop, checkIn, bodyHtml, dirHref, dress, stamp, fo
           <Moon style={{ display: 'block', color: NIGHT.parch }} />
         </span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto' }}>
-        <div style={{ padding: '10px 10px 0 18px', minWidth: 0 }}>
+      <div>
+        <div style={{ padding: '10px 14px 0 18px', minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
             <h3 style={{ flex: 1, minWidth: 0, fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: 19, lineHeight: 1.2, color: 'var(--ink)', margin: 0 }}>
               {stay.hotel || stop.title}
@@ -128,8 +126,7 @@ export function CheckInCard({ stop, checkIn, bodyHtml, dirHref, dress, stamp, fo
             </div>
           )}
         </div>
-        <RoomStub stayId={stay.id} />
-        <div style={{ gridColumn: '1 / -1', padding: '0 14px 12px 18px', minWidth: 0 }}>
+        <div style={{ padding: '0 14px 12px 18px', minWidth: 0 }}>
           {bodyHtml && (
             <div className="body-content" style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 4 }}
               dangerouslySetInnerHTML={{ __html: bodyHtml }} />
@@ -157,52 +154,5 @@ export function CheckInCard({ stop, checkIn, bodyHtml, dirHref, dress, stamp, fo
       {/* Portalled, like the Say it card: no card ancestor may capture its fixed positioning. */}
       {driver && createPortal(<DriverCard stay={stay} lang={lang} onClose={() => setDriver(false)} />, document.body)}
     </article>
-  );
-}
-
-/**
- * The room number, typed in at the desk. Kept in this phone's localStorage
- * only (koji:room:<stay id>); the server and the first paint show the dash.
- */
-function RoomStub({ stayId }: { stayId: number }) {
-  const key = `koji:room:${stayId}`;
-  const [room, setRoom] = useState('');
-  useEffect(() => {
-    try { setRoom(localStorage.getItem(key) ?? ''); } catch { /* private mode: stays a dash */ }
-  }, [key]);
-  const save = (v: string) => {
-    const t = v.trim().slice(0, 8);
-    setRoom(t);
-    try { if (t) localStorage.setItem(key, t); else localStorage.removeItem(key); } catch { /* not saved, still shown */ }
-  };
-  const notch: React.CSSProperties = { position: 'absolute', left: -6.5, width: 12, height: 12, borderRadius: '50%', background: 'var(--bg)', border: '0.5px solid var(--border)' };
-  return (
-    <label style={{
-      position: 'relative', alignSelf: 'start', width: 58, marginLeft: 4,
-      borderLeft: '1.5px dashed var(--border-mid)', borderBottom: '1.5px dashed var(--border-mid)', borderBottomLeftRadius: 10,
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '7px 4px 6px',
-      fontFamily: 'var(--font-mono)', color: 'var(--ink-3)', cursor: 'text',
-    }}>
-      <span aria-hidden="true" style={{ ...notch, top: -6.5 }} />
-      <span style={{ fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.85 }}>Room</span>
-      <input
-        value={room}
-        onChange={e => setRoom(e.target.value)}
-        onBlur={e => save(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-        placeholder="—"
-        maxLength={8}
-        autoComplete="off"
-        autoCorrect="off"
-        spellCheck={false}
-        enterKeyHint="done"
-        aria-label="Room number, kept on this phone only"
-        className="num room-input"
-        style={{
-          width: '100%', textAlign: 'center', border: 'none', background: 'transparent', padding: 0, margin: 0, outline: 'none',
-          fontFamily: 'var(--font-serif)', fontWeight: 400, fontSize: room.length > 4 ? 14 : room.length > 3 ? 18 : 22, lineHeight: 1.2, color: 'var(--ink-2)',
-        }}
-      />
-    </label>
   );
 }

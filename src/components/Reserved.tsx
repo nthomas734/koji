@@ -38,7 +38,7 @@ export function ReservedCorner({ flag }: { flag: ReservedFlag }) {
   );
 }
 
-/** The same mark as a chip, for the check-in card, whose corner belongs to the room stub. */
+/** The same mark as a chip, for the check-in card, whose top is the night band. */
 export function ReservedChip({ flag }: { flag: ReservedFlag }) {
   const needed = flag === 'needed';
   return (
