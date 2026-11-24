@@ -37,6 +37,7 @@ import { AddPlaceButton, ExtraPlaceRow, VerdictSheet, VerdictStamp, type SheetTa
 import { JourneyTicket, SunriseMark, arrivesNextMorning, isJourney } from '@/components/JourneyTicket';
 import { TravelStub, isStub } from '@/components/TravelStub';
 import { SayChip, hasPhrase } from '@/components/SayIt';
+import { CheckInCard, isCheckInStop, type CheckIn } from '@/components/CheckIn';
 import { MaybeCard, MaybeRunHead, RemoveFromPlan, StayHeading, StaysStrip, stayForDate, stayTone } from '@/components/Stays';
 
 // ── THEME ───────────────────────────────────────────────────────────────────
@@ -896,8 +897,10 @@ function stopDirections(stop: Stop, apple: boolean): string | null {
     : `https://www.google.com/maps/dir/?api=1&destination=${dirQuery}&travelmode=transit`;
 }
 
-function StopRow({ stop, stamp, footer, accent, tz, dress = null, dawn = false }: {
+function StopRow({ stop, stamp, footer, accent, tz, dress = null, dawn = false, checkIn = null }: {
   stop: Stop; stamp?: React.ReactNode; footer?: React.ReactNode; accent?: string; tz?: string | null;
+  /** This stop is its stay's check-in: the night-band card (CheckIn.tsx). */
+  checkIn?: CheckIn | null;
   /** The first stop after a night train: a small sunrise before its time. */
   dawn?: boolean;
   /** Destination dress for this stop's own fields (local station names, the phrase chip). */
@@ -921,6 +924,9 @@ function StopRow({ stop, stamp, footer, accent, tz, dress = null, dawn = false }
   const tagText = stop.duration_label ? `${baseTag} · ${stop.duration_label}` : baseTag;
   const apple = useAppleMaps();
   const dirHref = stopDirections(stop, apple);
+  if (checkIn) {
+    return <CheckInCard stop={stop} checkIn={checkIn} bodyHtml={bodyHtml} dirHref={dirHref} dress={dress} stamp={stamp} footer={footer} dawn={dawn} />;
+  }
   return (
     <article id={`stop-${stop.id}`} style={{
       position: 'relative',
@@ -1132,9 +1138,12 @@ function DayBlock({
   dress = null,
   stopDress = null,
   dawn = false,
+  checkIn = null,
 }: {
   /** The day before ended on a night train: its first stop gets a sunrise. */
   dawn?: boolean;
+  /** The day a stay opens: its first check-in stop gets the night-band card. */
+  checkIn?: CheckIn | null;
   /** The season's name, only on the day it starts (or the trip's first dressed day). */
   season?: Season | null;
   dress?: Dress;
@@ -1181,6 +1190,8 @@ function DayBlock({
   const moved = new Set([...swaps, ...[...insteadOf.values()].flat()].map(s => s.id));
   const list = all.filter(s => !moved.has(s.id));
   const dawnId = dawn ? list.find(s => !unadded(s) && s.time_label)?.id : undefined;
+  // At most one per stay: the first check-in stop on the day it opens.
+  const checkInId = checkIn ? list.find(isCheckInStop)?.id : undefined;
   const headFor = (s: Stop) => s.maybe_head || (s.maybe_kind === 'swap' ? 'another way to do today' : s.maybe_kind === 'instead' ? 'or, instead of this' : "if there's time");
   /** Maybes in a row, with a heading wherever the heading changes. */
   const maybeRun = (run: Stop[]) => run.map((st, k) => {
@@ -1429,7 +1440,7 @@ function DayBlock({
           // Today: timed stops behind the one under way fold to a line (tap to
           // open); untimed ones there just go quiet. A rule marks now.
           const past = !!now && k < now.current;
-          const row = <StopRow stop={stop} accent={accent} tz={day.tz} dress={stopDress} dawn={stop.id === dawnId} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} />;
+          const row = <StopRow stop={stop} accent={accent} tz={day.tz} dress={stopDress} dawn={stop.id === dawnId} stamp={stampFor?.(stop)} footer={footerFor?.(stop)} checkIn={stop.id === checkInId ? checkIn : null} />;
           return (
             <Fragment key={stop.id}>
               {now && nowMin != null && k === now.next && <NowRule nowMin={nowMin} accent={accent} />}
@@ -2630,14 +2641,16 @@ export function TripView({ trip, logistics, days, stays = [], part }: TripViewPr
             {days.map((day, i) => {
               const stay = stayFor(i);
               const opens = !!stay && !!trip.date_start && dateForDay(trip.date_start, i) === stay.check_in;
+              const firstNight = stay ? 1 + stays.reduce((n, o) => (o.check_in < stay.check_in ? n + o.nights : n), 0) : 1;
               const all = day.stops ?? [];
               const timeline = all.map(st => (st.is_optional && isAdded(st) ? { ...st, added: true } : st));
               return (
               <Fragment key={day.id}>
-              {opens && stay && <StayHeading stay={stay} dress={dayDress(i)} firstNight={1 + stays.reduce((n, o) => (o.check_in < stay.check_in ? n + o.nights : n), 0)} />}
+              {opens && stay && <StayHeading stay={stay} dress={dayDress(i)} firstNight={firstNight} />}
               <DayBlock
                 day={day}
                 stay={stay}
+                checkIn={opens && stay ? { stay, firstNight, tz: day.tz || trip.tz || null } : null}
                 dress={dayDress(i)}
                 stopDress={dayDress(i) ?? tripDress}
                 dawn={!!days[i - 1]?.stops?.some(st => (!st.is_optional || isAdded(st)) && arrivesNextMorning(st))}
