@@ -154,7 +154,7 @@ function StayMark({ stay, dress, inked, ink }: { stay: Stay; dress: Exclude<Dres
   const xs = cols.length > 1 ? [26.5, 13.5] : [20];
   return (
     <svg viewBox="0 0 40 40" width={34} height={34} role="img" aria-label={`${stay.place} name seal, ${name}`} lang={dress}
-      style={{ ...common, margin: '-8px 0 -6px 9px', transform: 'rotate(3deg)' }}>
+      style={{ ...common, margin: '-8px 0 -6px 9px', transform: 'translateY(-3px) rotate(3deg)' }}>
       <rect x="1" y="1" width="38" height="38" rx="4" fill={CINNABAR} />
       <rect x="4" y="4" width="32" height="32" rx="2" fill="none" stroke={paper} strokeWidth="1" />
       {cols.map((col, c) => col.map((ch, r) => (
