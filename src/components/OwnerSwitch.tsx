@@ -66,16 +66,32 @@ export function OwnerSwitch({ mode, onMode, tripId, hasShots, slug, parts = [] }
   const [open, setOpen] = useState(false);
   const [shared, setShared] = useState<string | null>(null);
 
-  // Share a link to the whole trip or one part. The phone's share sheet when
-  // there is one (straight into Messages), otherwise the clipboard.
-  async function share(path: string, title: string) {
+  // A link to the whole trip or one part. "Copy" puts it on the clipboard and
+  // says so; "send" opens the phone's share sheet (straight into Messages) and
+  // only shows where there is one. They were one button that always opened the
+  // sheet on a phone, which left no plain way to copy the link.
+  const [canSend, setCanSend] = useState(false);
+  useEffect(() => { setCanSend(typeof navigator !== 'undefined' && !!navigator.share); }, []);
+
+  async function copy(path: string) {
     const url = window.location.origin + path;
-    try {
-      if (navigator.share) { await navigator.share({ title, url }); return; }
-      await navigator.clipboard.writeText(url);
-      setShared(path);
-      setTimeout(() => setShared(s => (s === path ? null : s)), 1800);
-    } catch { /* dismissed the share sheet, or no clipboard: nothing to do */ }
+    let ok = false;
+    try { await navigator.clipboard.writeText(url); ok = true; } catch { /* fall through */ }
+    if (!ok) {
+      // No clipboard API (an old browser, or a page not served over https).
+      const ta = document.createElement('textarea');
+      ta.value = url; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand('copy'); } catch { ok = false; }
+      ta.remove();
+    }
+    if (!ok) return;
+    setShared(path);
+    setTimeout(() => setShared(s => (s === path ? null : s)), 1800);
+  }
+  async function send(path: string, title: string) {
+    try { await navigator.share({ title, url: window.location.origin + path }); }
+    catch { /* dismissed the share sheet: nothing to do */ }
   }
   const [openCount, setOpenCount] = useState<number | null>(null);
 
@@ -147,13 +163,17 @@ export function OwnerSwitch({ mode, onMode, tripId, hasShots, slug, parts = [] }
               <>
                 <div className="owner-lbl">Share</div>
                 {[{ path: `/trips/${slug}`, label: 'Whole trip', sub: null as string | null }, ...parts.map(p => ({ path: `/trips/${slug}/${p.key}`, label: p.label, sub: shortRange(p.from, p.to) }))].map(r => (
-                  <button key={r.path} type="button" className="owner-link pressable" onClick={() => share(r.path, r.label)}
-                    style={{ all: 'unset', boxSizing: 'border-box', width: '100%', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 46, padding: '0 4px', borderBottom: '1px solid var(--border)', fontSize: 14.5, color: 'var(--ink)' }}>
-                    <span style={{ color: 'var(--ink)' }}>{r.label}{r.sub && <span style={{ color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', fontSize: 11, marginLeft: 8 }}>{r.sub}</span>}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brass)' }}>
-                      {shared === r.path ? 'copied' : 'share link'}
-                    </span>
-                  </button>
+                  <div key={r.path} style={{ display: 'flex', alignItems: 'center', minHeight: 46, padding: '0 4px', borderBottom: '1px solid var(--border)', fontSize: 14.5, color: 'var(--ink)' }}>
+                    <span style={{ flex: 1, minWidth: 0, color: 'var(--ink)' }}>{r.label}{r.sub && <span style={{ color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', fontSize: 11, marginLeft: 8 }}>{r.sub}</span>}</span>
+                    <button type="button" className="owner-act pressable" onClick={() => copy(r.path)} aria-label={`Copy link to ${r.label}`}>
+                      {shared === r.path ? 'copied' : 'copy link'}
+                    </button>
+                    {canSend && (
+                      <button type="button" className="owner-act pressable" onClick={() => send(r.path, r.label)} aria-label={`Send link to ${r.label}`}>
+                        send
+                      </button>
+                    )}
+                  </div>
                 ))}
               </>
             )}

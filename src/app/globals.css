@@ -627,6 +627,7 @@ input, textarea, select {
 .owner-mode-note { font-family: var(--font-serif); font-style: italic; font-weight: 300; font-size: 14px; color: var(--ink-3); margin: 10px 4px 4px; }
 .owner-link { display: flex; justify-content: space-between; align-items: center; min-height: 46px; padding: 0 4px; border-bottom: 1px solid var(--border); font-size: 14.5px; color: var(--ink); }
 .owner-link:last-child { border-bottom: 0; }
+.owner-act { all: unset; box-sizing: border-box; cursor: pointer; min-height: 44px; padding: 0 0 0 16px; display: inline-flex; align-items: center; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--brass); white-space: nowrap; }
 .owner-link span { color: var(--ink-4); display: inline-flex; gap: 8px; align-items: center; }
 .owner-badge { font-style: normal; font-family: var(--font-mono); font-size: 9.5px; background: var(--amber-bg); color: var(--amber); padding: 2px 7px; border-radius: 99px; }
 @keyframes owner-rise { from { transform: translateY(100%); } to { transform: none; } }
